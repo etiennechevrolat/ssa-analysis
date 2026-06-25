@@ -1,0 +1,22 @@
+[project]
+name = "ssa"
+requires-python = ">=3.12"
+dependencies = [          
+  "spacetrack==1.4.0",
+  "pyarrow>=15",          # Parquet
+  "pandas>=2",
+  "pydantic-settings>=2", # config typée
+]
+
+[project.optional-dependencies]
+ml  = ["torch>=2.2", "numpy", "scikit-learn"]   
+viz = ["matplotlib>=3.8", "xlsxwriter", "openpyxl"]
+dev = ["pytest", "ruff", "pandera"]
+
+[project.scripts]         
+ssa-pull  = "scripts.pull_data:main"
+ssa-build = "scripts.build_dataset:main"
+ssa-train = "scripts.train:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]         

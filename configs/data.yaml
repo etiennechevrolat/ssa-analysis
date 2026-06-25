@@ -1,0 +1,8 @@
+constellations:
+  - {name_pattern: "STARLINK", country: "USA" }
+  - {name_pattern: "GUOWANG", country: "CHINA" }
+  - {name_pattern: "", country: "" }
+data_range: {start: 2026-01-01, end: 2026-01-03}
+features: [semimajor_axis, eccentricity, inclination, raan, arg_of_perigee, mean_anomaly, mean_motion, bstar]
+# raan peut être potentiellement retiré pour le ml car a une dynamique déterministe, cf Cipollone 2025
+
