@@ -1,5 +1,5 @@
 import configparser 
-from spacetrack import SpaceTrackClient, like
+from spacetrack import SpaceTrackClient
 import os 
 
 
@@ -9,10 +9,6 @@ requestLogin        = "/ajaxauth/login"
 requestCmdAction    = "/basicspacedata/query"
 requestOMMStarlink1 = "/class/gp/NORAD_CAT_ID/"
 requestOMMStarlink2 = "/orderby/EPOCH/format/xml"
-
-# -- Constantes de requetes
-SAMPLES = 50
-PERIOD = 30
 
 
 def initClient(ini_path):

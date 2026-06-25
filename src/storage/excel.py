@@ -1,9 +1,14 @@
-from ssa.orbital import GM, GM13, MRAD, PI, TPI86, PERIOD
-from src.acquisition.fetch import fetch_history_batched, group_by_sat
+from ssa.orbital import GM, GM13, MRAD, PI, TPI86
+from acquisition.fetch import fetch_history_batched, group_by_sat
 
-def writing_data_in_excel(sat_ids, client, workbook, worksheet, formats, wsline):
+
+def write_excel(df, path):
+    df.to_excel(path, index=False)
+    print(f"{len(df)} lignes écrites dans {path}")
+ 
+def writing_data_in_excel(sat_ids, client, workbook, worksheet, formats, wsline, period):
     
-    all_records = fetch_history_batched(client, sat_ids)
+    all_records = fetch_history_batched(client, sat_ids, period)
     grouped_by_sat= group_by_sat(all_records)
 
     for satid in grouped_by_sat:
@@ -13,7 +18,7 @@ def writing_data_in_excel(sat_ids, client, workbook, worksheet, formats, wsline)
             if not history : 
                 print(f"Réponse vide pour {satid}, satellite ignoré.")
             else:
-                print(f"Satellite {satid} : {len(history)} relevés sur {PERIOD}j.")
+                print(f"Satellite {satid} : {len(history)} relevés sur {period}j.")
                 for e in history:
                     mmoti = float(e['MEAN_MOTION'])
                     ecc   = float(e['ECCENTRICITY'])
@@ -33,7 +38,7 @@ def writing_data_in_excel(sat_ids, client, workbook, worksheet, formats, wsline)
                     worksheet.write(wsline, 6,  mmoti,                         formats['z1'])
                     worksheet.write(wsline, 7,  apo,                           formats['z1'])
                     worksheet.write(wsline, 8,  per,                           formats['z1'])
-                    worksheet.write(wsline, 9,  (apo + per) / 2.0,            formats['z1'])
+                    worksheet.write(wsline, 9,  (apo + per) / 2.0,             formats['z1'])
                     worksheet.write(wsline, 10, float(e['RA_OF_ASC_NODE']),    formats['z1'])
                     worksheet.write(wsline, 11, float(e['ARG_OF_PERICENTER']), formats['z1'])
                     worksheet.write(wsline, 12, float(e['MEAN_ANOMALY']),      formats['z1'])
