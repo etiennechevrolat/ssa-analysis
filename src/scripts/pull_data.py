@@ -25,7 +25,7 @@ def build_dataframe(grouped):
                     "mean_anomaly":  float(e["MEAN_ANOMALY"]),
                     "mean_motion":   MeanMotion,
                     "eccentricity":  ecc,
-                    **derive(MeanMotion, ecc),
+                    **derive(float(MeanMotion), float(ecc)),
                 }
             )
     return pd.DataFrame(rows)
@@ -33,7 +33,7 @@ def build_dataframe(grouped):
 def main(): 
 
     #Client SpaceTrack
-    client =initClient(None)
+    client =initClient("SpaceTrack.ini")
     config = load_data_config("configs/data.yaml")
     for constellation in config.constellations: 
         #Parametrès de la requete : samples = nombre d'ids différents, period = durée de l'historique
@@ -51,6 +51,8 @@ def main():
         
         #On écrit dans data
         tag = f"{constellation.name_pattern or 'ALL'}_{constellation.country or 'ALL'}"
-        write_excel(grouped, f"data/raw/{tag}.xlsx")
+        write_excel(df, f"data/raw/{tag}.xlsx")
         
 
+if __name__=="__main__": 
+    main()

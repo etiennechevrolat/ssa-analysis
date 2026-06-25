@@ -15,7 +15,7 @@ def recupIds(client,samples, constellation, shuffle=True):
         orderby='norad_cat_id',
     )
     if cstl_name:
-        query['object_name'] = cstl_name
+        query['object_name'] = like(f"{cstl_name}%")
     if country:  
         query['country_code'] = country
     if not cstl_name and not country:

@@ -2,12 +2,13 @@
 name = "ssa-analysis"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = [          
+dependencies = [
   "spacetrack==1.4.0",
   "pyarrow>=15",          # Parquet
-  "pandas>=2",              
+  "pandas>=2",
   "pydantic-settings>=2",
-  "pyaml>=6", # config typée
+  "pyyaml>=6", # config typée
+  "openpyxl>=3.1.5",
 ]
 
 [project.optional-dependencies]
