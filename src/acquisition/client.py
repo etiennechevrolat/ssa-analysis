@@ -21,5 +21,5 @@ def initClient(ini_path):
     
     print("Connexion à SpaceTrack...")
     st = SpaceTrackClient(identity=configUsr, password=configPwd)
-    print("Connecté.")
+    print("Client initialisé.")
     return st
