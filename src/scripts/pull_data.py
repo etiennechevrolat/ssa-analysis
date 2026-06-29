@@ -18,14 +18,15 @@ def build_dataframe(grouped):
                 {
                     'norad' : int(e['NORAD_CAT_ID']),
                     'object_name' : e['OBJECT_NAME'],
-                    'epoch' : e['EPOCH'], 
-                    'rev_at_epoch' : e['REV_AT_EPOCH'],
-                    'inclination' : e['INCLINATION'],
+                    'epoch' : pd.to_datetime(e['EPOCH']),
+                    'creation_date' : pd.to_datetime(e['CREATION_DATE']),
+                    'rev_at_epoch' : int(e['REV_AT_EPOCH']),
+                    'inclination' : float(e['INCLINATION']),
                     "raan": float(e["RA_OF_ASC_NODE"]),
                     "arg_perigee":   float(e["ARG_OF_PERICENTER"]),
                     "mean_anomaly":  float(e["MEAN_ANOMALY"]),
-                    "mean_motion":   MeanMotion,
-                    "eccentricity":  ecc,
+                    "mean_motion":   float(MeanMotion),
+                    "eccentricity":  float(ecc),
                     **derive(float(MeanMotion), float(ecc)),
                 }
             )
@@ -40,11 +41,12 @@ def main():
 
     for constellation in config.constellations: 
         #Parametrès de la requete : samples = nombre d'ids différents, period = durée de l'historique
-        samples = 200
+        samples = 300
 
         #Recup les ids
-        satids = recupIds(client, samples, constellation )
-
+        orbit_range= config.orbit_range
+        satids = recupIds(client, samples, constellation, orbit_range, shuffle=False)
+        
         #Fetching, on récupère un dico avec les données rangées par ids, epochs
         records = fetch_history_batched(client, satids, start, end)
         grouped = group_by_sat(records)
