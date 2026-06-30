@@ -10,6 +10,10 @@ dependencies = [
   "pyyaml>=6", # config typée
   "openpyxl>=3.1.5",
   "polars>=1.42.0",
+  "statsmodels>=0.14.6",
+  "matplotlib>=3.11.0",
+  "sgp4>=2.26",
+  "filterpy>=1.4.5",
 ]
 
 [project.optional-dependencies]
@@ -20,3 +24,8 @@ dev = ["pytest", "ruff", "pandera"]
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "matplotlib-inline>=0.2.2",
+]

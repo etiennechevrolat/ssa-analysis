@@ -27,6 +27,7 @@ def build_dataframe(grouped):
                     "mean_anomaly":  float(e["MEAN_ANOMALY"]),
                     "mean_motion":   float(MeanMotion),
                     "eccentricity":  float(ecc),
+                    "bstar": float(e['BSTAR']),
                     **derive(float(MeanMotion), float(ecc)),
                 }
             )

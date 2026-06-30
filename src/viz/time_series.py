@@ -151,7 +151,7 @@ def plot_compare(path, norads, params, start=None, end=None, time_col="epoch", n
     ncols = min(ncols, len(params))
     nrows = math.ceil(len(params) / ncols)
     fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), squeeze=False)
-
+    
     # Chargement unique de chaque satellite (évite de relire les parquet 2×)
     histories = []  # liste de (norad, t, {param: vals_array})
     all_raw: dict[str, list] = {p: [] for p in params}

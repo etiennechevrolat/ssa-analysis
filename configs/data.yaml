@@ -1,6 +1,7 @@
 constellations:
- # - {name_pattern: "", country: "" }
- - {name_pattern: "", country: "ESA" }
+ - {name_pattern: "", country: "" }
+ #  {name_pattern: "", country: "EUME" }
+ # - {name_pattern: "", country: "ESA" }
  # - {name_pattern: "STARLINK", country: "US" }
  # - {name_pattern: "MOLNIYA", country: "CIS" }
  # - {name_pattern: "ONEWEB", country: "" }
@@ -10,10 +11,10 @@ constellations:
 ###
 
 
-data_range: {start: 2025-01-01, end: 2026-04-01}
+data_range: {start: 2026-01-01, end: 2026-04-01}
 
 # On modifie ici le type d'orbite que l'on sélectionne via une range de semi-grand axe
-# orbit_range: {borneinf: 42000.0 , bornesup : 43000.0}
+orbit_range: {borneinf: 42000.0 , bornesup : 43000.0}
 
 features: [semimajor_axis, eccentricity, inclination, raan, arg_of_perigee, mean_anomaly, mean_motion, bstar]
 
