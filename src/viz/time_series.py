@@ -40,9 +40,8 @@ PERCENTILE_CLIP = {"eccentricity", "inclination", "bstar"}
 
 def load_history(path, norad, params, start= None, end= None, time_col='epoch'):
     # Charge une ligne pour un id / epoch donnée
-
     available = pl.scan_parquet(path).collect_schema().names()
-    
+
     q = pl.scan_parquet(path).filter(pl.col("norad") == norad)
 
     if "creation_date" in available:
@@ -73,17 +72,19 @@ def extract_series(history, params, time_col="epoch"):
     return {p: (t, history[p].to_list()) for p in params}
 
 
-def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch", ncols=3, ylim=None):
+def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch", ncols=3, ylim=None, maneuvers=None, xlim=None):
     """Trace l'évolution de `params` pour un satellite — grille ncols colonnes.
 
     Args:
         ylim: dict optionnel {param: (lo, hi)} pour forcer l'échelle d'un paramètre.
               Ex : ylim={"eccentricity": (0, 0.002), "inclination": (53, 54)}
+        xlim: tuple (t0, t1) optionnel pour forcer les bornes de l'axe temps —
+              à passer identique à detect_kalman() pour aligner les deux figures.
 
     Exemple :
         fig = plot_time_series(path, 45185, ["eccentricity", "inclination", "raan",
                                "mean_anomaly", "mean_motion", "arg_perigee"],
-                               ylim={"eccentricity": (0, 0.001)})
+                               ylim={"eccentricity": (0, 0.001)}, maneuvers=maneuvers_dates)
     """
     import math
     import numpy as np
@@ -92,16 +93,28 @@ def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch"
     if isinstance(params, str):
         params = [params]
     ylim = ylim or {}
+    if maneuvers is not None and not isinstance(maneuvers, (list, np.ndarray)):
+        raise ValueError("maneuvers doit être une liste ou un array de dates")
+    
+    maneuvers = maneuvers or []
 
     history = load_history(path, norad, params, start, end, time_col)
     if history.is_empty():
         raise ValueError(f"Aucune donnée pour norad={norad} dans {path}")
 
+    # On restreint les manœuvres à la plage temporelle RÉELLEMENT couverte par
+    # les données tracées (et non à start/end, qui peuvent être None ou plus
+    # larges que les données). Sinon axvline étire l'axe et écrase la série.
+    if len(maneuvers):
+        epochs = history[time_col].to_list()        # datetimes, history trié
+        t_lo, t_hi = epochs[0], epochs[-1]
+        maneuvers = [m for m in maneuvers if t_lo <= m <= t_hi]
+
     series = extract_series(history, params, time_col)
 
     ncols = min(ncols, len(params))
     nrows = math.ceil(len(params) / ncols)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4 * nrows), squeeze=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12 * ncols, 4 * nrows), squeeze=False)
 
     for i, p in enumerate(params):
         ax = axes[i // ncols][i % ncols]
@@ -118,11 +131,19 @@ def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch"
                 vals = np.clip(vals, lo, hi)
 
         ax.plot(t, vals, color="green", lw=1.2)
+        for j, m in enumerate(maneuvers):
+            ax.axvline(m, color="red", lw=0.7, alpha=0.5,
+                       label="Manoeuvres" if j == 0 else None)
+        if len(maneuvers):
+            ax.legend(fontsize=7, loc="upper right", framealpha=0.7)
         ax.set_ylabel(_axis_label(p), fontsize=9)
         ax.set_xlabel("Epoch", fontsize=8)
         ax.grid(True, linestyle="--", linewidth=0.3, alpha=0.5)
         ax.tick_params(labelsize=7)
         ax.yaxis.set_major_formatter(mticker.ScalarFormatter(useOffset=False))
+        # Bornes x explicites + pas de marge : axe identique à detect_kalman()
+        ax.set_xlim(xlim if xlim is not None else (t[0], t[-1]))
+        ax.margins(x=0)
 
     for i in range(len(params), nrows * ncols):
         axes[i // ncols][i % ncols].set_visible(False)

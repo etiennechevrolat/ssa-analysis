@@ -34,7 +34,7 @@ def build_dataframe(grouped):
     return pd.DataFrame(rows)
  
 def main(): 
-
+    
     #Client SpaceTrack
     client =initClient("SpaceTrack.ini")
     config = load_data_config("configs/data.yaml")

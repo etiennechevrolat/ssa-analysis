@@ -75,7 +75,7 @@ def _mark_maneuvers(ax, x, y, peaks, threshold=None):
 
 
 def MLF_LOWESS_KEPLERIAN(df, smoothed=True, detect=True, threshold_sigma=4.0,
-                         min_distance_days=7.0):
+                         min_distance_days=7.0, ax=None):
 
     epoch = df['epoch'].to_numpy()
     n_rev_day = df['mean_motion'].to_numpy().astype(float)
@@ -109,6 +109,15 @@ def MLF_LOWESS_KEPLERIAN(df, smoothed=True, detect=True, threshold_sigma=4.0,
     peaks, threshold = (detect_peaks(signal, t, threshold_sigma, min_distance_days)
                         if detect else (np.array([], dtype=int), np.nan))
 
+    if ax is not None:
+        # Mode comparaison : on trace sur l'axe fourni, sans ouvrir de figure
+        ax.plot(epoch[1:], signal, lw=0.8)
+        ax.set_xlabel("epoch (days)")
+        ax.set_ylabel(ylabel)
+        if detect:
+            _mark_maneuvers(ax, epoch[1:], signal, peaks, threshold)
+        return signal, peaks
+
     fig, ax = plt.subplots(figsize=(11, 4))
     ax.plot(epoch[1:], signal, lw=0.8)
     ax.set_xlabel("epoch (days)")
@@ -124,7 +133,7 @@ from sgp4.api import Satrec, WGS72, jday
 
 
 def MLF_LOWESS_SGP4(df, norad, detect=True, threshold_sigma=4.0,
-                    min_distance_days=7.0):
+                    min_distance_days=7.0, ax=None):
     N        = df.height
     epochs   = df['epoch'].to_list()        # datetime.datetime (UTC)
     rows     = df.to_dicts()
@@ -170,7 +179,18 @@ def MLF_LOWESS_SGP4(df, norad, detect=True, threshold_sigma=4.0,
 
     peaks, threshold = (detect_peaks(dlam_smoothed, t, threshold_sigma, min_distance_days)
                         if detect else (np.array([], dtype=int), np.nan))
-    
+
+    if ax is not None:
+        # Mode comparaison : axe des epochs (datetime) partagé avec les
+        # autres méthodes, et non le temps en jours utilisé pour le calcul
+        ax.plot(ep[1:], dlam_smoothed, lw=0.6)
+        ax.set_ylabel(r"$\Delta\lambda$ (résidu SGP4) [rads]")
+        ax.set_xlabel("epoch")
+        ax.set_title(f"NORAD {norad}")
+        if detect:
+            _mark_maneuvers(ax, ep[1:], dlam_smoothed, peaks, threshold)
+        return dlam_smoothed, peaks
+
     fig, ax = plt.subplots(figsize=(11, 4))
     ax.plot(t, dlam_smoothed, lw=0.6)
     ax.set_ylabel(r"$\Delta\lambda$ (résidu SGP4) [rads]")

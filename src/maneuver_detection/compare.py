@@ -16,6 +16,7 @@ from .discrete_kalman_filter import detect_kalman
 
 def compare_methods(df, norad, threshold_sigma=4.0, min_distance_days=7.0,
                     var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997):
+
     """Trace les 3 méthodes sur le même satellite, axe temps (epoch) commun.
 
     ``df`` doit être trié par epoch et contenir les colonnes nécessaires aux
@@ -43,10 +44,5 @@ def compare_methods(df, norad, threshold_sigma=4.0, min_distance_days=7.0,
     fig.suptitle(f"Détection de manœuvres — NORAD {norad}")
     plt.tight_layout()
     plt.show()
-
-    return {
-        "epoch": epoch,
-        "keplerian": {"signal": sig_kep, "maneuvers": peaks_kep},
-        "sgp4":      {"signal": sig_sgp, "maneuvers": peaks_sgp},
-        "kalman":    {"sma_dot": sma_dot, "nis": nis, "maneuvers": man_kal},
-    }
+    
+    return fig
