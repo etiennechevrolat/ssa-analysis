@@ -2,8 +2,8 @@ PWD /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-a
 INPUT /usr/local/texlive/2025/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-dist/web2c/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.tex
-OUTPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.log
+INPUT manoeuvres.tex
+OUTPUT manoeuvres.log
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/size10.clo
@@ -192,10 +192,10 @@ INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/lm/t1lmr.fd
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/lm/ec-lmr10.tfm
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.aux
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.aux
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.aux
-OUTPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.aux
+INPUT ./manoeuvres.aux
+INPUT ./manoeuvres.aux
+INPUT manoeuvres.aux
+OUTPUT manoeuvres.aux
 INPUT /usr/local/texlive/2025/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 INPUT /usr/local/texlive/2025/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 INPUT /usr/local/texlive/2025/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
@@ -270,57 +270,232 @@ INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/amsfonts/symbols/msbm5
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/stmaryrd/stmary10.tfm
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/stmaryrd/stmary7.tfm
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/stmaryrd/stmary5.tfm
-OUTPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.pdf
+OUTPUT manoeuvres.pdf
 INPUT /usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/lm/ec-lmri10.tfm
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.14.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.14.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.14.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.14.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.14.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.03.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.03.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.03.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.03.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.03.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.33.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.33.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.33.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.33.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.33.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_manoeuvres.png
-INPUT /Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.aux
+INPUT ./Capture d’écran 2026-07-01 à 14.41.14.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.14.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.14.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.14.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.14.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.03.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.03.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.03.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.03.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.03.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.33.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.33.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.33.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.33.png
+INPUT ./Capture d’écran 2026-07-01 à 14.41.33.png
+INPUT ./norad_43226_sma.png
+INPUT ./norad_43226_sma.png
+INPUT ./norad_43226_sma.png
+INPUT ./norad_43226_sma.png
+INPUT ./norad_43226_sma.png
+INPUT ./norad_43226_manoeuvres.png
+INPUT ./norad_43226_manoeuvres.png
+INPUT ./norad_43226_manoeuvres.png
+INPUT ./norad_43226_manoeuvres.png
+INPUT ./norad_43226_manoeuvres.png
+INPUT ./norad_66142_sma.png
+INPUT ./norad_66142_sma.png
+INPUT ./norad_66142_sma.png
+INPUT ./norad_66142_sma.png
+INPUT ./norad_66142_sma.png
+INPUT ./norad_66142_manoeuvres.png
+INPUT ./norad_66142_manoeuvres.png
+INPUT ./norad_66142_manoeuvres.png
+INPUT ./norad_66142_manoeuvres.png
+INPUT ./norad_66142_manoeuvres.png
+INPUT ./s3b_sma.png
+INPUT ./s3b_sma.png
+INPUT ./s3b_sma.png
+INPUT ./s3b_sma.png
+INPUT ./s3b_sma.png
+INPUT ./s3b_eccentricity.png
+INPUT ./s3b_eccentricity.png
+INPUT ./s3b_eccentricity.png
+INPUT ./s3b_eccentricity.png
+INPUT ./s3b_eccentricity.png
+INPUT ./s3b_inclination.png
+INPUT ./s3b_inclination.png
+INPUT ./s3b_inclination.png
+INPUT ./s3b_inclination.png
+INPUT ./s3b_inclination.png
+INPUT ./s3b_raan.png
+INPUT ./s3b_raan.png
+INPUT ./s3b_raan.png
+INPUT ./s3b_raan.png
+INPUT ./s3b_raan.png
+INPUT ./s3b_arg_perigee.png
+INPUT ./s3b_arg_perigee.png
+INPUT ./s3b_arg_perigee.png
+INPUT ./s3b_arg_perigee.png
+INPUT ./s3b_arg_perigee.png
+INPUT ./s3b_mean_anomaly.png
+INPUT ./s3b_mean_anomaly.png
+INPUT ./s3b_mean_anomaly.png
+INPUT ./s3b_mean_anomaly.png
+INPUT ./s3b_mean_anomaly.png
+INPUT ./s3b_mean_motion.png
+INPUT ./s3b_mean_motion.png
+INPUT ./s3b_mean_motion.png
+INPUT ./s3b_mean_motion.png
+INPUT ./s3b_mean_motion.png
+INPUT ./en1_sma.png
+INPUT ./en1_sma.png
+INPUT ./en1_sma.png
+INPUT ./en1_sma.png
+INPUT ./en1_sma.png
+INPUT ./en1_eccentricity.png
+INPUT ./en1_eccentricity.png
+INPUT ./en1_eccentricity.png
+INPUT ./en1_eccentricity.png
+INPUT ./en1_eccentricity.png
+INPUT ./en1_inclination.png
+INPUT ./en1_inclination.png
+INPUT ./en1_inclination.png
+INPUT ./en1_inclination.png
+INPUT ./en1_inclination.png
+INPUT ./en1_raan.png
+INPUT ./en1_raan.png
+INPUT ./en1_raan.png
+INPUT ./en1_raan.png
+INPUT ./en1_raan.png
+INPUT ./en1_arg_perigee.png
+INPUT ./en1_arg_perigee.png
+INPUT ./en1_arg_perigee.png
+INPUT ./en1_arg_perigee.png
+INPUT ./en1_arg_perigee.png
+INPUT ./en1_mean_anomaly.png
+INPUT ./en1_mean_anomaly.png
+INPUT ./en1_mean_anomaly.png
+INPUT ./en1_mean_anomaly.png
+INPUT ./en1_mean_anomaly.png
+INPUT ./en1_mean_motion.png
+INPUT ./en1_mean_motion.png
+INPUT ./en1_mean_motion.png
+INPUT ./en1_mean_motion.png
+INPUT ./en1_mean_motion.png
+INPUT ./cs2_sma.png
+INPUT ./cs2_sma.png
+INPUT ./cs2_sma.png
+INPUT ./cs2_sma.png
+INPUT ./cs2_sma.png
+INPUT ./cs2_eccentricity.png
+INPUT ./cs2_eccentricity.png
+INPUT ./cs2_eccentricity.png
+INPUT ./cs2_eccentricity.png
+INPUT ./cs2_eccentricity.png
+INPUT ./cs2_inclination.png
+INPUT ./cs2_inclination.png
+INPUT ./cs2_inclination.png
+INPUT ./cs2_inclination.png
+INPUT ./cs2_inclination.png
+INPUT ./cs2_raan.png
+INPUT ./cs2_raan.png
+INPUT ./cs2_raan.png
+INPUT ./cs2_raan.png
+INPUT ./cs2_raan.png
+INPUT ./cs2_arg_perigee.png
+INPUT ./cs2_arg_perigee.png
+INPUT ./cs2_arg_perigee.png
+INPUT ./cs2_arg_perigee.png
+INPUT ./cs2_arg_perigee.png
+INPUT ./cs2_mean_anomaly.png
+INPUT ./cs2_mean_anomaly.png
+INPUT ./cs2_mean_anomaly.png
+INPUT ./cs2_mean_anomaly.png
+INPUT ./cs2_mean_anomaly.png
+INPUT ./cs2_mean_motion.png
+INPUT ./cs2_mean_motion.png
+INPUT ./cs2_mean_motion.png
+INPUT ./cs2_mean_motion.png
+INPUT ./cs2_mean_motion.png
+INPUT ./srl_sma.png
+INPUT ./srl_sma.png
+INPUT ./srl_sma.png
+INPUT ./srl_sma.png
+INPUT ./srl_sma.png
+INPUT ./srl_eccentricity.png
+INPUT ./srl_eccentricity.png
+INPUT ./srl_eccentricity.png
+INPUT ./srl_eccentricity.png
+INPUT ./srl_eccentricity.png
+INPUT ./srl_inclination.png
+INPUT ./srl_inclination.png
+INPUT ./srl_inclination.png
+INPUT ./srl_inclination.png
+INPUT ./srl_inclination.png
+INPUT ./srl_raan.png
+INPUT ./srl_raan.png
+INPUT ./srl_raan.png
+INPUT ./srl_raan.png
+INPUT ./srl_raan.png
+INPUT ./srl_arg_perigee.png
+INPUT ./srl_arg_perigee.png
+INPUT ./srl_arg_perigee.png
+INPUT ./srl_arg_perigee.png
+INPUT ./srl_arg_perigee.png
+INPUT ./srl_mean_anomaly.png
+INPUT ./srl_mean_anomaly.png
+INPUT ./srl_mean_anomaly.png
+INPUT ./srl_mean_anomaly.png
+INPUT ./srl_mean_anomaly.png
+INPUT ./srl_mean_motion.png
+INPUT ./srl_mean_motion.png
+INPUT ./srl_mean_motion.png
+INPUT ./srl_mean_motion.png
+INPUT ./srl_mean_motion.png
+INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/lm/ec-lmr7.tfm
+INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/lm/ec-lmr5.tfm
+INPUT ./cs2_delta_a_kalman_vs_theorique.png
+INPUT ./cs2_delta_a_kalman_vs_theorique.png
+INPUT ./cs2_delta_a_kalman_vs_theorique.png
+INPUT ./cs2_delta_a_kalman_vs_theorique.png
+INPUT ./cs2_delta_a_kalman_vs_theorique.png
+INPUT ./s3b_delta_a_kalman_vs_theorique.png
+INPUT ./s3b_delta_a_kalman_vs_theorique.png
+INPUT ./s3b_delta_a_kalman_vs_theorique.png
+INPUT ./s3b_delta_a_kalman_vs_theorique.png
+INPUT ./s3b_delta_a_kalman_vs_theorique.png
+INPUT ./cs2_dv_composantes.png
+INPUT ./cs2_dv_composantes.png
+INPUT ./cs2_dv_composantes.png
+INPUT ./cs2_dv_composantes.png
+INPUT ./cs2_dv_composantes.png
+INPUT ./s3b_dv_composantes.png
+INPUT ./s3b_dv_composantes.png
+INPUT ./s3b_dv_composantes.png
+INPUT ./s3b_dv_composantes.png
+INPUT ./s3b_dv_composantes.png
+INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/lm/ts1lmr.fd
+INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/lm/ts1lmr.fd
+INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/lm/ts1lmr.fd
+INPUT /usr/local/texlive/2025/texmf-dist/fonts/tfm/public/lm/ts1-lmr10.tfm
+INPUT ./s3b_delta_i_kalman_vs_theorique.png
+INPUT ./s3b_delta_i_kalman_vs_theorique.png
+INPUT ./s3b_delta_i_kalman_vs_theorique.png
+INPUT ./s3b_delta_i_kalman_vs_theorique.png
+INPUT ./s3b_delta_i_kalman_vs_theorique.png
+INPUT /usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc
+INPUT manoeuvres.aux
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmbx10.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmbx12.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmbx9.pfb
+INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmex10.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmmi10.pfb
+INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmmi12.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmmi7.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr10.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr12.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr17.pfb
+INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr5.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr7.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr9.pfb
 INPUT /usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmri10.pfb

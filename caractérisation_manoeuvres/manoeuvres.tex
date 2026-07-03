@@ -41,7 +41,7 @@ Les orbites des satellites sont elliptiques, caractérisées par leurs élément
 \textbf{Paramètres orbitaux}
 \begin{itemize}
     \item a : semi-grand axe de l'ellipse
-    \item e : eccentricité de l'ellipse
+    \item e : excentricité de l'ellipse
     \item i : inclinaison de l'ellipse
     \item $\omega$ : argument du périgée
     \item $\Omega$ : Right Ascension of Ascending Node
@@ -90,7 +90,7 @@ Un TLE est un format standardisé qui encode, sur deux lignes de 69 caractères,
 \begin{itemize}
     \item \textbf{Identification} : numéro de catalogue NORAD, classification, désignateur international (année de lancement, numéro de lancement) et numéro du jeu d'éléments.
     \item \textbf{Epoch} : date de référence à laquelle les éléments sont valides, exprimée en année et fraction de jour.
-    \item \textbf{Éléments orbitaux} : inclinaison $i$, ascension droite du noeud ascendant $\Omega$, eccentricité $e$, argument du périgée $\omega$, anomalie moyenne $M$ et moyen mouvement $n$ (en révolutions par jour).
+    \item \textbf{Éléments orbitaux} : inclinaison $i$, ascension droite du noeud ascendant $\Omega$, excentricité $e$, argument du périgée $\omega$, anomalie moyenne $M$ et moyen mouvement $n$ (en révolutions par jour).
     \item \textbf{Termes de perturbation} : dérivées première et seconde du moyen mouvement ($\dot n$, $\ddot n$) et coefficient de traînée atmosphérique $B^*$.
 \end{itemize}
 \end{minipage}
@@ -116,9 +116,9 @@ Enfin, on peut choisir la range du demi-grand axe des orbites récupérées, ce 
 
 \par       
 Un type de donnée particulièrement important pour nous est celui des satellites géostationnaires.
-Leur orbite est théoriquement fixée à 35 786km au dessus de la Terre soit un rayon de l'orbite de 42 164km. 
+Leur orbite est théoriquement fixée à 35 786 km au-dessus de la Terre, soit un rayon de l'orbite de 42 164 km.
 Une fois placé sur cette orbite, le satellite est quasi-immobile dans le référentiel terrestre, ce qui lui permet de suivre une position fixe de latitude et longitude. 
-La non-sphéricité de la Terre et le fait que les orbites ne soient pas purement circulaires (eccentricité très faible mais non nulle) imposent cependant une dérive de certains paramètres orbitaux.
+La non-sphéricité de la Terre et le fait que les orbites ne soient pas purement circulaires (excentricité très faible mais non nulle) imposent cependant une dérive de certains paramètres orbitaux.
 
 Pour maintenir les satellites GEO sur leur position souhaitée, les opérateurs peuvent effectuer des manoeuvres dites de station-keeping :
 
@@ -129,8 +129,8 @@ Pour maintenir les satellites GEO sur leur position souhaitée, les opérateurs 
 
 \par 
 Des chercheurs du MIT ArcLab ont défini le premier jeu de données de manoeuvres labellisé de satellites GEO (SPLID) conséquent,
-dans le but de fournir un dataset utilisable pour entrainer des modèles à reconnaitre les différentes manoeuvres.
-Ils ont ainsi défini un certain nombre de PoL résumés dans la Table.1:
+dans le but de fournir un dataset utilisable pour entraîner des modèles à reconnaître les différentes manoeuvres.
+Ils ont ainsi défini un certain nombre de PoL résumés dans la Table 1 :
 
 \begin{center}
     \includegraphics[scale=0.3]{Capture d’écran 2026-07-01 à 14.41.14.png}
@@ -150,7 +150,7 @@ Voici un résumé des noeuds de PoL d'un satellite du dataset.
 
 \subsubsection{Manoeuvres de station-keeping des satellites GEO}
 
-On essaye maintenant de se focaliser sur des manoeuvres de type station-keeping issues de données réelles. On a d'ores et déjà constitué un dataset exploitable de l'historique de TLE de ~200 satellites GEO issus de tous les pays.
+On essaye maintenant de se focaliser sur des manoeuvres de type station-keeping issues de données réelles. On a d'ores et déjà constitué un dataset exploitable de l'historique de TLE de $\sim$200 satellites GEO issus de tous les pays.
 On examine deux satellites en guise d'exemple :
 \begin{itemize}
     \item 43226 : Satellite US. "GOES-17 is a geostationary weather satellite designed to improve the forecasts of weather, ocean, and environment by providing faster and more detailed data, real-time images of lightning, and advanced monitoring of solar activities and space weather"
@@ -177,11 +177,146 @@ Les méthodes Mean Longitude Filter sont basées sur la longitude moyenne $\lamb
 \section{A suivre :} 
 \begin{itemize}
     \item en GEO, les algos de détection de manoeuvres doivent préciser clairement le type de manoeuvres opérées (NS, EW, Station-Keeping ou non). 
-    \item poursuivre l'étude de PoL en LEO, plus complexes a priori, contiennent pas seulement des manoeuvres de station-keeping
+    \item poursuivre l'étude de PoL en LEO, plus complexes a priori, qui ne contiennent pas seulement des manoeuvres de station-keeping
     \item effectuer des mesures quantitatives de manoeuvres (intensité de la manoeuvre, via calcul de $\Delta v$ ?)
-    \item implémenter d'autres méthode classique de détection de manoeuvres 
-    \item le problème du seuillage ressort constamment lorsque l'on utilise des méthodes classiques de détection de manoeuvres. Il y a toujours une part arbitraire lors de sa calibration qui nécessite souvent du cas par cas et empeche une bonne automatisation, d'où la volonté de s'intéresser à des méthodes de ML.
+    \item implémenter d'autres méthodes classiques de détection de manoeuvres
+    \item le problème du seuillage ressort constamment lorsque l'on utilise des méthodes classiques de détection de manoeuvres. Il y a toujours une part arbitraire lors de sa calibration qui nécessite souvent du cas par cas et empêche une bonne automatisation, d'où la volonté de s'intéresser à des méthodes de ML.
 \end{itemize}
 
+
+\section{Un dataset labellisé réel : les manoeuvres ILRS}
+
+\subsection{Les données de manoeuvres ILRS}
+
+L'ILRS (\textit{International Laser Ranging Service}) met à disposition, en libre accès, des historiques de manoeuvres réelles pour les satellites suivis par télémétrie laser.
+Ces données constituent un jeu de données labellisé solide, issu de mesures réelles et non de simulations, contrairement à la majorité du dataset SPLID.
+
+Chaque ligne d'un fichier de manoeuvres ILRS contient :
+\begin{itemize}
+    \item l'identifiant du satellite (par exemple CRYO2 pour CryoSat-2) ;
+    \item les dates de début et de fin de la manoeuvre ;
+    \item le type de paramètres fournis ;
+    \item le nombre de burns, puis pour chaque burn : la date médiane, la durée du boost, les trois composantes de la variation de vitesse $(\Delta v_r, \Delta v_u, \Delta v_h)$, les trois composantes de l'accélération et les écarts d'accélération par rapport à la prédiction.
+\end{itemize}
+
+Les satellites dont les manoeuvres sont documentées (SPOT, TOPEX, Jason, Envisat, CryoSat-2, SARAL, Sentinel-3) sont tous en orbite basse : la base de données ILRS ne fournit donc que des données de satellites LEO.
+
+\subsection{Confrontation aux séries temporelles TLE}
+
+On superpose les dates de manoeuvres ILRS aux séries temporelles des paramètres orbitaux issus des TLE SpaceTrack, pour quatre satellites : Sentinel-3B (NORAD 43437), Envisat (NORAD 27386), CryoSat-2 (NORAD 36508) et SARAL (NORAD 39086).
+
+\subsubsection{Sentinel-3B (NORAD 43437)}
+
+\begin{center}
+    \includegraphics[width=0.48\textwidth]{s3b_sma.png}
+    \includegraphics[width=0.48\textwidth]{s3b_eccentricity.png}
+    \includegraphics[width=0.48\textwidth]{s3b_inclination.png}
+    \includegraphics[width=0.48\textwidth]{s3b_raan.png}
+    \includegraphics[width=0.48\textwidth]{s3b_arg_perigee.png}
+    \includegraphics[width=0.48\textwidth]{s3b_mean_anomaly.png}
+    \includegraphics[width=0.48\textwidth]{s3b_mean_motion.png}
+\end{center}
+
+\subsubsection{Envisat (NORAD 27386)}
+
+\begin{center}
+    \includegraphics[width=0.48\textwidth]{en1_sma.png}
+    \includegraphics[width=0.48\textwidth]{en1_eccentricity.png}
+    \includegraphics[width=0.48\textwidth]{en1_inclination.png}
+    \includegraphics[width=0.48\textwidth]{en1_raan.png}
+    \includegraphics[width=0.48\textwidth]{en1_arg_perigee.png}
+    \includegraphics[width=0.48\textwidth]{en1_mean_anomaly.png}
+    \includegraphics[width=0.48\textwidth]{en1_mean_motion.png}
+\end{center}
+
+\subsubsection{CryoSat-2 (NORAD 36508)}
+
+\begin{center}
+    \includegraphics[width=0.48\textwidth]{cs2_sma.png}
+    \includegraphics[width=0.48\textwidth]{cs2_eccentricity.png}
+    \includegraphics[width=0.48\textwidth]{cs2_inclination.png}
+    \includegraphics[width=0.48\textwidth]{cs2_raan.png}
+    \includegraphics[width=0.48\textwidth]{cs2_arg_perigee.png}
+    \includegraphics[width=0.48\textwidth]{cs2_mean_anomaly.png}
+    \includegraphics[width=0.48\textwidth]{cs2_mean_motion.png}
+\end{center}
+
+\subsubsection{SARAL (NORAD 39086)}
+
+\begin{center}
+    \includegraphics[width=0.48\textwidth]{srl_sma.png}
+    \includegraphics[width=0.48\textwidth]{srl_eccentricity.png}
+    \includegraphics[width=0.48\textwidth]{srl_inclination.png}
+    \includegraphics[width=0.48\textwidth]{srl_raan.png}
+    \includegraphics[width=0.48\textwidth]{srl_arg_perigee.png}
+    \includegraphics[width=0.48\textwidth]{srl_mean_anomaly.png}
+    \includegraphics[width=0.48\textwidth]{srl_mean_motion.png}
+\end{center}
+
+Certaines manoeuvres sont clairement visibles à l'oeil nu sur les séries des paramètres orbitaux, tandis que d'autres ne se détectent pas via un simple regard non expert.
+Le demi-grand axe est souvent le meilleur moyen de détecter des manoeuvres visuellement, d'où la pertinence de mettre en place des algorithmes de détection basés sur cette métrique.
+
+\subsection{Vérification de la loi de Gauss in-plane}
+
+Une variation du demi-grand axe $a$ est liée à une variation de la vitesse transverse $\Delta v_u$. Dans le cas d'une orbite quasi-circulaire (ici $e \sim 10^{-4}$), on a grossièrement :
+$$
+\Delta a = \dfrac{2}{n} \Delta v_u
+$$
+
+On teste cette loi en comparant, pour chaque satellite, $\Delta a_{\text{approx}} \sim \dot a_{\text{Kalman}} \, \Delta t$, où $\dot a$ est la dérivée du demi-grand axe estimée par le filtre de Kalman, à $\Delta a_{\text{théorique}} = \dfrac{2}{n} \Delta v_{u,\text{mesuré}}$ calculé à partir des $\Delta v$ transverses fournis par l'ILRS.
+
+\begin{center}
+    \includegraphics[width=0.85\textwidth]{cs2_delta_a_kalman_vs_theorique.png}
+\end{center}
+\begin{center}
+    \includegraphics[width=0.85\textwidth]{s3b_delta_a_kalman_vs_theorique.png}
+\end{center}
+
+La loi théorique, dérivée des équations de Gauss dans le cas d'orbite quasi-circulaire, est bien vérifiée : les deux quantités sont du même ordre de grandeur et les pics coïncident avec les manoeuvres.
+L'écart entre les pics et les valeurs théoriques de $\Delta a$ s'explique par le choix, pour l'instant plus ou moins arbitraire, des paramètres du filtre de Kalman, notamment $r$, l'incertitude de mesure aléatoire sur le demi-grand axe, qui fait varier plus ou moins l'intensité des pics.
+
+\subsection{Typologie des manoeuvres : composantes de $\Delta v$}
+
+Les manoeuvres résultant d'une variation $\Delta v_u$ transverse correspondent à des manoeuvres in-plane de replacement du satellite.
+On peut quantifier cela en remontant directement à $\Delta v_u$ depuis une mesure d'une variation $\Delta a$, avec une méthode de détection de manoeuvres bien calibrée.
+Pour déterminer si les manoeuvres sont purement in-plane, on trace, pour chaque manoeuvre, les trois composantes de la variation de vitesse.
+
+\begin{center}
+    \includegraphics[width=0.85\textwidth]{cs2_dv_composantes.png}
+\end{center}
+\begin{center}
+    \includegraphics[width=0.85\textwidth]{s3b_dv_composantes.png}
+\end{center}
+
+Pour CryoSat-2, les manoeuvres sont purement transverses, donc purement in-plane.
+Pour Sentinel-3B en revanche, un certain nombre de manoeuvres possèdent une composante normale importante : ces variations de vitesse normale créent des manoeuvres out-plane.
+
+\subsection{Canal d'observation des manoeuvres out-plane}
+
+Les manoeuvres out-plane se traduisent a priori par des variations de l'inclinaison et de la RAAN. L'équation de Gauss reliant une perturbation normale de la vitesse aux variations de $i$ et $\Omega$ s'écrit :
+$$
+\Delta i = \dfrac{r}{n a^2} \cos(\omega + \nu) \, \Delta v_n \quad ; \quad \Delta \Omega = \dfrac{r}{n a^2} \dfrac{\sin(\omega + \nu)}{\sin i} \, \Delta v_n
+$$
+où $n = \dfrac{2\pi}{T}$ est le mouvement moyen, $r \sim a$ la distance du foyer au satellite et $\nu$ l'anomalie vraie.
+
+Cependant, on ne voit ici aucun effet des manoeuvres sur la RAAN.
+On est dans le cas d'une orbite quasi-polaire ($i \sim 100°$) : la dérive de $\Omega$ liée au terme de perturbation du champ gravitationnel l'emporte.
+En coordonnées sphériques, on a au premier ordre :
+$$
+U_{\text{Terre}}(r, \lambda, \theta) = U_0 + U_{J_2} = -\dfrac{\mu}{r}\left( 1 - \dfrac{J_2}{2} \left(\dfrac{R_T}{r}\right)^2 (3 \sin^2 \lambda - 1)\right)
+$$
+et le terme $U_{J_2}$ induit une dérive de $\Omega$ :
+$$
+\dot{\Omega}_{J_2} = -\dfrac{3}{2} J_2 \left(\dfrac{R_T}{r}\right)^2 n \cos i \sim 1°/\text{jour}
+$$
+tandis que les variations dues aux manoeuvres sont de l'ordre de $0{,}01°/\text{jour}$.
+
+Tout cela n'est plus vrai pour des orbites à faible inclinaison : si $i \sim 0°$, $\Omega$ varie en $\dfrac{1}{\sin i}$ et devient un canal d'observation valable (la discontinuité des paramètres angulaires nécessite alors d'ailleurs un changement de coordonnées vers les coordonnées équinoxiales).
+
+Pour analyser les manoeuvres out-plane, on se base donc sur les variations de l'inclinaison, et on teste la loi de Gauss comme précédemment pour le demi-grand axe, en appliquant cette fois le filtre de Kalman à l'inclinaison (avec un bruit de mesure $r$ adapté, beaucoup plus petit que pour $a$) :
+
+\begin{center}
+    \includegraphics[width=0.85\textwidth]{s3b_delta_i_kalman_vs_theorique.png}
+\end{center}
 
 \end{document}

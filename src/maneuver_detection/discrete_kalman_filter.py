@@ -6,10 +6,10 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 
 
-def kalman_filter_ordre_1(df, var_Q = 0.13, r = 1.0 , p0= 1000.0):
+def kalman_filter_ordre_1(df, var_Q = 0.13, r = 1.0 , p0= 1000.0, metrique = "sma"):
 
     #Récupération des données : demi-grand-axe des tle du dataframe
-    a = df['sma'].to_numpy().astype(float)
+    a = df[metrique].to_numpy().astype(float)
     epoch = df['epoch'].to_numpy()
     dt = (np.diff(epoch)/np.timedelta64(1,"D")).astype(float)
     n = len(a)
@@ -48,7 +48,7 @@ def kalman_filter_ordre_1(df, var_Q = 0.13, r = 1.0 , p0= 1000.0):
 
     return residuals, normalized_residuals, np.asarray(sma_dot)
 
-def kalman_filter_ordre_2(df, var_Q = 0.13, r = 1.0, p0 = 1000.0):
+def kalman_filter_ordre_2(df, var_Q = 0.13, r = 1.0, p0 = 1000.0, metrique='sma'):
 
     #Récupération des données : demi-grand-axe des tle du dataframe
     a = df['sma'].to_numpy().astype(float)
@@ -95,13 +95,11 @@ def kalman_filter_ordre_2(df, var_Q = 0.13, r = 1.0, p0 = 1000.0):
 
     return residuals, normalized_residuals, np.asarray(sma_dot)
 
-
-def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot=True, ax=None, xlim=None):
-
+def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot=True, ax=None, xlim=None, metrique='sma'):
     if ordre == 1 :
-        _, nis, sma_dot = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0)
+        _, nis, sma_dot = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
     elif ordre == 2 :
-        _, nis, sma_dot = kalman_filter_ordre_2(df, var_Q=var_Q, r=r, p0=p0)
+        _, nis, sma_dot = kalman_filter_ordre_2(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
     else :
         raise Exception("choose 1 or 2 for LKF order")
 

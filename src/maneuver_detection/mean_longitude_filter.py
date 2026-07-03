@@ -5,53 +5,25 @@ from scipy.signal import find_peaks
 
 
 def detect_peaks(residual, t=None, threshold_sigma=4.0, min_distance_days=None, prominence=None):
-    """Détecte les manoeuvres comme des pics dans un signal de résidu de longitude.
 
-    Une manoeuvre rompt la propagation et provoque un saut brutal du résidu :
-    on la repère donc comme un pic de |résidu - médiane| dépassant un seuil
-    robuste.
-
-    Paramètres
-    ----------
-    residual : array
-        Résidu de longitude (filtré ou non), en deg ou en rad.
-    t : array, optionnel
-        Temps associé (en jours), même longueur que ``residual``. Sert
-        uniquement à convertir ``min_distance_days`` en nombre d'échantillons.
-    threshold_sigma : float
-        Seuil de détection : ``médiane(|x|) + threshold_sigma * 1.4826 * MAD``.
-        Plus la valeur est élevée, moins on détecte de pics (moins de faux
-        positifs).
-    min_distance_days : float, optionnel
-        Distance minimale entre deux manoeuvres détectées (en jours).
-    prominence : float, optionnel
-        Proéminence minimale transmise à ``scipy.signal.find_peaks``.
-
-    Renvoie
-    -------
-    peaks : ndarray d'indices
-        Indices (dans le repère de ``residual``) des manoeuvres détectées.
-    threshold : float
-        Seuil absolu utilisé, pratique pour le tracer sur un plot.
-    """
     x = np.abs(np.asarray(residual, dtype=float))
     finite = np.isfinite(x)
     if finite.sum() < 3:
         return np.array([], dtype=int), np.nan
 
-    med = np.median(x[finite])
-    mad = np.median(np.abs(x[finite] - med))
-    scale = 1.4826 * mad if mad > 0 else x[finite].std()
-    threshold = med + threshold_sigma * scale
+    mean = np.mean(x[finite])
+    var = np.mean(np.abs(x[finite] - mean))
+
+    threshold = mean + threshold_sigma * var 
 
     # Distance minimale convertie de jours en nombre d'échantillons
     distance = None
     if min_distance_days is not None and t is not None:
         t = np.asarray(t, dtype=float)
         if t.size > 1:
-            dt_med = np.median(np.diff(t))
-            if dt_med > 0:
-                distance = max(1, int(round(min_distance_days / dt_med)))
+            dt_mean = np.mean(np.diff(t))
+            if dt_mean > 0:
+                distance = max(1, int(round(min_distance_days / dt_mean)))
 
     # find_peaks n'accepte pas les NaN : on les neutralise à 0
     xf = np.where(finite, x, 0.0)
@@ -65,6 +37,7 @@ def _mark_maneuvers(ax, x, y, peaks, threshold=None):
         ax.axhline(threshold, color="grey", ls="--", lw=0.7,
                    label="seuil de détection")
         ax.axhline(-threshold, color="grey", ls="--", lw=0.7)
+    
     if len(peaks):
         ax.scatter(np.asarray(x)[peaks], np.asarray(y)[peaks],
                    color="red", marker="x", zorder=5,
@@ -114,6 +87,7 @@ def MLF_LOWESS_KEPLERIAN(df, smoothed=True, detect=True, threshold_sigma=4.0,
         ax.plot(epoch[1:], signal, lw=0.8)
         ax.set_xlabel("epoch (days)")
         ax.set_ylabel(ylabel)
+        
         if detect:
             _mark_maneuvers(ax, epoch[1:], signal, peaks, threshold)
         return signal, peaks

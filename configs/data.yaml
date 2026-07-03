@@ -1,7 +1,7 @@
 constellations:
  # - {name_pattern: "", country: "" }
  #  {name_pattern: "", country: "EUME" }
- - {name_pattern: "SENTINEL", country: "" }
+ - {name_pattern: "SARAL", country: "" }
  # - {name_pattern: "STARLINK", country: "US" }
  # - {name_pattern: "MOLNIYA", country: "CIS" }
  # - {name_pattern: "ONEWEB", country: "" }
@@ -11,12 +11,12 @@ constellations:
 ###
 
 
-data_range: {start: 2018-04-25, end: 2019-04-25}
+data_range: {start: 2019-01-01, end: 2026-01-01}
 
 # On modifie ici le type d'orbite que l'on sélectionne via une range de semi-grand axe
 # orbit_range: {borneinf: 42000.0 , bornesup : 43000.0}
 
-maneuvers : {sat_name : "s3b"} ## identifiant ILRS composé de 3 lettres 
+maneuvers : {sat_name : "srl"} ## identifiant ILRS composé de 3 lettres 
 
 
 
