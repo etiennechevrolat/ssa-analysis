@@ -102,19 +102,20 @@ def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot
         _, nis, sma_dot = kalman_filter_ordre_2(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
     else :
         raise Exception("choose 1 or 2 for LKF order")
-
+    
     nis = np.asarray(nis, dtype=float)
     sma_dot = np.asarray(sma_dot, dtype=float)
 
     threshold = chi2.ppf(alpha, df=1)
+    
     maneuvers = np.where(nis > threshold)[0]
-
+    
     epoch = df['epoch'].to_numpy()[1:]          # séries alignées sur les pas k >= 1
     # Bornes x : mêmes que plot_time_series (epoch complet, pas [1:]) pour aligner
     # parfaitement les deux figures. `xlim` peut être passé identique aux deux.
     epoch_full = df['epoch'].to_numpy()
     xlim = xlim if xlim is not None else (epoch_full[0], epoch_full[-1])
-
+    
     if ax is not None:
         # Mode comparaison : panneau unique avec nis 
         ax.plot(epoch, nis, lw=0.8, color="tab:blue")

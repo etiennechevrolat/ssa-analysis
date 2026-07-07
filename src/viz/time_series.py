@@ -96,8 +96,9 @@ def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch"
     if maneuvers is not None and not isinstance(maneuvers, (list, np.ndarray)):
         raise ValueError("maneuvers doit être une liste ou un array de dates")
     
-    maneuvers = maneuvers or []
 
+    maneuvers = maneuvers if (maneuvers.size > 0) else []
+    
     history = load_history(path, norad, params, start, end, time_col)
     if history.is_empty():
         raise ValueError(f"Aucune donnée pour norad={norad} dans {path}")
