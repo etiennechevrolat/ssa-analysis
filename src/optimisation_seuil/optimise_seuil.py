@@ -21,21 +21,22 @@ def to_days(times, t0):
 
 def optimise_seuil_kalman_via_regul_gaussienne(
         path_tle,
-        path_man, 
-        norad, 
+        path_man,
+        norad,
         r_0 = 0.5, ## Params de départ pour l'optimisation
         varQ_0 = 0.05, ##
         p0_0 = 1000, ##
-        sigma_lissage=1.0, ## Params de lissage 
-        beta_lissage=0.5, 
-        tol_days=1.0):
+        sigma_lissage=1.0, ## Params de lissage
+        beta_lissage=0.5,
+        tol_days=1.0,
+        metrique='sma'):
 
-    # 1. Données TLE du satellite (epoch trié + sma)
+    # 1. Données TLE du satellite (epoch trié + métrique filtrée : sma ou inclination)
     alpha = 0.997
     df = (
         pl.scan_parquet(path_tle)
         .filter(pl.col("norad") == norad)
-        .select("epoch", "sma")
+        .select("epoch", metrique)
         .sort("epoch")
         .collect()
     )
@@ -59,7 +60,7 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     #    On relance le filtre à chaque évaluation : var_Q, r, p0 changent nis,
 
     def run_filter(var_Q, r, p0):
-        _, nis, _ = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0)
+        _, nis, _ = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
         return np.asarray(nis, dtype=float)
 
     def loss(x):
@@ -96,8 +97,6 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     conf = confusion_matrix(true_d, pred_d, tol_days=tol_days)
     prf = precision_recall_f1(conf)
 
-    print(f"norad={norad}  var_Q={var_Q:.4g} r={r:.4g} p0={p0:.4g} F1={prf['f1']:.3f} "
+    print(f"norad={norad}  metrique={metrique}  var_Q={var_Q:.4g} r={r:.4g} p0={p0:.4g} F1={prf['f1']:.3f} "
           f"P={prf['precision']:.3f} R={prf['recall']:.3f}  {conf}")
     return {"var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}
-
-
