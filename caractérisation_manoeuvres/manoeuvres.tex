@@ -166,22 +166,28 @@ On essaye maintenant de se focaliser sur des manoeuvres de type station-keeping 
 On examine deux satellites en guise d'exemple :
 \begin{itemize}
     \item 43226 : Satellite US. "GOES-17 is a geostationary weather satellite designed to improve the forecasts of weather, ocean, and environment by providing faster and more detailed data, real-time images of lightning, and advanced monitoring of solar activities and space weather"
-    \item  66142 : Satellite Chinois (aucune info)
+    \item 66142 : Satellite Chinois (aucune info)
 \end{itemize}
 
-On trace alors leur demi-grand axe $a$ et le résultat de notre V1 de 3 outils de détection de manoeuvres.
+On trace alors leur demi-grand axe $a$ et le résultat de notre V1 de 3 outils de détection de manoeuvres :
+\begin{itemize}
+    \item (MLF KEPLER) Une méthode GEO basée sur les résidus de la longitude moyenne $\lambda = \Omega + \omega + M$, avec une propagation keplerienne naive.
+    \item (MLF SPG4) Une méthode GEO basée sur les résidus de la longitude moyenne, avec une propagation SGP4.
+\end{itemize}
+
+Sur le graphe du demi-grand axe, c'est le résultat de notre algo implémentant un filtre Kalman qui est représenté.
 
 \begin{center}
-    \includegraphics[scale=0.6]{norad_43226_sma.png}
-    \includegraphics[scale=0.4]{norad_43226_manoeuvres.png}
+    \includegraphics[scale=0.5]{norad_43226_sma_and_maneuvers copy.png}
+    \includegraphics[scale=0.4]{norad_43226_methods.png}
 \end{center}
 
 \begin{center}
-    \includegraphics[scale=0.6]{norad_66142_sma.png}
-    \includegraphics[scale=0.4]{norad_66142_manoeuvres.png}
+    \includegraphics[scale=0.5]{norad_66142_sma_and_maneuvers copy.png}
+    \includegraphics[scale=0.4]{norad_66142_methods.png}
 \end{center}
 
-\textbf{Remarques :}
+\textbf{Remarques:}
 Pour l'instant, on ne différencie pas le type de manoeuvres détectées grâce à ces différentes méthodes.
 Cependant, la méthode par filtrage de Kalman est basée sur le demi-grand axe : on est donc en train de mesurer des manoeuvres in-plane.
 Les méthodes Mean Longitude Filter sont basées sur la longitude moyenne $\lambda = \Omega + \omega + M$ et détectent aussi des manoeuvres in plane. 

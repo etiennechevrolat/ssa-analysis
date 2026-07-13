@@ -72,7 +72,7 @@ def extract_series(history, params, time_col="epoch"):
     return {p: (t, history[p].to_list()) for p in params}
 
 
-def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch", ncols=3, ylim=None, maneuvers=None, xlim=None):
+def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch", ncols=3, ylim=None, maneuvers=[], xlim=None):
     """Trace l'évolution de `params` pour un satellite — grille ncols colonnes.
 
     Args:
@@ -96,16 +96,13 @@ def plot_time_series(path, norad, params, start=None, end=None, time_col="epoch"
     if maneuvers is not None and not isinstance(maneuvers, (list, np.ndarray)):
         raise ValueError("maneuvers doit être une liste ou un array de dates")
     
-
-    maneuvers = maneuvers if (maneuvers.size > 0) else []
+  
+    maneuvers = maneuvers if (len(maneuvers) > 0) else []
     
     history = load_history(path, norad, params, start, end, time_col)
     if history.is_empty():
         raise ValueError(f"Aucune donnée pour norad={norad} dans {path}")
 
-    # On restreint les manœuvres à la plage temporelle RÉELLEMENT couverte par
-    # les données tracées (et non à start/end, qui peuvent être None ou plus
-    # larges que les données). Sinon axvline étire l'axe et écrase la série.
     if len(maneuvers):
         epochs = history[time_col].to_list()        # datetimes, history trié
         t_lo, t_hi = epochs[0], epochs[-1]

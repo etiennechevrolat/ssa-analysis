@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1783346637.57716 "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.tex" "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.pdf" "manoeuvres" 1783346644.12077 0
+["pdflatex"] 1783512676.93518 "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.tex" "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.pdf" "manoeuvres" 1783512683.5892 0
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.33.png" 1782909717.42178 333711 5e5ae57408aad260fc5239587c7c5f88 ""
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.03.png" 1782909717.44186 250554 5edfc9d2771a99fc37a882fc5224175c ""
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.14.png" 1782909717.4294 647239 19167fd06c48297fa79c89e96b975f64 ""
@@ -19,12 +19,12 @@
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/en1_mean_motion.png" 1783326120.98821 57142 216f47f8a57ed68fbe6247d05f410c76 ""
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/en1_raan.png" 1783326120.65406 75878 4d0fed44d28abfdabc8bc759b6a40f1b ""
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/en1_sma.png" 1783326120.342 62005 2154cacfa1794c7445fcbe197be7ac66 ""
-  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.aux" 1783346644.00345 2323 2243a26ffb7264275ac7bad4b9397ea4 "pdflatex"
-  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.tex" 1783346636.23588 19538 a4f41ac6c8da7959f6c0985b0ffc9116 ""
-  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_manoeuvres.png" 1782917071.1233 229459 920a971e5d84580e7930d944bc554a3e ""
-  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma.png" 1782917071.13148 67455 3900b3d4defd771502af708e92b1effc ""
-  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_manoeuvres.png" 1782917071.13782 216123 b30dcdcf5122fc06691904947fb37679 ""
-  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma.png" 1782917071.1487 66832 831c31917cad5dd57af40f247df05dcc ""
+  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.aux" 1783512683.46639 2323 2243a26ffb7264275ac7bad4b9397ea4 "pdflatex"
+  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.tex" 1783512674.22923 19994 b58672f009b860f7f0cccd1d15e6cf85 ""
+  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_methods.png" 1783511814.31328 256027 b67820848319fe183a1348955abd5440 ""
+  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma_and_maneuvers copy.png" 1783511814.29481 90111 1421cff1e5a5e89d045dee5ebdd05ae4 ""
+  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_methods.png" 1783511814.30771 219661 553d8fd1c8881b19ed91fb50f0abaa3d ""
+  "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma_and_maneuvers copy.png" 1783511814.30015 87560 0cf82879ca6273bee39d75c61238b7cf ""
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/s3b_arg_perigee.png" 1783326119.36119 84625 01b1dc440e455903e4760dd827d02b74 ""
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/s3b_delta_a_kalman_vs_theorique.png" 1783326124.90904 62278 3268cfe98032e7ee7e46a6b80671fd3b ""
   "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/s3b_delta_i_kalman_vs_theorique.png" 1783326703.28058 75230 e6ffa1b8030c7056fc6e6504da44aea1 ""

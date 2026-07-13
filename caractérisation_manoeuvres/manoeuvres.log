@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.12.8)  6 JUL 2026 16:03
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.12.8)  8 JUL 2026 14:11
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -598,65 +598,75 @@ Package pdftex.def Info: Capture d’écran 2026-07-01 à 14.41.33.png  used o
 
 
 [4 </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.03.png> </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/Capture d’écran 2026-07-01 à 14.41.33.png>]
-<norad_43226_sma.png, id=39, 428.3202pt x 288.1164pt>
-File: norad_43226_sma.png Graphic file (type png)
-<use norad_43226_sma.png>
-Package pdftex.def Info: norad_43226_sma.png  used on input line 175.
-(pdftex.def)             Requested size: 256.9941pt x 172.87115pt.
-<norad_43226_manoeuvres.png, id=40, 858.5676pt x 711.1368pt>
-File: norad_43226_manoeuvres.png Graphic file (type png)
-<use norad_43226_manoeuvres.png>
-Package pdftex.def Info: norad_43226_manoeuvres.png  used on input line 176.
+<norad_43226_sma_and_maneuvers copy.png, id=39, 861.9402pt x 288.1164pt>
+File: norad_43226_sma_and_maneuvers copy.png Graphic file (type png)
+<use norad_43226_sma_and_maneuvers copy.png>
+Package pdftex.def Info: norad_43226_sma_and_maneuvers copy.png  used on input line 181.
+(pdftex.def)             Requested size: 430.96904pt x 144.05783pt.
+<norad_43226_methods.png, id=40, 858.5676pt x 711.1368pt>
+File: norad_43226_methods.png Graphic file (type png)
+<use norad_43226_methods.png>
+Package pdftex.def Info: norad_43226_methods.png  used on input line 182.
 (pdftex.def)             Requested size: 343.42094pt x 284.44968pt.
-<norad_66142_sma.png, id=41, 428.3202pt x 288.1164pt>
-File: norad_66142_sma.png Graphic file (type png)
-<use norad_66142_sma.png>
-Package pdftex.def Info: norad_66142_sma.png  used on input line 180.
-(pdftex.def)             Requested size: 256.9941pt x 172.87115pt.
-<norad_66142_manoeuvres.png, id=42, 857.604pt x 711.1368pt>
-File: norad_66142_manoeuvres.png Graphic file (type png)
-<use norad_66142_manoeuvres.png>
-Package pdftex.def Info: norad_66142_manoeuvres.png  used on input line 181.
-(pdftex.def)             Requested size: 343.03552pt x 284.44968pt.
+
+Overfull \hbox (0.96442pt too wide) in paragraph at lines 181--183
+ [] 
+ []
+
+<norad_66142_sma_and_maneuvers copy.png, id=41, 861.9402pt x 288.1164pt>
+File: norad_66142_sma_and_maneuvers copy.png Graphic file (type png)
+<use norad_66142_sma_and_maneuvers copy.png>
+Package pdftex.def Info: norad_66142_sma_and_maneuvers copy.png  used on input line 186.
+(pdftex.def)             Requested size: 430.96904pt x 144.05783pt.
+<norad_66142_methods.png, id=42, 858.5676pt x 711.1368pt>
+File: norad_66142_methods.png Graphic file (type png)
+<use norad_66142_methods.png>
+Package pdftex.def Info: norad_66142_methods.png  used on input line 187.
+(pdftex.def)             Requested size: 343.42094pt x 284.44968pt.
+
+Overfull \hbox (0.96442pt too wide) in paragraph at lines 186--188
+ [] 
+ []
 
 
-[5 </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma.png> </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_manoeuvres.png>]
 
-[6 </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma.png> </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_manoeuvres.png>]
+[5 </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_sma_and_maneuvers copy.png> </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_43226_methods.png>]
+
+[6 </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_sma_and_maneuvers copy.png> </Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/norad_66142_methods.png>]
 <s3b_sma.png, id=53, 860.4948pt x 287.6346pt>
 File: s3b_sma.png Graphic file (type png)
 <use s3b_sma.png>
-Package pdftex.def Info: s3b_sma.png  used on input line 223.
+Package pdftex.def Info: s3b_sma.png  used on input line 229.
 (pdftex.def)             Requested size: 206.40038pt x 68.9898pt.
 <s3b_eccentricity.png, id=54, 862.422pt x 287.6346pt>
 File: s3b_eccentricity.png Graphic file (type png)
 <use s3b_eccentricity.png>
-Package pdftex.def Info: s3b_eccentricity.png  used on input line 224.
+Package pdftex.def Info: s3b_eccentricity.png  used on input line 230.
 (pdftex.def)             Requested size: 206.40038pt x 68.8362pt.
 <s3b_inclination.png, id=55, 861.9402pt x 287.6346pt>
 File: s3b_inclination.png Graphic file (type png)
 <use s3b_inclination.png>
-Package pdftex.def Info: s3b_inclination.png  used on input line 225.
+Package pdftex.def Info: s3b_inclination.png  used on input line 231.
 (pdftex.def)             Requested size: 206.40038pt x 68.8757pt.
 <s3b_raan.png, id=56, 860.9766pt x 287.6346pt>
 File: s3b_raan.png Graphic file (type png)
 <use s3b_raan.png>
-Package pdftex.def Info: s3b_raan.png  used on input line 226.
+Package pdftex.def Info: s3b_raan.png  used on input line 232.
 (pdftex.def)             Requested size: 206.40038pt x 68.95032pt.
 <s3b_arg_perigee.png, id=57, 860.013pt x 287.6346pt>
 File: s3b_arg_perigee.png Graphic file (type png)
 <use s3b_arg_perigee.png>
-Package pdftex.def Info: s3b_arg_perigee.png  used on input line 227.
+Package pdftex.def Info: s3b_arg_perigee.png  used on input line 233.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <s3b_mean_anomaly.png, id=58, 860.013pt x 287.6346pt>
 File: s3b_mean_anomaly.png Graphic file (type png)
 <use s3b_mean_anomaly.png>
-Package pdftex.def Info: s3b_mean_anomaly.png  used on input line 228.
+Package pdftex.def Info: s3b_mean_anomaly.png  used on input line 234.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <s3b_mean_motion.png, id=59, 860.9766pt x 287.6346pt>
 File: s3b_mean_motion.png Graphic file (type png)
 <use s3b_mean_motion.png>
-Package pdftex.def Info: s3b_mean_motion.png  used on input line 229.
+Package pdftex.def Info: s3b_mean_motion.png  used on input line 235.
 (pdftex.def)             Requested size: 206.40038pt x 68.95032pt.
 
 
@@ -664,37 +674,37 @@ Package pdftex.def Info: s3b_mean_motion.png  used on input line 229.
 <en1_sma.png, id=64, 861.4584pt x 287.6346pt>
 File: en1_sma.png Graphic file (type png)
 <use en1_sma.png>
-Package pdftex.def Info: en1_sma.png  used on input line 235.
+Package pdftex.def Info: en1_sma.png  used on input line 241.
 (pdftex.def)             Requested size: 206.40038pt x 68.9152pt.
 <en1_eccentricity.png, id=65, 862.9038pt x 287.6346pt>
 File: en1_eccentricity.png Graphic file (type png)
 <use en1_eccentricity.png>
-Package pdftex.def Info: en1_eccentricity.png  used on input line 236.
+Package pdftex.def Info: en1_eccentricity.png  used on input line 242.
 (pdftex.def)             Requested size: 206.40038pt x 68.7967pt.
 <en1_inclination.png, id=66, 860.9766pt x 287.6346pt>
 File: en1_inclination.png Graphic file (type png)
 <use en1_inclination.png>
-Package pdftex.def Info: en1_inclination.png  used on input line 237.
+Package pdftex.def Info: en1_inclination.png  used on input line 243.
 (pdftex.def)             Requested size: 206.40038pt x 68.95032pt.
 <en1_raan.png, id=67, 860.9766pt x 287.6346pt>
 File: en1_raan.png Graphic file (type png)
 <use en1_raan.png>
-Package pdftex.def Info: en1_raan.png  used on input line 238.
+Package pdftex.def Info: en1_raan.png  used on input line 244.
 (pdftex.def)             Requested size: 206.40038pt x 68.95032pt.
 <en1_arg_perigee.png, id=68, 860.013pt x 287.6346pt>
 File: en1_arg_perigee.png Graphic file (type png)
 <use en1_arg_perigee.png>
-Package pdftex.def Info: en1_arg_perigee.png  used on input line 239.
+Package pdftex.def Info: en1_arg_perigee.png  used on input line 245.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <en1_mean_anomaly.png, id=69, 860.013pt x 287.6346pt>
 File: en1_mean_anomaly.png Graphic file (type png)
 <use en1_mean_anomaly.png>
-Package pdftex.def Info: en1_mean_anomaly.png  used on input line 240.
+Package pdftex.def Info: en1_mean_anomaly.png  used on input line 246.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <en1_mean_motion.png, id=70, 860.9766pt x 287.6346pt>
 File: en1_mean_motion.png Graphic file (type png)
 <use en1_mean_motion.png>
-Package pdftex.def Info: en1_mean_motion.png  used on input line 241.
+Package pdftex.def Info: en1_mean_motion.png  used on input line 247.
 (pdftex.def)             Requested size: 206.40038pt x 68.95032pt.
 
 
@@ -702,72 +712,72 @@ Package pdftex.def Info: en1_mean_motion.png  used on input line 241.
 <cs2_sma.png, id=87, 861.9402pt x 287.6346pt>
 File: cs2_sma.png Graphic file (type png)
 <use cs2_sma.png>
-Package pdftex.def Info: cs2_sma.png  used on input line 247.
+Package pdftex.def Info: cs2_sma.png  used on input line 253.
 (pdftex.def)             Requested size: 206.40038pt x 68.8757pt.
 <cs2_eccentricity.png, id=88, 862.9038pt x 287.6346pt>
 File: cs2_eccentricity.png Graphic file (type png)
 <use cs2_eccentricity.png>
-Package pdftex.def Info: cs2_eccentricity.png  used on input line 248.
+Package pdftex.def Info: cs2_eccentricity.png  used on input line 254.
 (pdftex.def)             Requested size: 206.40038pt x 68.7967pt.
 <cs2_inclination.png, id=89, 861.9402pt x 287.6346pt>
 File: cs2_inclination.png Graphic file (type png)
 <use cs2_inclination.png>
-Package pdftex.def Info: cs2_inclination.png  used on input line 249.
+Package pdftex.def Info: cs2_inclination.png  used on input line 255.
 (pdftex.def)             Requested size: 206.40038pt x 68.8757pt.
 <cs2_raan.png, id=90, 860.9766pt x 287.6346pt>
 File: cs2_raan.png Graphic file (type png)
 <use cs2_raan.png>
-Package pdftex.def Info: cs2_raan.png  used on input line 250.
+Package pdftex.def Info: cs2_raan.png  used on input line 256.
 (pdftex.def)             Requested size: 206.40038pt x 68.95032pt.
 <cs2_arg_perigee.png, id=91, 860.013pt x 287.6346pt>
 File: cs2_arg_perigee.png Graphic file (type png)
 <use cs2_arg_perigee.png>
-Package pdftex.def Info: cs2_arg_perigee.png  used on input line 251.
+Package pdftex.def Info: cs2_arg_perigee.png  used on input line 257.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <cs2_mean_anomaly.png, id=92, 860.013pt x 287.6346pt>
 File: cs2_mean_anomaly.png Graphic file (type png)
 <use cs2_mean_anomaly.png>
-Package pdftex.def Info: cs2_mean_anomaly.png  used on input line 252.
+Package pdftex.def Info: cs2_mean_anomaly.png  used on input line 258.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <cs2_mean_motion.png, id=93, 861.9402pt x 287.6346pt>
 File: cs2_mean_motion.png Graphic file (type png)
 <use cs2_mean_motion.png>
-Package pdftex.def Info: cs2_mean_motion.png  used on input line 253.
+Package pdftex.def Info: cs2_mean_motion.png  used on input line 259.
 (pdftex.def)             Requested size: 206.40038pt x 68.8757pt.
 <srl_sma.png, id=94, 861.4584pt x 287.6346pt>
 File: srl_sma.png Graphic file (type png)
 <use srl_sma.png>
-Package pdftex.def Info: srl_sma.png  used on input line 259.
+Package pdftex.def Info: srl_sma.png  used on input line 265.
 (pdftex.def)             Requested size: 206.40038pt x 68.9152pt.
 <srl_eccentricity.png, id=95, 862.9038pt x 287.6346pt>
 File: srl_eccentricity.png Graphic file (type png)
 <use srl_eccentricity.png>
-Package pdftex.def Info: srl_eccentricity.png  used on input line 260.
+Package pdftex.def Info: srl_eccentricity.png  used on input line 266.
 (pdftex.def)             Requested size: 206.40038pt x 68.7967pt.
 <srl_inclination.png, id=96, 861.9402pt x 287.6346pt>
 File: srl_inclination.png Graphic file (type png)
 <use srl_inclination.png>
-Package pdftex.def Info: srl_inclination.png  used on input line 261.
+Package pdftex.def Info: srl_inclination.png  used on input line 267.
 (pdftex.def)             Requested size: 206.40038pt x 68.8757pt.
 <srl_raan.png, id=97, 860.9766pt x 287.6346pt>
 File: srl_raan.png Graphic file (type png)
 <use srl_raan.png>
-Package pdftex.def Info: srl_raan.png  used on input line 262.
+Package pdftex.def Info: srl_raan.png  used on input line 268.
 (pdftex.def)             Requested size: 206.40038pt x 68.95032pt.
 <srl_arg_perigee.png, id=98, 860.013pt x 287.6346pt>
 File: srl_arg_perigee.png Graphic file (type png)
 <use srl_arg_perigee.png>
-Package pdftex.def Info: srl_arg_perigee.png  used on input line 263.
+Package pdftex.def Info: srl_arg_perigee.png  used on input line 269.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <srl_mean_anomaly.png, id=99, 860.013pt x 287.6346pt>
 File: srl_mean_anomaly.png Graphic file (type png)
 <use srl_mean_anomaly.png>
-Package pdftex.def Info: srl_mean_anomaly.png  used on input line 264.
+Package pdftex.def Info: srl_mean_anomaly.png  used on input line 270.
 (pdftex.def)             Requested size: 206.40038pt x 69.02931pt.
 <srl_mean_motion.png, id=100, 861.4584pt x 287.6346pt>
 File: srl_mean_motion.png Graphic file (type png)
 <use srl_mean_motion.png>
-Package pdftex.def Info: srl_mean_motion.png  used on input line 265.
+Package pdftex.def Info: srl_mean_motion.png  used on input line 271.
 (pdftex.def)             Requested size: 206.40038pt x 68.9152pt.
 
 
@@ -775,7 +785,7 @@ Package pdftex.def Info: srl_mean_motion.png  used on input line 265.
 <cs2_delta_a_kalman_vs_theorique.png, id=112, 738.1176pt x 380.622pt>
 File: cs2_delta_a_kalman_vs_theorique.png Graphic file (type png)
 <use cs2_delta_a_kalman_vs_theorique.png>
-Package pdftex.def Info: cs2_delta_a_kalman_vs_theorique.png  used on input line 281.
+Package pdftex.def Info: cs2_delta_a_kalman_vs_theorique.png  used on input line 287.
 (pdftex.def)             Requested size: 365.50655pt x 188.48105pt.
 
 
@@ -783,12 +793,12 @@ Package pdftex.def Info: cs2_delta_a_kalman_vs_theorique.png  used on input line
 <s3b_delta_a_kalman_vs_theorique.png, id=124, 724.1454pt x 380.622pt>
 File: s3b_delta_a_kalman_vs_theorique.png Graphic file (type png)
 <use s3b_delta_a_kalman_vs_theorique.png>
-Package pdftex.def Info: s3b_delta_a_kalman_vs_theorique.png  used on input line 284.
+Package pdftex.def Info: s3b_delta_a_kalman_vs_theorique.png  used on input line 290.
 (pdftex.def)             Requested size: 365.50655pt x 192.11674pt.
 <cs2_dv_composantes.png, id=125, 738.1176pt x 380.1402pt>
 File: cs2_dv_composantes.png Graphic file (type png)
 <use cs2_dv_composantes.png>
-Package pdftex.def Info: cs2_dv_composantes.png  used on input line 297.
+Package pdftex.def Info: cs2_dv_composantes.png  used on input line 303.
 (pdftex.def)             Requested size: 365.50655pt x 188.24248pt.
 
 
@@ -796,9 +806,9 @@ Package pdftex.def Info: cs2_dv_composantes.png  used on input line 297.
 <s3b_dv_composantes.png, id=131, 722.2182pt x 380.1402pt>
 File: s3b_dv_composantes.png Graphic file (type png)
 <use s3b_dv_composantes.png>
-Package pdftex.def Info: s3b_dv_composantes.png  used on input line 300.
+Package pdftex.def Info: s3b_dv_composantes.png  used on input line 306.
 (pdftex.def)             Requested size: 365.50655pt x 192.3898pt.
-LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 315.
+LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 321.
  (/usr/local/texlive/2025/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -807,7 +817,7 @@ File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 <s3b_delta_i_kalman_vs_theorique.png, id=137, 740.0448pt x 603.2136pt>
 File: s3b_delta_i_kalman_vs_theorique.png Graphic file (type png)
 <use s3b_delta_i_kalman_vs_theorique.png>
-Package pdftex.def Info: s3b_delta_i_kalman_vs_theorique.png  used on input line 332.
+Package pdftex.def Info: s3b_delta_i_kalman_vs_theorique.png  used on input line 338.
 (pdftex.def)             Requested size: 365.50655pt x 297.92433pt.
 
 
@@ -819,14 +829,14 @@ L3 programming layer <2025-01-18>
  ) 
 Here is how much of TeX's memory you used:
  17940 strings out of 473190
- 369850 string characters out of 5715800
+ 370074 string characters out of 5715800
  735327 words of memory out of 5000000
  40859 multiletter control sequences out of 15000+600000
  622703 words of font info for 87 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  102i,7n,107p,535b,428s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmbx12.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmbx9.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmex10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmmi10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmmi7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr12.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr17.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr5.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr7.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmr9.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmri10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/lm/lmsy7.pfb>
-Output written on "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.pdf" (13 pages, 3961163 bytes).
+Output written on "/Users/etiennechevrolat/Desktop/Ecole_polytechnique/STAGE 2026/Aldoria/ssa-analysis/caractérisation_manoeuvres/manoeuvres.pdf" (13 pages, 4029307 bytes).
 PDF statistics:
  221 PDF objects out of 1000 (max. 8388607)
  92 compressed objects within 1 object stream

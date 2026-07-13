@@ -81,7 +81,7 @@ def MLF_LOWESS_KEPLERIAN(df, smoothed=True, detect=True, threshold_sigma=4.0,
 
     peaks, threshold = (detect_peaks(signal, t, threshold_sigma, min_distance_days)
                         if detect else (np.array([], dtype=int), np.nan))
-
+    
     if ax is not None:
         # Mode comparaison : on trace sur l'axe fourni, sans ouvrir de figure
         ax.plot(epoch[1:], signal, lw=0.8)

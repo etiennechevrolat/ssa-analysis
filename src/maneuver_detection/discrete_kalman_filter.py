@@ -44,7 +44,7 @@ def kalman_filter_ordre_1(df, var_Q = 0.13, r = 1.0 , p0= 1000.0, metrique = "sm
         normalized_residuals.append( y * y / S) # scalaire, suit une loi du chi2 à dimZ=1 degré de liberté
         sma_dot.append(f.x[1])              # dérivée du demi-grand axe estimée [km/jour]
 
-    print("Filtre Kalman 1 appliqué...")
+    #print("Filtre Kalman 1 appliqué...")
 
     return residuals, normalized_residuals, np.asarray(sma_dot)
 
@@ -91,7 +91,7 @@ def kalman_filter_ordre_2(df, var_Q = 0.13, r = 1.0, p0 = 1000.0, metrique='sma'
         normalized_residuals.append( y * y / S) # suit une loi du chi2 à dimZ=1 deg de liberté
         sma_dot.append(f.x[1])              # dérivée du demi-grand axe estimée [km/jour]
 
-    print("Filtre Kalman 2 appliqué...")
+    #print("Filtre Kalman 2 appliqué...")
 
     return residuals, normalized_residuals, np.asarray(sma_dot)
 
@@ -109,7 +109,7 @@ def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot
     threshold = chi2.ppf(alpha, df=1)
     
     maneuvers = np.where(nis > threshold)[0]
-    
+
     epoch = df['epoch'].to_numpy()[1:]          # séries alignées sur les pas k >= 1
     # Bornes x : mêmes que plot_time_series (epoch complet, pas [1:]) pour aligner
     # parfaitement les deux figures. `xlim` peut être passé identique aux deux.
@@ -137,7 +137,7 @@ def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot
 
         # dérivée estimée du demi-grand axe (saute à chaque manœuvre)
         ax1.plot(epoch, sma_dot, lw=0.8, color="tab:blue")
-        ax1.set_ylabel(r"$\dot a$ estimé [km/jour]")
+        ax1.set_ylabel(fr"$ \Delta {metrique} $ estimé [km/jour]")
 
         # Statistique de détection : NIS comparée au seuil χ²
         ax2.plot(epoch, nis, lw=0.8, label="NIS")
