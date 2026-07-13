@@ -13,7 +13,6 @@ from optimisation_seuil.metrics import (
     minimize,
 )
 
-
 def to_days(times, t0):
     """datetimes (np.datetime64 / datetime) -> float jours depuis t0."""
     arr = np.asarray(times, dtype="datetime64[ns]")
@@ -99,5 +98,4 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     print(f"norad={norad}  var_Q={var_Q:.4g} r={r:.4g} p0={p0:.4g} F1={prf['f1']:.3f} "
           f"P={prf['precision']:.3f} R={prf['recall']:.3f}  {conf}")
     return {"var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}
-
 
