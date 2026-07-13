@@ -192,7 +192,7 @@ Pour l'instant, on ne différencie pas le type de manoeuvres détectées grâce 
 Cependant, la méthode par filtrage de Kalman est basée sur le demi-grand axe : on est donc en train de mesurer des manoeuvres in-plane.
 Les méthodes Mean Longitude Filter sont basées sur la longitude moyenne $\lambda = \Omega + \omega + M$ et détectent aussi des manoeuvres in plane. 
 
-\subsubsection{A suivre :} 
+\subsubsection{A suivre 1 :} 
 \begin{itemize}
     \item en GEO, les algos de détection de manoeuvres doivent préciser clairement le type de manoeuvres opérées (NS, EW, Station-Keeping ou non). 
     \item poursuivre l'étude de PoL en LEO, plus complexes a priori, qui ne contiennent pas seulement des manoeuvres de station-keeping
@@ -391,7 +391,8 @@ $$
 $$
 avec $X$ le vecteur des paramètres
  
-On représente la métrique $F1$ brute ainsi que la métrique lissée pour les 4 satellites, en fonction du paramètre $r$ du filtre (représente l'incertitude sur la mesure du paramètre)
+On représente la métrique $F1$ brute ainsi que la métrique lissée pour les 4 satellites, en fonction du paramètre $r$ du filtre (représente l'incertitude sur la mesure du paramètre).
+On a choisit des valeurs variables des paramètres de lissage : $ \sigma \in (0.2, 0.9) $ et $ \beta \in (0.5, 1.5) $. Les maximas sont globalement conservés, mais on peut cependant montrer que les maximas ne sont pas exactement atteints pour les mêmes valeurs de $r, varQ, p0$.
 \begin{center}
     \includegraphics[width=0.85\textwidth]{figures/43437_f1_vs_r.png}
     \includegraphics[width=0.85\textwidth]{figures/27386_f1_vs_r.png}
@@ -400,5 +401,131 @@ On représente la métrique $F1$ brute ainsi que la métrique lissée pour les 4
 \end{center}
 
 On cherche donc le minimum de la métrique lissée par des techniques classiques d'optimisation de fonctions régulières.
+On trace les times series des paramètres intéressants (demi grand axe pour manoeuvres in plane, inclinaison pour out-plane), avec les manoeuvres vraies d'une part, et les manoeuvres prédites d'autre part.
 
+\newpage
+
+\begin{center}
+    Manoeuvres vraies (Sentinel 3B)
+    \includegraphics[width=0.85\textwidth]{figures/s3b_sma.png}
+\end{center}
+
+
+\begin{center}
+    Manoeuvres prédites in plane (Sentinel 3B)
+    \includegraphics[width=0.85\textwidth]{figures/43437_sma_pred.png}
+\end{center}
+
+\begin{center}
+    Manoeuvres prédites out plane (Sentinel 3B)
+    \includegraphics[width=0.85\textwidth]{figures/43437_inclination_pred.png}
+\end{center}
+
+On voit qu'en regroupant les manoeuvres prédites in plane et out plane, on obtient quasiment toutes les manoeuvres.
+
+\newpage 
+
+\begin{center}
+    Manoeuvres vraies (Envisat)
+    \includegraphics[width=0.85\textwidth]{figures/en1_sma.png}
+\end{center}
+
+
+\begin{center}
+    Manoeuvres prédites in plane (Envisat)
+    \includegraphics[width=0.85\textwidth]{figures/27386_sma_pred.png}
+\end{center}
+
+\begin{center}
+    Manoeuvres prédites out plane (Envisat)
+    \includegraphics[width=0.85\textwidth]{figures/27386_inclination_pred.png}
+\end{center}
+
+Les données particulièrement bruitées des mesures d'inclinaison de Envisat font détecter des manoeuvres là où il n'y a que du bruit.
+
+\newpage 
+
+\begin{center}
+    Manoeuvres vraies (CryoSat2)
+    \includegraphics[width=0.85\textwidth]{figures/cs2_sma.png}
+\end{center}
+
+
+\begin{center}
+    Manoeuvres prédites in plane (CryoSat2)
+    \includegraphics[width=0.85\textwidth]{figures/36508_sma_pred.png}
+\end{center}
+
+\begin{center}
+    Manoeuvres prédites out plane (Cryosat2)
+    \includegraphics[width=0.85\textwidth]{figures/36508_inclination_pred.png}
+\end{center}
+
+Des fausses manoeuvres sont détectées, et quelques manoeuvres évidentes à l'oeil nu passent inaperçues pour l'algorithme.
+
+\newpage 
+
+\begin{center}
+    Manoeuvres vraies (Saral)
+    \includegraphics[width=0.85\textwidth]{figures/srl_sma.png}
+\end{center}
+
+
+\begin{center}
+    Manoeuvres prédites in plane (Saral)
+    \includegraphics[width=0.85\textwidth]{figures/39086_sma_pred.png}
+\end{center}
+
+
+On voit donc sur ces quelques exemples de satellites dont les manoeuvres sont précisément documentées, que notre méthode de seuillage optimal échoue.
+En effet, on obtient sur ces exemples des valeurs des paramètres pour le filtrage très différentes : cela traduit la diversité des profils de pattern of life en LEO.
+On n'arrivera donc pas à trouver des valeurs valables pour tous les satellites LEO de cette manière.
+
+De plus, la précision des algorithmes laisse à désirer : même avec les paramètres optimisés au cas par cas, les valeurs max de $F1$ sont faibles : 
+\begin{itemize}
+    \item Sentinel 3B : $F1_{max} \sim 0.5 $
+    \item Envisat : $F1_{max} \sim 0.12 $
+    \item Cryosat2 : $F1_{max} \sim 0.10 $
+    \item Saral : $F1_{max} \sim 0.67 $
+\end{itemize}
+
+Nous avons ici essayé une approche innovante inspirée de Zollo et al (2023) pour adresser le problème du seuillage lorsqu'on fait de la détection d'anomalies dans les séries temporelles des paramètres orbitaux. 
+Une technique classique est de fixer un seuil (par exemple 1000m) au delà duquel les résidus (bruts) sont considérées comme une manoeuvre. 
+Ici, on essaye d'appliquer une technique de filtrage et d'ajuster les paramètres du filtres, de telle sorte à ce que le filtre lui même retire le bruit des mesures pour ne laisser que des pics liés aux manoeuvres.
+Un seuil statistique universel est alors appliqué, plutot qu'un seuil arbitraire sur la mesure. 
+
+
+Un point important : pour obtenir leurs résultats, Zollo et al dans leur étude, en plus d'optimiser les paramètres de leur filtre, ajustent aussi le seuillage final à chaque satellite. Nous avons plutôt essayé de fixer un seuil statistique unique, au prix d'une précision moins bonne. 
+De plus, ils appliquent également une étape de smoothing à la sortie du filtre (celle de Rauch et al (1965))
+
+
+
+\subsubsection{Des sous classes de satellites LEO}
+
+Des résultats de la section précédente on a maintenant la volonté d'identifier plus précisement des sous classes des satellites en orbites LEO, sur lesquelles on va pouvoir appliquer un seuillage similaire.
+\begin{itemize}
+    \item Les satellites heliosynchrones, qui repassent régulièrement sur le même point de longitude, lattitude : leurs pattern of life va donc être similaire à des satellites GEO, avec un maintien à poste. 
+    \item Les constellations de satellites : 
+    \begin{itemize}
+        \item constellation Starlink ($\sim 10 000$ satellites)
+        \item constallations chinoises : Qianfan, Guowang en forte croissance $\sim$ quelques centaines de satellites
+        \item constellation OneWeb en Europe : ($\sim 700$ satellites)
+    \end{itemize}
+    \item Tous les autres : satellites scientifiques, sans pattern définissable. 
+\end{itemize}
+
+Une étape de clusterisation par apprentissage non supervisé est le meilleur moyen d'obtenir de la donnée sur ces constellations de satellites.
+Guimaraes et al. appliquent cette méthode et obtiennent 86 clusters de satellites en orbite basse. Leurs paramètres orbitaux évoluent de la même manière : on pourrait alors leur appliquer une classification type GEO.  
+
+
+
+\subsubsection{A suivre 2 :} 
+\begin{itemize}
+    \item Nous avons implémenté un algorithme déterministe qui nous permet d'avoir une baseline pour notre étude : le filtrage Kalman (d'ordre 1 ou 2 selon la finesse nécessaire). On a également la méthode utilisant la longitude moyenne qui est utilisable en GEO. 
+    \item En GEO, nous avons maintenant bien définis les différents patter of life des satellites, grâce aux travail des chercheurs du MIT et du dataset SPLID
+    \item En LEO, notre méthode est prometteuse en termes de précision mais trop grossière, on pourrait la pousser. Cependant, elle est surtout peu automatisable : elle nécessite toujorus in fine du cas par cas.
+    \item En LEO, on va définir des sous-classes, pour pouvoir mieux distinguer les différents pattern of life des satllites.
+
+\end{itemize}
 \end{document}
+ 

@@ -1,7 +1,7 @@
 # Fdb version 4
-["pdflatex"] 1783952940.095 "/home/echevrolat/Documents/dev/ssa-analysis/rapport/rapport_draft.tex" "rapport_draft.pdf" "rapport_draft" 1783952945.82721 0
+["pdflatex"] 1783961305.44642 "/home/echevrolat/Documents/dev/ssa-analysis/rapport/rapport_draft.tex" "rapport_draft.pdf" "rapport_draft" 1783961311.83609 0
   "/etc/texmf/web2c/texmf.cnf" 1783948794.61858 475 c0e671620eb5563b2130f56340a5fde8 ""
-  "/home/echevrolat/Documents/dev/ssa-analysis/rapport/rapport_draft.tex" 1783952939.90811 23610 1e0a6fb2de0ba981b6f94365fb67953e ""
+  "/home/echevrolat/Documents/dev/ssa-analysis/rapport/rapport_draft.tex" 1783961305.26359 30097 5cc022402c0a6fdd9c4609b76cccb50d ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecrm1000.tfm" 1136768653 3584 adb004a0c8e7c46ee66cad73671f37b4 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/public/amsfonts/symbols/msam10.tfm" 1246382020 916 f87d7c45f9c908e672703b83b72241a3 ""
@@ -186,9 +186,16 @@
   "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1783949174 5541477 3118940318599480888143717dd32d64 ""
   "/var/lib/texmf/web2c/pdftex/pdflatex.fmt" 1783949260 3639558 5db9d678a0f1f14604635b20e7fa8f1c ""
   "figures/27386_f1_vs_r.png" 1783948201.00068 54559 6d5e5f11bbb0c93392f85f38404d61bd ""
+  "figures/27386_inclination_pred.png" 1783956554.38899 104233 c18be8b1cd77e50529fb4e28de7498bf ""
+  "figures/27386_sma_pred.png" 1783956554.38968 56888 45effe35cf74541a641fe40937701b15 ""
   "figures/36508_f1_vs_r.png" 1783948201.00128 52363 5c6a807bb0c164dc3a3e8ac16acbab3d ""
+  "figures/36508_inclination_pred.png" 1783956554.39053 81277 2c32c5cf1479df310ad90574987ed20a ""
+  "figures/36508_sma_pred.png" 1783956554.39145 88435 6264620a074ef99792dff5dd203f94b6 ""
   "figures/39086_f1_vs_r.png" 1783948201.00186 50954 458dbea6654dd7b81c102341af05a9a2 ""
+  "figures/39086_sma_pred.png" 1783956554.39204 62943 30cdec9d6decc577045de9fc41ca672c ""
   "figures/43437_f1_vs_r.png" 1783948201.00249 58393 cab317b19465cc19102394355be7fa73 ""
+  "figures/43437_inclination_pred.png" 1783956554.39328 110223 8eebc07d6dc9ce2fc28ff1a8044571a1 ""
+  "figures/43437_sma_pred.png" 1783956554.39404 70645 3e47654daeec7b8582917bdc82daaeb7 ""
   "figures/Capture d’écran 2026-07-01 à 14.41.03.png" 1783948201.00532 250554 5edfc9d2771a99fc37a882fc5224175c ""
   "figures/Capture d’écran 2026-07-01 à 14.41.14.png" 1783948201.00762 647239 19167fd06c48297fa79c89e96b975f64 ""
   "figures/Capture d’écran 2026-07-01 à 14.41.33.png" 1783948201.00894 333711 5e5ae57408aad260fc5239587c7c5f88 ""
@@ -229,8 +236,8 @@
   "figures/srl_mean_motion.png" 1783948201.07981 64430 a5dbe717109797d28fbdcb7ec40d3a6a ""
   "figures/srl_raan.png" 1783948201.08019 90987 2a841dc79b7068587c9151a1325f510f ""
   "figures/srl_sma.png" 1783948201.08042 62571 14e54f9d20f287fea7bc7a3b8f37aa5f ""
-  "rapport_draft.aux" 1783952945.73865 2461 1439dc90ecf93e55418ec555c233235a "pdflatex"
-  "rapport_draft.tex" 1783952939.90811 23610 1e0a6fb2de0ba981b6f94365fb67953e ""
+  "rapport_draft.aux" 1783961311.74556 2709 a6c1aca2d6445015c818e4d43b6a2736 "pdflatex"
+  "rapport_draft.tex" 1783961305.26359 30097 5cc022402c0a6fdd9c4609b76cccb50d ""
   (generated)
   "rapport_draft.aux"
   "rapport_draft.log"
