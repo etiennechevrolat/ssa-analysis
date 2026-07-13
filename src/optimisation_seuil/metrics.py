@@ -52,7 +52,6 @@ def lissage_noyau_gaussien_metriques(maneuvers, predictions, scores, seuil, sigm
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
     return 1.0 - f1
 
-
 def minimize(loss_fn, x0, bounds=None):
     """Minimise loss_fn, en pratique notre loss F1 lissée par Powell
     """
