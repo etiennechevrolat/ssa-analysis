@@ -1,14 +1,16 @@
 constellations:
  # - {name_pattern: "", country: "" }
- #  {name_pattern: "", country: "EUME" }
+- {name_pattern: "", country: "EUME" }
+
 # - {name_pattern: "YAOGAN", country: "" }
 ##- {name_pattern: "KORSAT", country: "" }
 #- {name_pattern: "RADUGA", country: "" }
 #- {name_pattern: "SHIYAN", country: "" }
 #- {name_pattern: "DROR", country: "" }
-- {name_pattern: "SYRACUSE", country: "" }
- # - {name_pattern: "SARAL", country: "" }
- # - {name_pattern: "STARLINK", country: "US" }
+# - {name_pattern: "SYRACUSE", country: "" }
+- {name_pattern: "SARAL", country: "" }
+ # 
+#- {name_pattern: "STARLINK", country: "US" }
  # - {name_pattern: "MOLNIYA", country: "CIS" }
  # - {name_pattern: "ONEWEB", country: "" }
  # - {name_pattern: "GSAT", country: "" }
@@ -17,9 +19,9 @@ constellations:
 ###
 
 
-data_range: {start: 2026-04-15, end: 2026-06-16}
+data_range: {start: 2025-01-01, end: 2026-01-01}
 
-# On modifie ici le type d'orbite que l'on sélectionne via une range de semi-grand axe
+### On modifie ici le type d'orbite que l'on sélectionne via une range de semi-grand axe
 # orbit_range: {borneinf: 42000.0 , bornesup : 43000.0}
 
 maneuvers : {sat_name : "srl"} ## identifiant ILRS composé de 3 lettres 
