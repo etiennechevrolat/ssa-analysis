@@ -19,7 +19,7 @@ def derive(mean_motion, ecc):
 
 def true_to_mean_anomaly(nu, e):
     excentric_anomaly = np.arctan2(
-        np.sqrt(1._- e**2) * np.sin(np.radians(nu)), 
+        np.sqrt(1 - e**2) * np.sin(np.radians(nu)), 
         e + np.cos(np.radians(nu))
     )
     mean_anomaly = excentric_anomaly - e * np.sin(excentric_anomaly)
