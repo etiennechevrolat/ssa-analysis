@@ -1,0 +1,17 @@
+
+name : modelname
+model : 
+  name : modelname # clé du registre des modèles
+  params : 
+
+data : 
+  splid_dir: "data/raw/splid_dataset/training"
+  history : 48
+  future : 48
+
+train : 
+    {
+      batch_size: ,
+      lr : ,
+      epochs : ,
+    }

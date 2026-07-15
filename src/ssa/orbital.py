@@ -17,23 +17,32 @@ def derive(mean_motion, ecc):
         "velocity": (GM / smak) ** 0.5,
     }
 
-def to_equinoxal(df):
-    # Keplerian angles (e, i, RAAN, arg_perigee, M) -> Equinoxal (k, h , q , p, cos(lamda), sin(lamda)) continuous 
+def true_to_mean_anomaly(nu, e):
+    excentric_anomaly = np.arctan2(
+        np.sqrt(1._- e**2) * np.sin(np.radians(nu)), 
+        e + np.cos(np.radians(nu))
+    )
+    mean_anomaly = excentric_anomaly - e * np.sin(excentric_anomaly)
+    return mean_anomaly
+    
+def to_equinoxal(e, i, raan, arg_perigee, true_anomaly):
+    # Keplerian angles (e, i, RAAN, arg_perigee, M) from splid dataset -> Equinoxal (k, h , q , p, cos(lamda), sin(lamda)) continuous 
 
-    e = np.asarray(df['eccentricity'], dtype=float)
-    i = np.radians(np.asarray(df['inclination'], dtype=float))
-    raan = np.radians(np.asarray(df['raan'], dtype=float))
-    arg_perigee = np.radians(np.asarray(df['arg_perigee'], dtype=float))
-    lamda = np.radians(np.asarray(df['mean_anomaly'], dtype=float))
+    e = np.asarray(e, dtype=float)
+    i = np.radians(np.asarray(i, dtype=float))
+    raan = np.radians(np.asarray(raan, dtype=float))
+    arg_perigee = np.radians(np.asarray(arg_perigee, dtype=float))
+    M = np.radians(np.asarray(true_to_mean_anomaly(true_anomaly)), dtype=float)
+    
 
     longitude_pericentre = raan + arg_perigee
     k = e*np.cos(longitude_pericentre)
     h = e*np.sin(longitude_pericentre)
     q = np.tan(i/2)*np.cos(raan)
     p = np.tan(i/2)*np.sin(raan)
-    return k,h,q,p, np.cos(lamda), np.sin(lamda)
+    return k,h,q,p, np.cos(M), np.sin(M)
 
-def tp_keplerian(k,h,q,p, cos_lamda, sin_lamda): 
+def to_keplerian(k,h,q,p, cos_lamda, sin_lamda): 
     #Equinoxal (k, h , q , p, cos(lamda), sin(lamda)) continuous ->  Keplerian angles (e, i, RAAN, arg_perigee, M) 
     e = np.hypot(h,k)
     i = 2 * np.arctan(np.hypot(q,p))

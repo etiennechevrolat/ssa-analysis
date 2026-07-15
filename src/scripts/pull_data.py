@@ -58,7 +58,6 @@ def main():
         #On écrit dans data
         tag = f"{constellation.name_pattern or 'ALL'}_{constellation.country or 'ALL'}"
         date = time.time()
-        write_excel(df, f"data/raw/{tag}_{date}.xlsx")
         write_parquet(df, f"data/raw/{tag}_{date}.parquet" )
 
 

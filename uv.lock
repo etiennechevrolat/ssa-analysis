@@ -1542,15 +1542,18 @@ source = { editable = "." }
 dependencies = [
     { name = "filterpy" },
     { name = "matplotlib" },
+    { name = "numpy" },
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "polars" },
     { name = "pyarrow" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
+    { name = "scikit-learn" },
     { name = "sgp4" },
     { name = "spacetrack" },
     { name = "statsmodels" },
+    { name = "torch" },
 ]
 
 [package.optional-dependencies]
@@ -1580,6 +1583,7 @@ requires-dist = [
     { name = "filterpy", specifier = ">=1.4.5" },
     { name = "matplotlib", specifier = ">=3.11.0" },
     { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.8" },
+    { name = "numpy" },
     { name = "numpy", marker = "extra == 'ml'" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "openpyxl", marker = "extra == 'viz'" },
@@ -1591,10 +1595,12 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "ruff", marker = "extra == 'dev'" },
+    { name = "scikit-learn" },
     { name = "scikit-learn", marker = "extra == 'ml'" },
     { name = "sgp4", specifier = ">=2.26" },
     { name = "spacetrack", specifier = "==1.4.0" },
     { name = "statsmodels", specifier = ">=0.14.6" },
+    { name = "torch", specifier = ">=2.2" },
     { name = "torch", marker = "extra == 'ml'", specifier = ">=2.2" },
     { name = "xlsxwriter", marker = "extra == 'viz'" },
 ]

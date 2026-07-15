@@ -28,6 +28,10 @@ class DataConfig(BaseModel):
     orbit_range: Optional[OrbitRange] = None
     maneuvers: Optional[ManeuverConfig] = None
 
+from dataclasses import dataclass, field 
+@dataclass
+class Config:
+    ## Les données 
 
 def load_data_config(path: str = "configs/data.yaml"):
     raw=yaml.safe_load(Path(path).read_text())
