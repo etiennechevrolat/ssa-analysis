@@ -6,18 +6,18 @@ import torch
 import numpy as np
 
 
-def build_arrays(objects, labels, half_width=6):
+def build_arrays(objects, labels, diff_cols, half_width=6):
     """
     chaque objet -> (X: (L,F), Y: (L,2))
     retourne per_obj 
     """
-    per_obj = {}
+    per_obj, feature_cols = {}, None
     for oid, df in objects.items():
-        df_feat = build_features(df)
-        X = df_feat
+        df_feat, fearure_cols = build_features(df, diff_cols)
+        X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_target(df, oid, labels, half_width=half_width)
         per_obj[oid] = [X,Y]
-    return per_obj
+    return per_obj, feature_cols
 
 def split_by_object(object_ids, val_split=0.2, seed=42):
     """
@@ -34,7 +34,7 @@ def fit_scaler_on_train(per_obj, train_ids):
     """Ajuste le scaler sur le train seulement.
     """
     ## fitter le scaler = trouver nu et sigma correspondant aux valeurs des features dans train_ids
-    scaler=StandardScaler().fit(np.concatenate([per_obj[o]][0] for o in train_ids)) 
+    scaler=StandardScaler().fit(np.concatenate([per_obj[o][0] for o in train_ids])) 
     for oid in per_obj:
         ## applique x = (x-nu)/sigma aux différentes features x stockées dans X 
         per_obj[oid][0] = scaler.transform(per_obj[oid][0]).astype(np.float32)

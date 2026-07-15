@@ -32,8 +32,8 @@ def to_equinoxal(e, i, raan, arg_perigee, true_anomaly):
     i = np.radians(np.asarray(i, dtype=float))
     raan = np.radians(np.asarray(raan, dtype=float))
     arg_perigee = np.radians(np.asarray(arg_perigee, dtype=float))
-    M = np.radians(np.asarray(true_to_mean_anomaly(true_anomaly)), dtype=float)
-    
+    M = true_to_mean_anomaly(true_anomaly, e)
+
 
     longitude_pericentre = raan + arg_perigee
     k = e*np.cos(longitude_pericentre)

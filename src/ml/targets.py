@@ -14,13 +14,13 @@ def build_target(df, object_id, labels, half_width = 6, nodes=pol_nodes):
     w = half_width
     for dir_idx, direction in enumerate(("EW", "NS")): ## Col 0 = EW, Col 1 = NS
         cp_times= object_labels[
-            object_labels["Direction"] == direction
-            & object_labels["Node"].isin(nodes)
+            (object_labels["Direction"] == direction)
+            & (object_labels["Node"].isin(nodes))
             ]["TimeIndex"].to_numpy()
         
         for c in cp_times:
             lo = max(0, c - w)
-            hi = max(L, c + w +1)
+            hi = min(L, c + w +1)
             idx = np.arange(lo,hi)
             bump = 1. - np.abs(idx -c)/w
 
