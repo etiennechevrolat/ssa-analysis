@@ -6,7 +6,7 @@ import torch
 import numpy as np
 
 
-def build_arrays(objects, labels, diff_cols, half_width=6):
+def build_arrays(objects, labels, half_width=6):
     """
     chaque objet -> (X: (L,F), Y: (L,2))
     retourne per_obj 
@@ -68,7 +68,7 @@ class WindowDataset(Dataset):
 
 def make_loaders(objects, labels, batch_size=256, history=48, future=48, val_split=0.2, seed=42, half_width=6, **feature_kwargs):
     # arrays bruts par objet
-    per_obj = build_arrays(objects, labels, half_width=half_width, **feature_kwargs)
+    per_obj , feature_cols = build_arrays(objects, labels, diff_cols, half_width=half_width, **feature_kwargs)
 
     # split par objet 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
@@ -89,7 +89,7 @@ def make_loaders(objects, labels, batch_size=256, history=48, future=48, val_spl
                         batch_size=batch_size,
                         shuffle=False
                         )
-    meta = {"feature_cols" : None, "scaler" : scaler,
+    meta = {"feature_cols" : feature_cols, "scaler" : scaler,
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
     return train_dl, val_dl, meta
 
