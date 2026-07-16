@@ -2,15 +2,19 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from torch.optim import AdamW
+
 import os 
 from pathlib import Path
 
+import hydra 
+from omegaconf import DictConfig
 
 
 from ml.datahandler import load_splid_objects
 from ml.dataset import make_loaders
 from ml.model import NaiveBaseLine
-from ml.dataset import fit_scaler_on_train
+
 
 
 def find_root(marker: str = "pyproject.toml"):
