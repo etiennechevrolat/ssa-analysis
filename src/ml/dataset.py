@@ -13,7 +13,7 @@ def build_arrays(objects, labels, half_width=6):
     """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items():
-        df_feat, fearure_cols = build_features(df)
+        df_feat, feature_cols = build_features(df)
         X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_target(df, oid, labels, half_width=half_width)
         per_obj[oid] = [X,Y]
@@ -54,15 +54,15 @@ class WindowDataset(Dataset):
             X, Y = per_obj[oid]
             Xpad = np.pad(X, ((history, future), (0,0)), mode='constant')
             self.padded[oid] = (Xpad, Y)
-            self.index += [(oid, t) for t in range(len(X))]
+            self.index += [(oid, t) for t in range(len(X))] ### len(X) = nombre de features
     def __len__(self):
         return len(self.index)
     
     def __getitem__(self, index):
-        oid, t = self.index[index]
+        oid, t = self.index[index] ## on récupére le bon objet sachant qu'on a une indexation absolue et que l'objet oid possède t features ? 
         Xpad, Y = self.padded[oid]
-        window = Xpad[t:t+ self.windowsize] # (W, Features)
-        x = torch.from_numpy(window.T).float() # (Features, Window)
+        window = Xpad[t:t+ self.windowsize] # (W, Features) 
+        x = torch.from_numpy(window.T).float() # (Features, Window)  + transformation en tenseurs pytorch 
         y = torch.from_numpy(Y[t]).float() # (2, )
         return x,y
 

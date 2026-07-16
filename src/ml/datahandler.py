@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-diff_cols  =['Semimajor Axis (m)', 'Inclination (deg)', 'Latitude (deg)', 'Longitude (deg)', 'Altitude (m)']
+diff_cols  =['Semimajor Axis (m)', 'q', 'p']
 
 def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
     """
@@ -23,6 +23,7 @@ def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
     if not objects:
         raise FileNotFoundError(f"aucun csv trouvé dans {data_dir}")
     return objects, labels 
+
 from ssa.orbital import to_equinoxal, to_keplerian
 
 def add_continuous_angles(df : pd.DataFrame) -> pd.DataFrame:
@@ -66,5 +67,5 @@ def build_features(df, diff_cols = diff_cols):
     df = add_diff(df, diff_cols)
     feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
     df[feature_cols] = df[feature_cols].astype(np.float32)
-    
+
     return df, feature_cols
