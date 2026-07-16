@@ -54,7 +54,7 @@ class WindowDataset(Dataset):
             X, Y = per_obj[oid]
             Xpad = np.pad(X, ((history, future), (0,0)), mode='constant')
             self.padded[oid] = (Xpad, Y)
-            self.index += [(oid, t) for t in range(len(X))] ### len(X) = nombre de features
+            self.index += [(oid, t) for t in range(len(X))] ### len(X) = nombre de pas de temps
     def __len__(self):
         return len(self.index)
     

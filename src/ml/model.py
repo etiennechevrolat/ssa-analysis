@@ -18,17 +18,5 @@ class NaiveBaseLine(nn.Module):
         x = self.layer1(x) ## (B, 2)
         return x
 
-## test
-import torch 
-def main():
-    x = torch.randn(4,11,97) 
-    testmodel = NaiveBaseLine(11, 97 , 2)
-    y = testmodel(x)
-    print(y.shape)
-
-if __name__ == "__main__":
-    main()
-
-
 
 

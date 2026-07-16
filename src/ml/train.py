@@ -19,6 +19,7 @@ def find_root(marker: str = "pyproject.toml"):
         if (parent / marker).exists():
             return parent
     raise FileNotFoundError(f"{marker} introuvable en remontant depuis {p}")
+
 ROOT = find_root()
 
 DATA_DIR  = os.path.join(ROOT, 'data', 'raw', 'splid_dataset')
@@ -82,9 +83,9 @@ def main():
     data_dir = os.path.join(DATA_DIR, 'training')
     labels_dir = os.path.join(DATA_DIR, 'train_label.csv')
 
-    objects, labels, meta = load_splid_objects(data_dir, labels_dir)
-    print(meta)
-    train_loader, val_loader = make_loaders(objects, labels)
+    objects, labels = load_splid_objects(data_dir, labels_dir)
+  
+    train_loader, val_loader, meta = make_loaders(objects, labels)
 
     model = NaiveBaseLine(9, 97, 2)
     model.to(device)
