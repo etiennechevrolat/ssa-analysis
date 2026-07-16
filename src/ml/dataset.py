@@ -13,7 +13,7 @@ def build_arrays(objects, labels, half_width=6):
     """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items():
-        df_feat, fearure_cols = build_features(df, diff_cols)
+        df_feat, fearure_cols = build_features(df)
         X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_target(df, oid, labels, half_width=half_width)
         per_obj[oid] = [X,Y]
@@ -68,7 +68,7 @@ class WindowDataset(Dataset):
 
 def make_loaders(objects, labels, batch_size=256, history=48, future=48, val_split=0.2, seed=42, half_width=6, **feature_kwargs):
     # arrays bruts par objet
-    per_obj , feature_cols = build_arrays(objects, labels, diff_cols, half_width=half_width, **feature_kwargs)
+    per_obj , feature_cols = build_arrays(objects, labels, half_width=half_width, **feature_kwargs)
 
     # split par objet 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)

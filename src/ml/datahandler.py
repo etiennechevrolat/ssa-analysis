@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
+diff_cols  =['Semimajor Axis (m)', 'Inclination (deg)', 'Latitude (deg)', 'Longitude (deg)', 'Altitude (m)']
 
 def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
     """
@@ -46,7 +47,7 @@ def add_continuous_angles(df : pd.DataFrame) -> pd.DataFrame:
     df['sinM'] = sinM
     return df
 
-def add_diff(df, diff_cols):
+def add_diff(df, diff_cols = diff_cols):
     """ajoute les derivées discrètes = résidus des colonnes de diff_cols au dataframe.
     suppose d'avoir déjà transformée les coordonnées angulaires kepleriennes en coordonnées equinoxales pour éviter les sauts brutaux liés au passage 360° -> 1°.
     """
@@ -56,15 +57,14 @@ def add_diff(df, diff_cols):
         df[f"{col}_diff"]= np.diff(v, prepend=v[0])
     return df
 
-def build_features(df, diff_cols):
+def build_features(df, diff_cols = diff_cols):
     """
     Applique les transformations et renvois le dataframe enrichi des features précédentes utilisées par le modèle
     """
     df = df.copy()
     df = add_continuous_angles(df)
     df = add_diff(df, diff_cols)
-    df[df.columns] = df[df.columns].astype(np.float32)  
     feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
     df[feature_cols] = df[feature_cols].astype(np.float32)
-
+    
     return df, feature_cols
