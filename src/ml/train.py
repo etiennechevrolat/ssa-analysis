@@ -80,25 +80,40 @@ def evaluate_epoch(
     avg_loss = running_loss / (max(total, 1))
     return avg_loss
 
-def main():
+@hydra.main(version_base=None, config_path="../../configs/ml", config_name="config")
+def main(cfg : DictConfig):
 
-    device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    seed = torch.manual_seed(cfg.seed)
+    device = cfg.train.device
     data_dir = os.path.join(DATA_DIR, 'training')
     labels_dir = os.path.join(DATA_DIR, 'train_label.csv')
 
-    objects, labels = load_splid_objects(data_dir, labels_dir)
+    ## Recup des données et creation des dataloaders
+    objects, labels = load_splid_objects(
+        cfg.data.data_dir, 
+        cfg.data.labels_dir,
+        )
   
-    train_loader, val_loader, meta = make_loaders(objects, labels)
+    train_loader, val_loader, meta = make_loaders(
+        objects, 
+        labels,
+        batch_size=cfg.data.batch_size,
+        history=cfg.data.history, 
+        future=cfg.data.future,
+        val_split=cfg.data.val_split)
 
-    model = NaiveBaseLine(9, 97, 2)
-    model.to(device)
+    model = NaiveBaseLine(
+        cfg.model.n_features,
+        cfg.model.window_size, 
+        cfg.model.n_outputs)
+    model.to(cfg.train.device)
 
     params = model.parameters()
-    optimizer = torch.optim.AdamW(params)
+    optimizer = torch.optim.AdamW(model.parameters(), lr = cfg.train.lr)
 
     loss_fn = nn.BCEWithLogitsLoss()
-    for epoch in range(5):
+    
+    for epoch in range(cfg.train.epochs):
         tr = train_one_epoch(model, train_loader, loss_fn, optimizer, device)
         va = evaluate_epoch(model, val_loader, loss_fn, device)
         print(f"epoch {epoch} : train {tr:.4f} val {va:.4f}")

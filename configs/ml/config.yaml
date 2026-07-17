@@ -1,8 +1,25 @@
 ### ce fichier config assemble les groupes model / data / train. 
 ## Hydra fusionne ces morceaux en un seul cfg
-defaults : 
-  - model : naive_baseline
-  - data : splid
-  - train : defaults
-  - _self_
 
+
+seed : 42
+
+data : 
+  data_dir : ${hydra:runtime.cwd}/data/raw/splid_dataset
+  labels_dir: ${hydra:runtime.cwd}/data/raw/splid_dataset
+  history : 48
+  future : 48 
+  batch_size : 256
+  val_split: 0.2
+
+model : 
+  n_features : 9          # 6 equinoxaux, 3 diffs
+  window_size : 97        # history + future +1 
+  n_outputs : 2
+
+train : 
+  epochs : 5
+  lr : 1e-3
+  optimizer : adamw
+  device : cuda
+  
