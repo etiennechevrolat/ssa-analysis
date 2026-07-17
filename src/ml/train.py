@@ -2,10 +2,7 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-from torch.optim import AdamW
 
-import os 
-from pathlib import Path
 
 import hydra 
 from omegaconf import DictConfig
@@ -15,18 +12,6 @@ from ml.datahandler import load_splid_objects
 from ml.dataset import make_loaders
 from ml.model import NaiveBaseLine
 
-
-
-def find_root(marker: str = "pyproject.toml"):
-    p = Path.cwd().resolve()
-    for parent in (p, *p.parents):
-        if (parent / marker).exists():
-            return parent
-    raise FileNotFoundError(f"{marker} introuvable en remontant depuis {p}")
-
-ROOT = find_root()
-
-DATA_DIR  = os.path.join(ROOT, 'data', 'raw', 'splid_dataset')
 
 
 def train_one_epoch(
@@ -83,10 +68,7 @@ def evaluate_epoch(
 @hydra.main(version_base=None, config_path="../../configs/ml", config_name="config")
 def main(cfg : DictConfig):
 
-    seed = torch.manual_seed(cfg.seed)
-    device = cfg.train.device
-    data_dir = os.path.join(DATA_DIR, 'training')
-    labels_dir = os.path.join(DATA_DIR, 'train_label.csv')
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     ## Recup des données et creation des dataloaders
     objects, labels = load_splid_objects(
@@ -100,19 +82,20 @@ def main(cfg : DictConfig):
         batch_size=cfg.data.batch_size,
         history=cfg.data.history, 
         future=cfg.data.future,
-        val_split=cfg.data.val_split)
+        val_split=cfg.data.val_split,
+        seed= cfg.seed)
 
     model = NaiveBaseLine(
         cfg.model.n_features,
         cfg.model.window_size, 
         cfg.model.n_outputs)
-    model.to(cfg.train.device)
+    model.to(device)
 
     params = model.parameters()
-    optimizer = torch.optim.AdamW(model.parameters(), lr = cfg.train.lr)
-
-    loss_fn = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.AdamW(params, lr = cfg.train.lr)
     
+    loss_fn = nn.BCEWithLogitsLoss()
+
     for epoch in range(cfg.train.epochs):
         tr = train_one_epoch(model, train_loader, loss_fn, optimizer, device)
         va = evaluate_epoch(model, val_loader, loss_fn, device)

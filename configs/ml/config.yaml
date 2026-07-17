@@ -1,12 +1,11 @@
-### ce fichier config assemble les groupes model / data / train. 
-## Hydra fusionne ces morceaux en un seul cfg
+
 
 
 seed : 42
 
 data : 
-  data_dir : ${hydra:runtime.cwd}/data/raw/splid_dataset
-  labels_dir: ${hydra:runtime.cwd}/data/raw/splid_dataset
+  data_dir : ${hydra:runtime.cwd}/data/raw/splid_dataset/training
+  labels_dir: ${hydra:runtime.cwd}/data/raw/splid_dataset/train_label.csv
   history : 48
   future : 48 
   batch_size : 256
@@ -17,9 +16,8 @@ model :
   window_size : 97        # history + future +1 
   n_outputs : 2
 
-train : 
+train :
   epochs : 5
-  lr : 1e-3
-  optimizer : adamw
-  device : cuda
+  lr : 1.0e-3
+
   
