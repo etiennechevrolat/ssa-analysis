@@ -1,23 +1,15 @@
+## Config Hydra : assemble les groupes model / data / train
 
-
+default : 
+  - model : naive_baseline
+  - data : splid
+  - train : default 
+  - __self__ 
 
 seed : 42
 
-data : 
-  data_dir : ${hydra:runtime.cwd}/data/raw/splid_dataset/training
-  labels_dir: ${hydra:runtime.cwd}/data/raw/splid_dataset/train_label.csv
-  history : 48
-  future : 48 
-  batch_size : 256
-  val_split: 0.2
-
-model : 
-  n_features : 9          # 6 equinoxaux, 3 diffs
-  window_size : 97        # history + future +1 
-
-
-train :
-  epochs : 5
-  lr : 1.0e-3
+hydra : 
+  run :
+   dir : ${hydra:runtime.cwd}/outputs/ml/${now:%Y-%m-%d_%H-%M-%S}
 
   

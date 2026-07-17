@@ -61,7 +61,15 @@ def evaluate_epoch(
         y = labels.to(device)
 
         pred = model(x)
-        correct += int((pred == labels).sum().item())
+
+        ### dans le cas ou le modèle retourne des logits
+        probs = torch.sigmoid(pred)
+        treshold = 0.5
+        probs_bin = probs > treshold
+        labels_bin = probs > treshold
+
+
+        correct += int((probs_bin == labels_bin).sum().item())
         loss = loss_fn(pred, y)
         running_loss+= float(loss.item()) * labels.size(0)
     
