@@ -24,25 +24,25 @@ def train_one_epoch(
     model.train()
     running_loss = 0.0
     total = 0
-    correct = 0
+
     for time_series_batch, labels in data_loader:
         # time_series_batch: (B,F,W), labels (B,2)
         x = time_series_batch.to(device)
         y = labels.to(device)
-        print(labels)
+
         optimizer.zero_grad()
 
         pred = model(x)
 
-        correct += int((pred == labels).sum().item())
+
         loss = loss_fn(pred, y)
         running_loss+= float(loss.item()) * labels.size(0)
         loss.backward()
         optimizer.step()
         total += labels.size(0)
     avg_loss = running_loss / total
-    accuracy = correct/total
-    return avg_loss, accuracy
+ 
+    return avg_loss 
 
 
 @torch.no_grad() ## décorateur, applique torch.no_grad(evaluate_epoch(...)) et coupe le suivi des gradients.
@@ -55,29 +55,21 @@ def evaluate_epoch(
     model.eval() ## différents de torch.no_grad, change le comportement de certaines couches : Dropout, BatchNorm.
     running_loss = 0.0
     total=0
-    correct = 0 
+
     for time_series_batch, labels in data_loader:
         x = time_series_batch.to(device)
         y = labels.to(device)
 
         pred = model(x)
 
-        ### dans le cas ou le modèle retourne des logits
-        probs = torch.sigmoid(pred)
-        treshold = 0.5
-        probs_bin = probs > treshold
-        labels_bin = probs > treshold
-
-
-        correct += int((probs_bin == labels_bin).sum().item())
         loss = loss_fn(pred, y)
         running_loss+= float(loss.item()) * labels.size(0)
     
 
         total += labels.size(0)
     avg_loss = running_loss / total
-    accuracy = correct/total
-    return avg_loss, accuracy
+
+    return avg_loss
 
 @hydra.main(version_base=None, config_path="../../configs/ml", config_name="config") 
 ## hydra prend main en point d'entrée, et main() est transformé en wrapper qui récupère et construit l'objet cfg, et enfin applique main(cfg).
@@ -100,10 +92,10 @@ def main(cfg : DictConfig):
         val_split=cfg.data.val_split,
         seed= cfg.seed)
     ## On calcule le nombre de features considérées et la taille de la fenêtre temporelle
-    n_features = len(meta["features_cols"])
-    window_size  = cfg.history + cfg.future +1 
+    n_features = len(meta["feature_cols"])
+    window_size  = cfg.data.history + cfg.data.future +1 
 
-    model = build_model(cfg.model, n_features, window_size)
+    model = build_model(cfg.model, n_features=n_features, window_size=window_size)
     model.to(device)
 
     params = model.parameters()
@@ -112,9 +104,9 @@ def main(cfg : DictConfig):
     loss_fn = nn.BCEWithLogitsLoss()
 
     for epoch in range(cfg.train.epochs):
-        train_loss, train_acc = train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-        val_loss, val_acc = evaluate_epoch(model, val_loader, loss_fn, device)
-        print(f"epoch {epoch} : train loss/acc : {train_loss:.4f} | {train_acc} val loss/acc : {val_loss:.4f}  | {val_acc}")
+        train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
+        val_loss= evaluate_epoch(model, val_loader, loss_fn, device)
+        print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}")
 
 if __name__ == "__main__":
     main()

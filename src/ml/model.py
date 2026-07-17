@@ -35,36 +35,51 @@ class cnn_lstm1(nn.Module):
                                out_channels=64, 
                                kernel_size=7, 
                                stride=1,
-                               dilation=1)  ## (B,F,W)  = (256, 9, 97)-> (B,64, W-6)=(256, 64,91)
+                               dilation=1, 
+                               bias=False)  ## (B,F,W)  = (256, 9, 97)-> (B,64, W-6)=(256, 64,91)
         
         self.conv2 = nn.Conv1d(in_channels=64, 
                                out_channels=64, 
                                kernel_size=7, 
                                stride=1,
-                               dilation=1)  ## (B,64,W-6)=(256, 64, 91) -> (256,64, 85)
+                               dilation=1,
+                               bias=False)  ## (B,64,W-6)=(256, 64, 91) -> (256,64, 85)
 
         self.conv3 = nn.Conv1d(in_channels=64, 
                                out_channels=48, 
                                kernel_size=7, 
                                stride=2,
                                dilation=1)  ## (B,64,W-12) = (256,64,85) -> (256,48,40)
+        
+        self.batchnorm1 = nn.BatchNorm1d(64) ## normalisation sur les features. attend un tenseur channel first (B,C,W).
+        self.batchnorm2 = nn.BatchNorm1d(64)
+        self.batchnorm3 = nn.BatchNorm1d(48) 
 
-        self.dense1 = nn.Linear(64,32)
+        self.dense1 = nn.Linear(48*40, 32)
         self.dense2 = nn.Linear(32,2)
+
+        self.activation = nn.RelU()
 
     def forward(self, x):
         batch_size, features, window_size = x.shape ## (B, F, W) 
+
         x= self.conv1(x)
-        x= nn.LayerNorm(x)
-        x=nn.ReLU(x)
+        x= self.batchnorm1(x)
+        x= self.activation(x)
 
         x= self.conv2(x)
-        x= nn.LayerNorm(x)
-        x=nn.ReLU(x)
+        x= self.batchnorm2(x)
+        x= self.activation(x)
 
         x= self.conv3(x)
-        x= nn.LayerNorm(x)
-        x=nn.ReLU(x)
+        x= self.batchnorm3(x)
+        x= self.activation(x)
+
+        x= x.flatten(batch_size, 48*40)
+
+        x=self.activation(self.dense1(x))
+        x=self.dense2(x)
+
         return x
 
 

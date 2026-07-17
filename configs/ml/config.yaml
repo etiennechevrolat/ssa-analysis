@@ -1,6 +1,6 @@
 ## Config Hydra : assemble les groupes model / data / train
 
-default : 
+defaults : 
   - model : naive_baseline
   - data : splid
   - train : default 
