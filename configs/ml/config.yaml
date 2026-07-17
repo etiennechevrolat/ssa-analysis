@@ -14,7 +14,7 @@ data :
 model : 
   n_features : 9          # 6 equinoxaux, 3 diffs
   window_size : 97        # history + future +1 
-  n_outputs : 2
+
 
 train :
   epochs : 5
