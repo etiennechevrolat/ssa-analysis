@@ -51,15 +51,24 @@ class cnn_lstm1(nn.Module):
                                stride=2,
                                dilation=1)  ## (B,64,W-12) = (256,64,85) -> (256,48,40)
         
-        self.batchnorm1 = nn.BatchNorm1d(64) ## normalisation sur les features. attend un tenseur channel first (B,C,W).
+        ## normalisation sur les features. attend un tenseur channel first (B,F,W).
+        self.batchnorm1 = nn.BatchNorm1d(64) 
         self.batchnorm2 = nn.BatchNorm1d(64)
         self.batchnorm3 = nn.BatchNorm1d(48) 
 
         self.dense1 = nn.Linear(48*40, 32)
         self.dense2 = nn.Linear(32,2)
 
-        self.activation = nn.RelU()
+        self.activation = nn.ReLU()
 
+        ## attention à permuter l'axe temporel pour lstm, attend un tenseur time-first(B,W,F).
+        self.lstm_layers = nn.LSTM(48, 64, 1, batch_first=True) 
+        
+        self.lstm_dense1 = nn.Linear(64*36, 32)
+        self.lstm_dense2 = nn.Linear(32,2)
+
+        ## Le pooling se fait toujours sur la dernière dim
+        self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1) 
     def forward(self, x):
         batch_size, features, window_size = x.shape ## (B, F, W) 
 
@@ -73,14 +82,29 @@ class cnn_lstm1(nn.Module):
 
         x= self.conv3(x)
         x= self.batchnorm3(x)
-        x= self.activation(x)
+        x= self.activation(x) ## (Batch, Features, Window) = (B, 48, 40) .
 
-        x= x.flatten(batch_size, 48*40)
+        ### On intègre en série le LSTM, time-first
+        x= x.permute(0,2,1) # (Batch, Window, Features) = (B, 40, 48)
+        x, (h_n, c_n) = self.lstm_layers(x) 
 
-        x=self.activation(self.dense1(x))
-        x=self.dense2(x)
+        # on repermute pour le maxpool 
+        
+        x = x.permute(0,2,1) ## (B, F, W) = (B, 64, 40)
+        x = self.lstm_pool(x) ## (B, 64, 36) 
+
+        x= x.reshape(batch_size, 64*36)
+
+        x=self.lstm_dense1(x) ## (B, 32)
+        x=self.activation(x)
+
+        x=self.lstm_dense2(x) ## (B,2)
+        x=self.activation(x)
+         
+        print(x[0][0]) 
 
         return x
+
 
 
 
