@@ -2,8 +2,8 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-
-
+import pandas as pd
+import numpy as np
 import hydra 
 from omegaconf import DictConfig
 
@@ -18,7 +18,6 @@ def train_one_epoch(
         data_loader : DataLoader,
         loss_fn : nn.Module, 
         optimizer : torch.optim.Optimizer,
-
         device : torch.device
     ):
     model.train()
@@ -44,6 +43,7 @@ def train_one_epoch(
  
     return avg_loss 
 
+from ml.evaluate import matching_tolerance, extract_events, gt_events_from_labels, evaluate_predictions
 
 @torch.no_grad() ## décorateur, applique torch.no_grad(evaluate_epoch(...)) et coupe le suivi des gradients.
 def evaluate_epoch(
@@ -55,20 +55,21 @@ def evaluate_epoch(
     model.eval() ## différents de torch.no_grad, change le comportement de certaines couches : Dropout, BatchNorm.
     running_loss = 0.0
     total=0
-
+    all_probs = []
     for time_series_batch, labels in data_loader:
         x = time_series_batch.to(device)
         y = labels.to(device)
 
-        pred = model(x)
+        pred = model(x) ## format (Batch_size, 2)
 
         loss = loss_fn(pred, y)
         running_loss+= float(loss.item()) * labels.size(0)
-    
-
         total += labels.size(0)
-    avg_loss = running_loss / total
+        
+        all_probs.append(torch.sigmoid(pred).cpu().numpy())
 
+    all_probs = np.concatenate(all_probs, axis=0) ## (N,2)
+    avg_loss = running_loss / total
     return avg_loss
 
 @hydra.main(version_base=None, config_path="../../configs/ml", config_name="config") 
@@ -105,8 +106,8 @@ def main(cfg : DictConfig):
 
     for epoch in range(cfg.train.epochs):
         train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-        val_loss= evaluate_epoch(model, val_loader, loss_fn, device)
-        print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}")
+        val_loss, pr, re, f1, f2, rmse, tp, fp, fn = evaluate_epoch(model, val_loader, loss_fn, device)
+        print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {pr:.4f}, recall : {re:.4f}, f1 : {f1:.4f}, f2 : {f2:.4f}, rmse : {rmse:.4f}, tp : {tp}, fp : {fp}, fn : {fn}")
 
 if __name__ == "__main__":
     main()

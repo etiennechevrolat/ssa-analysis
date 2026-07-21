@@ -7,7 +7,6 @@ def build_target(df, object_id, labels, half_width = 6, nodes=pol_nodes):
     """
     Cible (L,2) bosses gaussiennes autoure des manoeurves avec deux colonnes disctinctes pour EW et NS. 
     """
-
     L = len(df)
     Y = np.zeros((L,2), dtype=np.float32) ## tableau cible
     object_labels=labels[labels["ObjectID"] == object_id]
