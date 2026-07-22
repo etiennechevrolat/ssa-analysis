@@ -74,12 +74,13 @@ def test_kalman_on_LEO():
     ### On récupère d'abord au format iso toutes les manoeuvres 
     true_maneuvers = {}
 
-    for csv in sorted(true_man_path.glob("*.csv")):
-        df = pd.read_csv(csv) ## de type pd.DataFrame
-        m = re.search(r"output_ephemeride_(\d+)",csv.name )
+    all_metrics={}
+    for csv_path in sorted(true_man_path.glob("*.csv")):
+        df = pd.read_csv(csv_path) ## de type pd.DataFrame
+        m = re.search(r"output_ephemeride_(\d+)",csv_path.name )
         norad = int(m.group(1))
         
-        true_maneuvers[norad] = df['date'] ## type Series de Panda
+        true_maneuvers[norad] = pd.to_datetime(df['date'], errors="coerce").dropna()
 
     ## On recupère les ids des satellites dont on a trouvé de la donnée spacetrack
 
@@ -116,25 +117,43 @@ def test_kalman_on_LEO():
             r_0 = 0.5, ## Params de départ pour l'optimisation
             varQ_0 = 0.05, ##
             p0_0 = 1000, ##
-            sigma_lissage=0.9, ## Params de lissage
-            beta_lissage=1.5,
+            sigma_lissage=3.0, ## Params de lissage
+            beta_lissage=0.1,
             tol_days=3.0,
             metrique='sma'
             )
-
-        epoch, sma_dot, nis, man, treshold = detect_kalman(
-            df, 
-            var_Q=metrics['var_Q'], 
-            r=metrics['r'], 
-            p0=metrics['p0'], 
-            alpha=alpha, 
-            plot=False)
-        print(metrics)
-
-
-
-
+        all_metrics[norad] = metrics
     
+    return all_metrics
 
+def save_hyperparams(norad, 
+                     metrics, 
+                     path, 
+                     metrique,
+                     alpha=0.997, 
+                     sigma=1.0,
+                     beta=0.5,
+                     tol_days=3.0
+     ):
+    path = Path(path)
+    row = { 
+        "norad": int(norad),
+        "var_Q": metrics['var_Q'],
+        "r" : metrics['r'],
+        "p0" : metrics['p0'],
+        "f1" : metrics['f1'], 
+        "precision" : metrics['precision'],
+        "recall": metrics['recall'],
+        "n_det" : metrics['n_det'],
+        "n_false" : metrics['n_false'],
+        "n_miss" : metrics['n_miss'],
+        "metrique": metrique,
+        "sigma" : sigma,
+        "beta" : beta
+    }
 
-test_kalman_on_LEO()
+    if path.exist():
+        df = pd.read_csv(path)
+        df= df[df['norad'] != int(norad)]
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+

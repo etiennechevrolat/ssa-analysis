@@ -1,9 +1,9 @@
 
 import numpy as np
 import polars as pl
+import pandas as pd
 
 from maneuver_detection.discrete_kalman_filter import kalman_filter_ordre_1
-
 from scipy.stats import chi2
 
 from optimisation_seuil.metrics import (
@@ -49,15 +49,16 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     if man_ilrs : 
         man = pl.scan_parquet(path_man).collect()
         true_dt = man["burn_epoch"].to_numpy()
-        e = df["epoch"].to_numpy()
-        true_dt = true_dt[(true_dt >= e[0]) & (true_dt <= e[-1])]
+
 
     else : ### pour l'instant manoeuvres labellisées main, man passée en Series Panda
-        true_dt = path_man.to_numpy()
-        e = df["epoch"].to_numpy()
-        true_dt = true_dt[(true_dt >= e[0]) & (true_dt <= e[-1])]
-
+        true_dt = np.asarray(path_man)
+    
     # 3. Grille temporelle des candidats (fixe : ne dépend pas des paramètres)
+    true_dt = pd.to_datetime(true_dt, errors="coerce").to_numpy()
+    true_dt = true_dt[~np.isnat(true_dt)]
+
+    e = df["epoch"].to_numpy() 
     epoch = e[1:]                        # nis démarre au pas k = 1
     t0 = epoch[0]
     epoch_d = to_days(epoch, t0)         # temps candidats t_j
@@ -69,6 +70,7 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     def run_filter(var_Q, r, p0):
         _, nis, _ = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
         return np.asarray(nis, dtype=float)
+
 
     def loss(x):
         log_var_Q , log_r, log_p0 = x
@@ -84,26 +86,30 @@ def optimise_seuil_kalman_via_regul_gaussienne(
             true_d, epoch_d, nis, q, sigma_lissage, beta_lissage
         )
 
-    # 5. Optimisation des paramètres du filtre kalman : R , Variance de Q , P0
+    # Optimisation des paramètres du filtre kalman : R , Variance de Q , P0
     x0 = np.array([np.log10(varQ_0), np.log10(r_0), np.log10(p0_0)])
 
     bounds = [(np.log10(1e-10), np.log10(10.0)),      # var_Q > 0
               (np.log10(1e-10), np.log10(100.0)),     # r  > 0
               (np.log10(1.0), np.log10(1e5)),        # p0 > 0
             ] 
-    
+    print(f"Début de l'optimisation des params LKF_1 pour {norad} ... ")
     res = minimize(loss, x0=x0, bounds=bounds)
     log_var_Q, log_r, log_p0 = res.x
     var_Q, r, p0 = 10**log_var_Q, 10**log_r, 10**log_p0   # retour en espace linéaire
+    print(f"Fin optim des params LKF pour {norad} ")
 
-    # 6. Score aux paramètres optimaux : seuillage nis > q  -> F1
+
+    # Score aux paramètres optimaux : seuillage nis > q  -> F1
     nis_opt = run_filter(var_Q, r, p0)
     q_opt = chi2.ppf(alpha, df=1)
-
+    print("")
     pred_d = epoch_d[nis_opt > q_opt]
     conf = confusion_matrix(true_d, pred_d, tol_days=tol_days)
     prf = precision_recall_f1(conf)
-
+    print("Scores aux params optimaux:")
     print(f"norad={norad}  metrique={metrique}  var_Q={var_Q:.4g} r={r:.4g} p0={p0:.4g} F1={prf['f1']:.3f} "
           f"P={prf['precision']:.3f} R={prf['recall']:.3f}  {conf}")
+    print("")
+    
     return {"var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}

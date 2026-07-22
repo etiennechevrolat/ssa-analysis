@@ -44,7 +44,7 @@ def kalman_filter_ordre_1(df, var_Q = 0.13, r = 1.0 , p0= 1000.0, metrique = "sm
         normalized_residuals.append( y * y / S) # scalaire, suit une loi du chi2 à dimZ=1 degré de liberté
         sma_dot.append(f.x[1])              # dérivée du demi-grand axe estimée [km/jour]
 
-    print("Filtre Kalman 1 appliqué...")
+    ## print("Filtre Kalman 1 appliqué...")
 
     return residuals, normalized_residuals, np.asarray(sma_dot)
 
@@ -91,7 +91,7 @@ def kalman_filter_ordre_2(df, var_Q = 0.13, r = 1.0, p0 = 1000.0, metrique='sma'
         normalized_residuals.append( y * y / S) # suit une loi du chi2 à dimZ=1 deg de liberté
         sma_dot.append(f.x[1])              # dérivée du demi-grand axe estimée [km/jour]
 
-    print("Filtre Kalman 2 appliqué...")
+    ##print("Filtre Kalman 2 appliqué...")
 
     return residuals, normalized_residuals, np.asarray(sma_dot)
 

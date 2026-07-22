@@ -52,7 +52,22 @@ def lissage_noyau_gaussien_metriques(maneuvers, predictions, scores, seuil, sigm
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
     return 1.0 - f1
 
-def minimize(loss_fn, x0, bounds=None):
-    """Minimise loss_fn, en pratique notre loss F1 lissée par Powell
+from scipy.optimize import differential_evolution 
+
+
+def minimize_DE(loss_fn, x0, bounds):
+    """Optimisation globale de la loss F1 par évolution différentielle
     """
-    return scipy_minimize(loss_fn, x0, method="Powell", bounds=bounds)
+    return differential_evolution(
+        loss_fn, 
+        bounds,
+        x0=x0,
+        init="sobol",
+        popsize=20, 
+        maxiter=200,
+        tol=1e-4, 
+        mutation=(0.5,1.0),
+        recombination=0.7,
+        polish=False,
+        seed=0
+        )
