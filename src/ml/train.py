@@ -49,6 +49,8 @@ from ml.evaluate import matching_tolerance, extract_events, gt_events_from_label
 def evaluate_epoch(
     model,
     data_loader,
+    meta,
+    labels,
     loss_fn, 
     device
     ):
@@ -56,21 +58,36 @@ def evaluate_epoch(
     running_loss = 0.0
     total=0
     all_probs = []
-    for time_series_batch, labels in data_loader:
+    for time_series_batch, labels_batch in data_loader:
         x = time_series_batch.to(device)
-        y = labels.to(device)
+        y = labels_batch.to(device)
 
         pred = model(x) ## format (Batch_size, 2)
 
         loss = loss_fn(pred, y)
-        running_loss+= float(loss.item()) * labels.size(0)
-        total += labels.size(0)
+        running_loss+= float(loss.item()) * labels_batch.size(0)
+        total += labels_batch.size(0)
         
         all_probs.append(torch.sigmoid(pred).cpu().numpy())
 
+    ## On met les probas au format attendu pour extract_events (L,2) avec L longueur d'UN objet : découpage de la data par objet
     all_probs = np.concatenate(all_probs, axis=0) ## (N,2)
+    val_ids = meta['val_ids']
+    objects_lengths = [len(meta['per_obj'][oid][0]) for oid in val_ids]
+
+    assert(np.sum(objects_lengths) == len(all_probs)) ## on s'assure de la correspondance des tailles.
+
+    seq_per_obj = np.split(all_probs, np.cumsum(objects_lengths)[-1], axis=0) ## listes (L1,2) (L2, 2) ... (Li, 2) de probas par objet
+
+    
+
+    pred_events = {oid : extract_events(seq) for oid, seq in zip(val_ids, seq_per_obj)}
+    gt_events = gt_events_from_labels(labels, val_ids) ## labels est ici le dataframe brut rendu par load_splid_objects
+
+    metrics = evaluate_predictions(gt_events, pred_events) ## renvoie dictionnaire des métriques de performance
+    
     avg_loss = running_loss / total
-    return avg_loss
+    return avg_loss, metrics
 
 @hydra.main(version_base=None, config_path="../../configs/ml", config_name="config") 
 ## hydra prend main en point d'entrée, et main() est transformé en wrapper qui récupère et construit l'objet cfg, et enfin applique main(cfg).
@@ -83,7 +100,7 @@ def main(cfg : DictConfig):
         cfg.data.data_dir, 
         cfg.data.labels_dir,
         )
-  
+    
     train_loader, val_loader, meta = make_loaders(
         objects, 
         labels,
@@ -106,8 +123,8 @@ def main(cfg : DictConfig):
 
     for epoch in range(cfg.train.epochs):
         train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-        val_loss, pr, re, f1, f2, rmse, tp, fp, fn = evaluate_epoch(model, val_loader, loss_fn, device)
-        print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {pr:.4f}, recall : {re:.4f}, f1 : {f1:.4f}, f2 : {f2:.4f}, rmse : {rmse:.4f}, tp : {tp}, fp : {fp}, fn : {fn}")
+        val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
+        print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
 
 if __name__ == "__main__":
     main()

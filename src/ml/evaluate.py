@@ -19,7 +19,7 @@ def gt_events_from_labels(labels, # DataFrame : ObjectID, Direction, Node, TimeI
         sub = labels[labels['ObjectID'] == oid]
         event = {}
         for direction in ('EW', 'NS'):
-            t = sub[sub['Direction'] == direction & (sub['Node'].isin(nodes))]['TimeIndex']
+            t = sub[(sub['Direction'] == direction) & (sub['Node'].isin(nodes))]['TimeIndex']
             event[direction] = sorted(int(x) for x in t.to_numpy())
         out[oid] = event 
     return out 
@@ -91,7 +91,7 @@ def metrics(tp, fp, fn, distances):
     rmse = float(np.sqrt(np.mean(d**2))) if d.size >0 else 0.0
 
     return {"precision": precision, "recall": recall,
-            "f1": fbeta(1), "f2": fbeta(2), "rmse": rmse,
+            "f1": f1, "f2": f2, "distances" :d , "rmse": rmse,
             "tp": tp, "fp": fp, "fn": fn}
 
 ## On passe 
@@ -103,6 +103,7 @@ def evaluate_predictions(gt_events: dict,
     puis applique les métriques sur la confusion matrix globale"""
 
     tp = fp= fn = 0
+    distances=[]
     for oid in gt_events: 
         for d in ('EW','NS'):
             gt_idx = gt_events[oid][d]

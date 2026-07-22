@@ -1,7 +1,7 @@
 ## Config Hydra : assemble les groupes model / data / train
 
 defaults : 
-  - model : cnn_lstm1
+  - model : naive_baseline
   - data : splid
   - train : default 
   - _self_ 
