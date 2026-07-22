@@ -23,6 +23,7 @@ def optimise_seuil_kalman_via_regul_gaussienne(
         path_tle,
         path_man,
         norad,
+        man_ilrs = True,
         r_0 = 0.5, ## Params de départ pour l'optimisation
         varQ_0 = 0.05, ##
         p0_0 = 1000, ##
@@ -45,10 +46,16 @@ def optimise_seuil_kalman_via_regul_gaussienne(
         raise ValueError(f"Aucune donnée TLE pour norad={norad}")
 
     # 2. Vérité terrain, restreinte à la fenêtre couverte par les données
-    man = pl.scan_parquet(path_man).collect()
-    true_dt = man["burn_epoch"].to_numpy()
-    e = df["epoch"].to_numpy()
-    true_dt = true_dt[(true_dt >= e[0]) & (true_dt <= e[-1])]
+    if man_ilrs : 
+        man = pl.scan_parquet(path_man).collect()
+        true_dt = man["burn_epoch"].to_numpy()
+        e = df["epoch"].to_numpy()
+        true_dt = true_dt[(true_dt >= e[0]) & (true_dt <= e[-1])]
+
+    else : ### pour l'instant manoeuvres labellisées main, man passée en Series Panda
+        true_dt = path_man.to_numpy()
+        e = df["epoch"].to_numpy()
+        true_dt = true_dt[(true_dt >= e[0]) & (true_dt <= e[-1])]
 
     # 3. Grille temporelle des candidats (fixe : ne dépend pas des paramètres)
     epoch = e[1:]                        # nis démarre au pas k = 1

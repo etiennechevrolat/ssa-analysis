@@ -41,7 +41,7 @@ def main():
     start,end  = config.data_range.start, config.data_range.end # Durée d'acquisition (quelques mois)
 
     for constellation in config.constellations: 
-        #Parametrès de la requete : samples = nombre d'ids différents, period = durée de l'historique
+        #Parametrès de la requete : samples = nombre d'ids max différents, period = durée de l'historique
         samples = 300
 
         #Recup les ids
@@ -56,9 +56,9 @@ def main():
 
         
         #On écrit dans data
-        tag = f"{constellation.name_pattern or 'ALL'}_{constellation.country or 'ALL'}"
+        tag = f"{constellation.name_pattern or 'ALL_NAMES'}_{constellation.country or 'ALL_COUNTRIES'}_{constellation.norad_ids[:10] or 'ALL_NORADS'}"
         date = time.time()
-        write_parquet(df, f"data/raw/{tag}_{date}.parquet" )
+        write_parquet(df, f"data/parsed/SPACETRACK/{tag}_{date}.parquet" )
 
 
 if __name__=="__main__": 

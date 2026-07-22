@@ -70,6 +70,7 @@ def evaluate_epoch(
         
         all_probs.append(torch.sigmoid(pred).cpu().numpy())
 
+    
     ## On met les probas au format attendu pour extract_events (L,2) avec L longueur d'UN objet : découpage de la data par objet
     all_probs = np.concatenate(all_probs, axis=0) ## (N,2)
     val_ids = meta['val_ids']
@@ -77,7 +78,7 @@ def evaluate_epoch(
 
     assert(np.sum(objects_lengths) == len(all_probs)) ## on s'assure de la correspondance des tailles.
 
-    seq_per_obj = np.split(all_probs, np.cumsum(objects_lengths)[-1], axis=0) ## listes (L1,2) (L2, 2) ... (Li, 2) de probas par objet
+    seq_per_obj = np.split(all_probs, np.cumsum(objects_lengths)[:-1], axis=0) ## listes (L1,2) (L2, 2) ... (Li, 2) de probas par objet
 
     
 
@@ -118,6 +119,8 @@ def main(cfg : DictConfig):
 
     params = model.parameters()
     optimizer = torch.optim.AdamW(params, lr = cfg.train.lr)
+
+    ## Intègre le fort déséquilibre de classe : 99% du temps il n'y a pas de manoeuvres
 
     loss_fn = nn.BCEWithLogitsLoss()
 

@@ -3,7 +3,7 @@ from collections import defaultdict
 
 ## Paramètres d'évaluation
 
-detection_treshold = 0.5 ## manoeuvre détectée pour proba_pred > treshold
+detection_treshold = 0.1 ## manoeuvre détectée pour proba_pred > treshold
 matching_tolerance = 6 ## 6jours de tolérance pour détection de manoeuvres
 
 ## Noeuds de manoeuvres réelle
@@ -79,7 +79,7 @@ def match_events(gt_idx : list[int],  # liste d'instants de vraies manoeuvres
 ## Calcul des métriques de performance du modèle 
 def metrics(tp, fp, fn, distances):
     precision = tp /(tp + fp)  if (tp + fp) > 0 else 0.0
-    recall = tp/(tp + fn) if (tp + fp) > 0 else 0.0
+    recall = tp/(tp + fn) if (tp + fn) > 0 else 0.0
 
     def fbeta(beta, tp, fp,fn):
         beta2 = beta*beta

@@ -1,2 +1,2 @@
-epochs: 1
+epochs: 5
 lr : 1.0e-3

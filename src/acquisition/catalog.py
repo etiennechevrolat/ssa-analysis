@@ -5,12 +5,15 @@ import json
 
 def recupIds(client,samples, constellation, orbit_range=None, shuffle=True):
     #Constellation = str récupérée depuis ~/configs/data.yaml
-    cstl_name, country= constellation.name_pattern, constellation.country
+    cstl_name = constellation.name_pattern
+    cstl_country= constellation.country
+    cstl_norads = constellation.norad_ids
+
     inf = sup = None
     if orbit_range is not None:
         inf, sup = orbit_range.borneinf, orbit_range.bornesup
     
-    print(f"Récupération des IDs {cstl_name or 'ALL'}/{country or 'ALL'}...")
+    print(f"Récupération des IDs {cstl_name or 'ALL_NAMES'}/{cstl_country or 'ALL_COUNTRIES'}.../{cstl_norads or 'ALL_NORADS'}")
 
     query = dict(
         object_type='PAYLOAD',
@@ -21,12 +24,10 @@ def recupIds(client,samples, constellation, orbit_range=None, shuffle=True):
         query['semimajor_axis'] = op.inclusive_range(inf, sup)
     if cstl_name:
         query['object_name'] = like(f"{cstl_name}%")
-    if country:  
-        query['country_code'] = country
-    """
-    if not cstl_name and not country:
-        query['limit'] = max(samples * 5, 500)   # limite la taille de requete si pas de précision de pays/constellation
-    """
+    if cstl_country:  
+        query['country_code'] = cstl_country
+    if cstl_norads:
+        query['norad_cat_id'] = cstl_norads
 
     raw = client.gp(**query)
     satellites = json.loads(raw)

@@ -7,8 +7,9 @@ from typing import Optional
 
 
 class Constellation(BaseModel):
-    name_pattern: str 
-    country: str
+    name_pattern: str = ""
+    country: str = ""
+    norad_ids: Optional[list[int]] = None
 
 
 class DataRange(BaseModel):
@@ -28,11 +29,12 @@ class DataConfig(BaseModel):
     orbit_range: Optional[OrbitRange] = None
     maneuvers: Optional[ManeuverConfig] = None
 
-from dataclasses import dataclass, field 
+from dataclasses import dataclass
+
 @dataclass
 class Config:
-    ## Les données 
-
+    ## Les données
+    pass
 def load_data_config(path: str = "configs/data.yaml"):
     raw=yaml.safe_load(Path(path).read_text())
     return DataConfig(**raw)
