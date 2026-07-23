@@ -537,8 +537,10 @@ On classe alors les satellites selon la F1 optimale atteinte :
     \item \textbf{good} : $0.7 \leq F1 < 1$
     \item \textbf{perfect} : $F1 = 1$
 \end{itemize}
+Sur les 75 objets du dataset initial, 46 sont réellement exploitables (données SpaceTrack disponibles et manoeuvres labellisées).
+Après cette première optimisation individuelle, les scores sont très bons : la majorité des satellites se place en catégorie \textbf{good} ou \textbf{perfect}.
 % TODO : compléter avec les ratios exacts renvoyés par ratios() dans explore_results.ipynb
-Même avec des paramètres optimisés au cas par cas, une partie des satellites reste en catégorie fail : leur pattern of life (bruit TLE, cadence de manoeuvres, densité de mesures) ne se prête pas à une détection par seuillage statistique de la NIS.
+Seule une minorité de satellites reste en catégorie fail : leur pattern of life (bruit TLE, cadence de manoeuvres, densité de mesures) se prête mal à une détection par seuillage statistique de la NIS.
 
 \paragraph{Trois configurations de paramètres.}
 Se pose ensuite la question de la généralisation : peut-on se passer de l'optimisation satellite par satellite, non automatisable à l'échelle du catalogue ? On compare pour cela trois configurations de paramètres du filtre :
@@ -549,53 +551,92 @@ Se pose ensuite la question de la généralisation : peut-on se passer de l'opti
 \end{itemize}
 La configuration par clusters est un compromis entre les deux extrêmes : elle teste l'hypothèse de la section précédente, à savoir qu'il existe des sous-classes de satellites LEO partageant un même réglage de filtre.
 
+Le paramètre \texttt{min\_cluster\_size} de HDBSCAN est lui-même sélectionné par un scan : on retient la valeur qui maximise l'indice de validité DBCV tout en limitant la fraction de points classés en bruit (cluster $=-1$) :
+\begin{center}
+    \includegraphics[width=0.7\textwidth]{figures/kalman_hdbscan_selection.png}
+\end{center}
+
 \paragraph{Exemples par catégorie.}
-Pour chaque catégorie, on retient le satellite de F1 médiane et on trace : (i) l'évolution des paramètres orbitaux superposée aux manoeuvres prédites, avec les paramètres optimaux ; (ii) la NIS en pics (seuil $\chi^2_1$, détections en rouge, manoeuvres vraies en vert) pour les trois configurations de paramètres.
+Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales couvrent la plage de la catégorie (2 exemples pour fail et mid, 3 pour good et perfect), et on trace : (i) l'évolution des paramètres orbitaux $(a, e, i)$ superposée aux manoeuvres prédites, avec les paramètres optimaux ; (ii) la NIS en pics (seuil $\chi^2_1$, détections en rouge, manoeuvres vraies en vert) pour les trois configurations de paramètres.
 
-\paragraph{Exemple fail ($F1 < 0.5$).}
+\paragraph{Exemples fail ($F1 < 0.5$).}
 \begin{center}
-    \includegraphics[width=0.98\textwidth]{figures/kalman_fail_optim_params.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_fail1_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_fail1_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_fail1_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_fail1_cluster_nis.png}
 \end{center}
+\newpage
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_fail_optim_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_fail_avg_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_fail_cluster_nis.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_fail2_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_cluster_nis.png}
 \end{center}
 
 \newpage
 
-\paragraph{Exemple mid ($0.5 \leq F1 < 0.7$).}
+\paragraph{Exemples mid ($0.5 \leq F1 < 0.7$).}
 \begin{center}
-    \includegraphics[width=0.98\textwidth]{figures/kalman_mid_optim_params.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_mid1_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_cluster_nis.png}
 \end{center}
+\newpage
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_mid_optim_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_mid_avg_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_mid_cluster_nis.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_mid2_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_cluster_nis.png}
 \end{center}
 
 \newpage
 
-\paragraph{Exemple good ($0.7 \leq F1 < 1$).}
+\paragraph{Exemples good ($0.7 \leq F1 < 1$).}
 \begin{center}
-    \includegraphics[width=0.98\textwidth]{figures/kalman_good_optim_params.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_good1_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good1_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good1_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good1_cluster_nis.png}
 \end{center}
+\newpage
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_good_optim_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_good_avg_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_good_cluster_nis.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_good2_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good2_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good2_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good2_cluster_nis.png}
+\end{center}
+\newpage
+\begin{center}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_good3_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good3_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good3_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good3_cluster_nis.png}
 \end{center}
 
 \newpage
 
-\paragraph{Exemple perfect ($F1 = 1$).}
+\paragraph{Exemples perfect ($F1 = 1$).}
 \begin{center}
-    \includegraphics[width=0.98\textwidth]{figures/kalman_perfect_optim_params.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_perfect1_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_cluster_nis.png}
 \end{center}
+\newpage
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_perfect_optim_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_perfect_avg_nis.png}
-    \includegraphics[width=0.8\textwidth]{figures/kalman_perfect_cluster_nis.png}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_perfect2_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_cluster_nis.png}
+\end{center}
+\newpage
+\begin{center}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_perfect3_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect3_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect3_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect3_cluster_nis.png}
 \end{center}
 
 \newpage
