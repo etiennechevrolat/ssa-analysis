@@ -140,14 +140,18 @@ def test_kalman_on_LEO():
                     tol_days=3.0,
                     metrique='sma'
                     )
+
+        path = 'data/parsed/manual_labels_LEO/kalman_hyperparams_on_LEO.csv'
+
         if metrics_1['f1'] >= metrics_2['f1'] :
             print(f"Ordre 1 plus adapté pour norad {norad}")
             all_metrics[norad] = metrics_1
-            save_hyperparams(norad, metrics_1, 'kalman_hyperparams_on_LEO.csv', 'sma')
+
+            save_hyperparams(norad, metrics_1, path, 'sma')
         else : 
             print(f"Ordre 2 plus adapté pour norad {norad}")
             all_metrics[norad] = metrics_2
-            save_hyperparams(norad, metrics_2, 'kalman_hyperparams_on_LEO.csv', 'sma')
+            save_hyperparams(norad, metrics_2, path, 'sma')
     return all_metrics
 
 def save_hyperparams(norad, 
@@ -155,13 +159,14 @@ def save_hyperparams(norad,
                      path, 
                      metrique,
                      alpha=0.997, 
-                     sigma=3.0,
+                     sigma=2.0,
                      beta=0.1,
-                     tol_days=3.0
+                     tol_days=2.0
      ):
     path = Path(path)
     row = { 
         "norad": int(norad),
+        "order" : metrics['order'],
         "var_Q": metrics['var_Q'],
         "r" : metrics['r'],
         "p0" : metrics['p0'],
@@ -178,13 +183,16 @@ def save_hyperparams(norad,
 
     if path.exists():
         df = pd.read_csv(path)
-        df= df[df['norad'] != int(norad)]
+        mask = df['norad'] != int(norad) # garde que les lignes avec norad différent
+        df= df[mask]
         df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-
+    
     else : 
         path.parent.mkdir(parents=True, exist_ok=True)
         df = pd.DataFrame([row])
     df.sort_values("norad").to_csv(path, index=False)
+
+
 
 def main():
     test_kalman_on_LEO()

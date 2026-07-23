@@ -110,7 +110,7 @@ def optimise_seuil_kalman_via_regul_gaussienne(
 
 
     # Score aux paramètres optimaux : seuillage nis > q  -> F1
-    nis_opt = run_filter(var_Q, r, p0)
+    nis_opt = run_filter(order, var_Q, r, p0)
     q_opt = chi2.ppf(alpha, df=1)
     print("")
     pred_d = epoch_d[nis_opt > q_opt]
@@ -121,4 +121,4 @@ def optimise_seuil_kalman_via_regul_gaussienne(
           f"P={prf['precision']:.3f} R={prf['recall']:.3f}  {conf}")
     print("")
     
-    return {"ordre" : order, "var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}
+    return {"order" : order, "var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}
