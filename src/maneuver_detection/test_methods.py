@@ -62,7 +62,7 @@ def to_days(times, t0):
 
 def test_kalman_on_LEO():
     """
-    Teste la méthode par filtation kalman sur des satellites geo d'intéret, labellisés à la main par mes soins.
+    Teste la méthode par filtation kalman sur des satellites leo d'intéret, labellisés à la main par mes soins.
     """
     ## Les paths des différentes sources de données
     base = os.path.dirname(os.path.abspath(__file__)) ## pointe vers folder parent, ici maneuver_detection
@@ -93,6 +93,7 @@ def test_kalman_on_LEO():
         )
 
     for norad in true_maneuvers.keys():
+
         if norad not in present: 
             print(f"norad {norad} absent des données récups sur spacetrack")
             continue
@@ -107,13 +108,15 @@ def test_kalman_on_LEO():
             .collect()
         )
 
-        ## Méthode kalman pour détection de manoeuvres in plane, on optimise satellite par satellite au préalable, pour avoir la meilleur f1 possible.
+        ## Méthode kalman pour détection de manoeuvres IN-PLANE (sachant que la labellisation ne permet pas de bien définir les manoeuvres out-plane), on optimise satellite par satellite au préalable, pour avoir la meilleur f1 possible.
+        # on teste avec les deux méthodes : ordre 1 et ordre 2. On sauvegarde celle avec la meilleure F1.
         alpha = 0.997
-        metrics = optimise_seuil_kalman_via_regul_gaussienne(
+        metrics_1 = optimise_seuil_kalman_via_regul_gaussienne(
             path_tle_spacetrack,
             true_maneuvers[norad],
             norad,
             man_ilrs = False,
+            order=1,
             r_0 = 0.5, ## Params de départ pour l'optimisation
             varQ_0 = 0.05, ##
             p0_0 = 1000, ##
@@ -122,8 +125,29 @@ def test_kalman_on_LEO():
             tol_days=3.0,
             metrique='sma'
             )
-        all_metrics[norad] = metrics
-    
+        
+        metrics_2= optimise_seuil_kalman_via_regul_gaussienne(
+                    path_tle_spacetrack,
+                    true_maneuvers[norad],
+                    norad,
+                    man_ilrs = False,
+                    order=2,
+                    r_0 = 0.5, ## Params de départ pour l'optimisation
+                    varQ_0 = 0.05, ##
+                    p0_0 = 1000, ##
+                    sigma_lissage=3.0, ## Params de lissage
+                    beta_lissage=0.1,
+                    tol_days=3.0,
+                    metrique='sma'
+                    )
+        if metrics_1['f1'] >= metrics_2['f1'] :
+            print(f"Ordre 1 plus adapté pour norad {norad}")
+            all_metrics[norad] = metrics_1
+            save_hyperparams(norad, metrics_1, 'kalman_hyperparams_on_LEO.csv', 'sma')
+        else : 
+            print(f"Ordre 2 plus adapté pour norad {norad}")
+            all_metrics[norad] = metrics_2
+            save_hyperparams(norad, metrics_2, 'kalman_hyperparams_on_LEO.csv', 'sma')
     return all_metrics
 
 def save_hyperparams(norad, 
@@ -131,8 +155,8 @@ def save_hyperparams(norad,
                      path, 
                      metrique,
                      alpha=0.997, 
-                     sigma=1.0,
-                     beta=0.5,
+                     sigma=3.0,
+                     beta=0.1,
                      tol_days=3.0
      ):
     path = Path(path)
@@ -152,8 +176,18 @@ def save_hyperparams(norad,
         "beta" : beta
     }
 
-    if path.exist():
+    if path.exists():
         df = pd.read_csv(path)
         df= df[df['norad'] != int(norad)]
         df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
 
+    else : 
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df = pd.DataFrame([row])
+    df.sort_values("norad").to_csv(path, index=False)
+
+def main():
+    test_kalman_on_LEO()
+
+if __name__=="__main__":
+    main()

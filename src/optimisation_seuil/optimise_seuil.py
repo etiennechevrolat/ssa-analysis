@@ -3,14 +3,14 @@ import numpy as np
 import polars as pl
 import pandas as pd
 
-from maneuver_detection.discrete_kalman_filter import kalman_filter_ordre_1
+from maneuver_detection.discrete_kalman_filter import kalman_filter_ordre_1, kalman_filter_ordre_2
 from scipy.stats import chi2
 
 from optimisation_seuil.metrics import (
     lissage_noyau_gaussien_metriques,
     confusion_matrix,
     precision_recall_f1,
-    minimize,
+    minimize_DE,
 )
 
 
@@ -24,6 +24,7 @@ def optimise_seuil_kalman_via_regul_gaussienne(
         path_man,
         norad,
         man_ilrs = True,
+        order=1,
         r_0 = 0.5, ## Params de départ pour l'optimisation
         varQ_0 = 0.05, ##
         p0_0 = 1000, ##
@@ -67,8 +68,11 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     # 4. Loss lissée = fonction de x = [var_Q, r, p0].
     #    On relance le filtre à chaque évaluation : var_Q, r, p0 changent nis,
 
-    def run_filter(var_Q, r, p0):
-        _, nis, _ = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
+    def run_filter(order, var_Q, r, p0):
+        if order==1:       
+            _, nis, _ = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
+        else : ## filtre d'ordre 2, plus d'hypothèse sur a_dot constant
+            _, nis, _ = kalman_filter_ordre_2(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
         return np.asarray(nis, dtype=float)
 
 
@@ -76,12 +80,14 @@ def optimise_seuil_kalman_via_regul_gaussienne(
         log_var_Q , log_r, log_p0 = x
 
         try:
-            nis = run_filter(10**log_var_Q, 10**log_r, 10**log_p0)
+            nis = run_filter(order, 10**log_var_Q, 10**log_r, 10**log_p0)
         except Exception:
             return 1.0                       # filtre KO -> pire loss (F1 = 0)
         if not np.all(np.isfinite(nis)):
             return 1.0
-        q = chi2.ppf(alpha, df=1)
+        
+        q = chi2.ppf(alpha, df=1) ## seuil statistique 
+
         return lissage_noyau_gaussien_metriques(
             true_d, epoch_d, nis, q, sigma_lissage, beta_lissage
         )
@@ -93,8 +99,11 @@ def optimise_seuil_kalman_via_regul_gaussienne(
               (np.log10(1e-10), np.log10(100.0)),     # r  > 0
               (np.log10(1.0), np.log10(1e5)),        # p0 > 0
             ] 
-    print(f"Début de l'optimisation des params LKF_1 pour {norad} ... ")
-    res = minimize(loss, x0=x0, bounds=bounds)
+    if order == 1: 
+        print(f"Début de l'optimisation des params LKF_1 pour {norad} ... ")
+    else : ## order ==2 :
+        print(f"Début de l'optimisation des params LKF_2 pour {norad} ... ")
+    res = minimize_DE(loss, x0=x0, bounds=bounds)
     log_var_Q, log_r, log_p0 = res.x
     var_Q, r, p0 = 10**log_var_Q, 10**log_r, 10**log_p0   # retour en espace linéaire
     print(f"Fin optim des params LKF pour {norad} ")
@@ -108,8 +117,8 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     conf = confusion_matrix(true_d, pred_d, tol_days=tol_days)
     prf = precision_recall_f1(conf)
     print("Scores aux params optimaux:")
-    print(f"norad={norad}  metrique={metrique}  var_Q={var_Q:.4g} r={r:.4g} p0={p0:.4g} F1={prf['f1']:.3f} "
+    print(f"norad={norad}  metrique={metrique} ordre={order} var_Q={var_Q:.4g} r={r:.4g} p0={p0:.4g} F1={prf['f1']:.3f} "
           f"P={prf['precision']:.3f} R={prf['recall']:.3f}  {conf}")
     print("")
     
-    return {"var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}
+    return {"ordre" : order, "var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}
