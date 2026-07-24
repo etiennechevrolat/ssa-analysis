@@ -9,7 +9,7 @@ from omegaconf import DictConfig
 
 
 from ml.datahandler import load_splid_objects
-from ml.dataset import make_loaders
+from ml.dataset import make_loaders, make_loaders_classifiers
 from ml.model import build_model
 
 
@@ -101,15 +101,32 @@ def main(cfg : DictConfig):
         cfg.data.data_dir, 
         cfg.data.labels_dir,
         )
-    
-    train_loader, val_loader, meta = make_loaders(
-        objects, 
-        labels,
-        batch_size=cfg.data.batch_size,
-        history=cfg.data.history, 
-        future=cfg.data.future,
-        val_split=cfg.data.val_split,
-        seed= cfg.seed)
+
+    task = cfg.task.name
+
+    if task == 'classifier' : 
+        train_loader, val_loader, meta = make_loaders_classifiers(
+            objects, 
+            labels,
+            batch_size=cfg.data.batch_size,
+            history=cfg.data.history, 
+            future=cfg.data.future,
+            val_split=cfg.data.val_split,
+            seed= cfg.seed)
+
+        loss_fn = cfg.task.loss
+    else : 
+        train_loader, val_loader, meta = make_loaders(
+                    objects, 
+                    labels,
+                    batch_size=cfg.data.batch_size,
+                    history=cfg.data.history, 
+                    future=cfg.data.future,
+                    val_split=cfg.data.val_split,
+                    seed= cfg.seed)
+        
+        loss_fn = cfg.task.loss
+
     ## On calcule le nombre de features considérées et la taille de la fenêtre temporelle
     n_features = len(meta["feature_cols"])
     window_size  = cfg.data.history + cfg.data.future +1 
@@ -120,9 +137,6 @@ def main(cfg : DictConfig):
     params = model.parameters()
     optimizer = torch.optim.AdamW(params, lr = cfg.train.lr)
 
-    ## Intègre le fort déséquilibre de classe : 99% du temps il n'y a pas de manoeuvres
-
-    loss_fn = nn.BCEWithLogitsLoss()
 
     for epoch in range(cfg.train.epochs):
         train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)

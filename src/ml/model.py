@@ -21,7 +21,7 @@ class NaiveBaseLine(nn.Module):
 class cnn_lstm1(nn.Module):
     """Cette classe est inspirée de l'architecture CNN LSTM gagnante du concours détection/classification de manoeuvres sur le dataset SPLID
     Éléments interessants : paraléllisation de l'architecture pour différencier deux types de détection différentes (EW/NS) sur un backbone commun. 
-    Architecture développée avec lib Keras adaptée à PyTorch
+    Leur architecture est développée avec lib Keras, ici adaptée à PyTorch
     """
     def __init__(self, 
                  n_features,
@@ -58,6 +58,7 @@ class cnn_lstm1(nn.Module):
         self.batchnorm3 = nn.BatchNorm1d(48) 
 
 
+
         self.activation = nn.ReLU()
 
         ## attention à permuter l'axe temporel pour lstm, attend un tenseur time-first(B,W,F).
@@ -68,7 +69,7 @@ class cnn_lstm1(nn.Module):
 
         ## Le pooling se fait toujours sur la dernière dim
         self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1) 
-
+    
 
     def forward(self, x):
         batch_size, features, window_size = x.shape ## (B, F, W) 

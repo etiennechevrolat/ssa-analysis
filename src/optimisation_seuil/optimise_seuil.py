@@ -30,7 +30,8 @@ def optimise_seuil_kalman_via_regul_gaussienne(
         p0_0 = 1000, ##
         sigma_lissage=1.0, ## Params de lissage
         beta_lissage=0.5,
-        tol_days=1.0,
+        tol_days_matching=1.0,
+        tol_days=1,
         metrique='sma'):
 
     # 1. Données TLE du satellite (epoch trié + métrique filtrée : sma ou inclination)
@@ -113,9 +114,24 @@ def optimise_seuil_kalman_via_regul_gaussienne(
     nis_opt = run_filter(order, var_Q, r, p0)
     q_opt = chi2.ppf(alpha, df=1)
     print("")
-    pred_d = epoch_d[nis_opt > q_opt]
-    conf = confusion_matrix(true_d, pred_d, tol_days=tol_days)
+
+    pred = epoch_d[nis_opt > q_opt]
+
+    if len(pred) > 0 : 
+        pred_with_tol = []
+
+        pred_with_tol.append(pred[0]) ## on prend la première man
+
+        for i in range(1, len(pred)):
+            deltat = pred[i] - pred[i-1] 
+            if deltat > tol_days : 
+                pred_with_tol.append(pred[i])
+    
+    else :
+        pred_with_tol = pred
+    conf = confusion_matrix(true_d, pred_with_tol, tol_days=tol_days_matching)
     prf = precision_recall_f1(conf)
+
     print("Scores aux params optimaux:")
     print(f"norad={norad}  metrique={metrique} ordre={order} var_Q={var_Q:.4g} r={r:.4g} p0={p0:.4g} F1={prf['f1']:.3f} "
           f"P={prf['precision']:.3f} R={prf['recall']:.3f}  {conf}")

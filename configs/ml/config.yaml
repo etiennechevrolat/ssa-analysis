@@ -1,6 +1,7 @@
 ## Config Hydra : assemble les groupes model / data / train
 
 defaults : 
+  - task : localizer
   - model : cnn_lstm1
   - data : splid
   - train : default 
@@ -10,6 +11,6 @@ seed : 42
 
 hydra : 
   run :
-   dir : ${hydra:runtime.cwd}/outputs/ml/${now:%Y-%m-%d_%H-%M-%S}
+   dir : ${hydra:runtime.cwd}/outputs/ml/${task.name}/${now:%Y-%m-%d_%H-%M-%S}
 
   

@@ -1,0 +1,5 @@
+name : classifier
+node_classes : 4
+node_type : 3
+loss: cross_entropy
+

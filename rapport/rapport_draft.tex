@@ -13,7 +13,7 @@
 \usepackage[french]{babel}
 \usepackage{amsopn}
 
-\title{Étude de manoeuvres orbitales de satellites - draft}
+\title{Étude de manoeuvres orbitales de satellites - draft - v3}
 \author{Etienne Chevrolat}
 \date{}
 
@@ -23,7 +23,7 @@
 \maketitle
 
 \begin{abstract}
-    Dans cette étude, on cherche à caractériser les différents Patterns of Life (PoL) de satellites en orbites géosynchrone (GEO) et basse altitude (LEO).
+    Dans cette étude, on cherche à caractériser les différents Patterns of Life (PoL) de satellites en orbites géosynchrone (GEO) et basse altitude (LEO) et à mettre en place des méthodes de détection de manoeuvres à la fois performante, et automatisable sur l'ensemble du catalogue, sans information préalable sur l'historique des manoeuvres d'un satellite.
     Pour cela, on se base sur de l'analyse de données TLE issues de SpaceTrack ainsi que sur le travail de chercheurs au MIT ArcLab, premiers concepteurs d'un dataset public GEO labellisé, SPLID.
     Cependant, il est bon de noter que le dataset SPLID contient des données majoritairement simulées. Nous allons donc ici nous inspirer de leur travail pour tenter de caractériser des PoL de données réelles issues de satellites en orbites GEO et LEO.
 \end{abstract}
@@ -500,7 +500,7 @@ De plus, ils appliquent également une étape de smoothing à la sortie du filtr
 
 
 
-\subsubsection{Des sous classes de satellites LEO}
+\subsubsection{Des sous classes de satellites LEO ? }
 
 Des résultats de la section précédente on a maintenant la volonté d'identifier plus précisement des sous classes des satellites en orbites LEO, sur lesquelles on va pouvoir appliquer un seuillage similaire.
 \begin{itemize}
@@ -518,29 +518,33 @@ Une étape de clusterisation par apprentissage non supervisé est le meilleur mo
 Guimaraes et al. appliquent cette méthode et obtiennent 86 clusters de satellites en orbite basse. Leurs paramètres orbitaux évoluent de la même manière : on pourrait alors leur appliquer une classification type GEO.
 
 
+\subsection{Synthèse : filtre de Kalman sur un dataset LEO labellisé à la main}
+Quelques exemples de figures labellisées : 
+\begin{center}
+    \includegraphics[scale=0.2]{figures/figure_28885.png}
+    \includegraphics[scale=0.2]{figures/figure_39375.png}
+    \includegraphics[scale=0.2]{figures/figure_40258.png}
+\end{center}
+Nous synthétisons ici les résultats du filtre de Kalman sur l'ensemble des satellites LEO labellisés à la main de 75 objets.
 
-% ---------------------------------------------------------------------------
-% Synthèse Kalman sur le dataset LEO labellisé (figures générées par le
-% notebook src/maneuver_detection/explore_results.ipynb, section
-% "Run des filtres avec paramètres optimaux / moyens / de clusters").
-% NB : compiler après avoir exécuté le notebook pour que les figures
-% kalman_*.png existent dans rapport/figures.
-% ---------------------------------------------------------------------------
-\subsubsection{Synthèse : filtre de Kalman sur l'ensemble du dataset LEO labellisé}
-
-Nous synthétisons ici les résultats du filtre de Kalman sur l'ensemble des satellites LEO labellisés à la main (dataset Rivesaltes).
 Pour chaque satellite, les hyperparamètres du filtre $(var_Q, r, p_0)$ ainsi que l'ordre (1 ou 2) ont d'abord été optimisés individuellement, par maximisation de la F1 lissée (cf. sections précédentes), avec un seuil statistique $\chi^2_1$ fixe ($\alpha = 0.997$) et une tolérance d'association de 3 jours.
+
+L'absence de manoeuvres chez certains objets ainsi que l'absence de donnée Spacetrack pour d'autres font que l'on a pu effectivement optimiser le filtre sur 46 objets in fine.
+
+Une passe d'optimisation dure en moyenne entre 30s et 1min par objet (cela pourrait être diminué, notamment avec d'autres techniques d'optimisation, un paragraphe pour détailler cette optimsiation ?)
+
 On classe alors les satellites selon la F1 optimale atteinte :
 \begin{itemize}
-    \item \textbf{fail} : $F1 < 0.5$
-    \item \textbf{mid} : $0.5 \leq F1 < 0.7$
-    \item \textbf{good} : $0.7 \leq F1 < 1$
-    \item \textbf{perfect} : $F1 = 1$
+    \item \textbf{fail} : $F1 < 0.5$  (18 \% du dataset)
+    \item \textbf{mid} : $0.5 \leq F1 < 0.7$ (16 \% du dataset)
+    \item \textbf{good} : $0.7 \leq F1 < 1$ (36 \% du dataset)
+    \item \textbf{perfect} : $F1 = 1$ (30 \% du dataset)
 \end{itemize}
-Sur les 75 objets du dataset initial, 46 sont réellement exploitables (données SpaceTrack disponibles et manoeuvres labellisées).
+
+
 Après cette première optimisation individuelle, les scores sont très bons : la majorité des satellites se place en catégorie \textbf{good} ou \textbf{perfect}.
-% TODO : compléter avec les ratios exacts renvoyés par ratios() dans explore_results.ipynb
-Seule une minorité de satellites reste en catégorie fail : leur pattern of life (bruit TLE, cadence de manoeuvres, densité de mesures) se prête mal à une détection par seuillage statistique de la NIS.
+
+Seule une minorité de satellites reste en catégorie fail : leur pattern of life (bruit TLE, cadence de manoeuvres, densité de mesures) se prête mal à une détection par seuillage statistique de la NIS, couplé avec une labellisation à la main parfois incertaine.
 
 \paragraph{Trois configurations de paramètres.}
 Se pose ensuite la question de la généralisation : peut-on se passer de l'optimisation satellite par satellite, non automatisable à l'échelle du catalogue ? On compare pour cela trois configurations de paramètres du filtre :
@@ -549,12 +553,10 @@ Se pose ensuite la question de la généralisation : peut-on se passer de l'opti
     \item \textbf{params moyens} : moyenne des paramètres optimaux sur tout le dataset labellisé, appliquée uniformément ;
     \item \textbf{params de clusters} : les satellites sont regroupés par HDBSCAN dans l'espace standardisé $(var_Q, r, p_0)$, et chaque satellite reçoit les paramètres moyens de son cluster (les points bruit retombent sur les params moyens globaux).
 \end{itemize}
+
 La configuration par clusters est un compromis entre les deux extrêmes : elle teste l'hypothèse de la section précédente, à savoir qu'il existe des sous-classes de satellites LEO partageant un même réglage de filtre.
 
-Le paramètre \texttt{min\_cluster\_size} de HDBSCAN est lui-même sélectionné par un scan : on retient la valeur qui maximise l'indice de validité DBCV tout en limitant la fraction de points classés en bruit (cluster $=-1$) :
-\begin{center}
-    \includegraphics[width=0.7\textwidth]{figures/kalman_hdbscan_selection.png}
-\end{center}
+(Le paramètre \texttt{min\_cluster\_size} de HDBSCAN est lui-même sélectionné par une petite passe d'optimisation)
 
 \paragraph{Exemples par catégorie.}
 Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales couvrent la plage de la catégorie (2 exemples pour fail et mid, 3 pour good et perfect), et on trace : (i) l'évolution des paramètres orbitaux $(a, e, i)$ superposée aux manoeuvres prédites, avec les paramètres optimaux ; (ii) la NIS en pics (seuil $\chi^2_1$, détections en rouge, manoeuvres vraies en vert) pour les trois configurations de paramètres.
@@ -566,14 +568,15 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail1_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail1_cluster_nis.png}
 \end{center}
-\newpage
+Ce premier exemple montre quelque chose de très particulier : lorsque les pics sont trop marqués/étalés dans le temps (ce qui correspond à des manoeuvres longues), le seuillage statistique (métrique[t] > seuil) crée de fausses manoeuvres. Dans cet exemple, la détection est en fait très bonne, il faut simplement un moyen plus intelligent de seuiller : le seuillage par proéminence topographique (cf. Zollo et al) 
+
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_fail2_optim_params.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_optim_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_cluster_nis.png}
 \end{center}
-
+Ici on a clairement une mauvaise détection des manoeuvres. La détection ne fait pas la différence entre le bruit et les manoeuvres (mauvaise labellisation peut être en cause) 
 \newpage
 
 \paragraph{Exemples mid ($0.5 \leq F1 < 0.7$).}
@@ -583,6 +586,9 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_cluster_nis.png}
 \end{center}
+
+Un exemple où notre méthode est intrinsèquement mauvaise : une manoeuvre ponctuelle subite (grande variation) augmente la précision globale du filtre, et tandis que les manoeuvres régulières de maintien à poste bien visibles sont détectées, le bruit aussi est détecté.
+Les cas où le satellite ne suit pas son POL classique, avec un événement ponctuel important, fait chuter la performance de la méthode de filtrage.
 \newpage
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_mid2_optim_params.png}
@@ -590,7 +596,7 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_cluster_nis.png}
 \end{center}
-
+Encore un exemple où la détection est bonne, mais où il faudrait plutot une méthode de seuillage par proéminence topographique.
 \newpage
 
 \paragraph{Exemples good ($0.7 \leq F1 < 1$).}
@@ -600,6 +606,7 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_good1_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_good1_cluster_nis.png}
 \end{center}
+Toujours pareil, la proéminence topographique aurait évitée de détecter plusieurs fois la même manoeuvre. 
 \newpage
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_good2_optim_params.png}
@@ -614,7 +621,7 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_good3_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_good3_cluster_nis.png}
 \end{center}
-
+Excellente détection. On voit la robustesse de ce genre d'exemple même en prenant les paramètres non optimaux.
 \newpage
 
 \paragraph{Exemples perfect ($F1 = 1$).}
@@ -624,6 +631,7 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_cluster_nis.png}
 \end{center}
+Seulement 2 manoeuvres importantes, le filtre les détecte sans problème. 
 \newpage
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_perfect2_optim_params.png}
@@ -631,6 +639,7 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_cluster_nis.png}
 \end{center}
+Notre tolérance de 2 jours lors du matching manoeuvres vraies vs prédites (due à la labellisation imparfaite à la main) fait que les manoeuvres prédites à la suite comptent comme une seule.
 \newpage
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_perfect3_optim_params.png}
@@ -639,6 +648,7 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect3_cluster_nis.png}
 \end{center}
 
+La F1 drop dans le cas des satellites classés perfect, lorsqu'on n'applique plus les params optimaux du filtre.
 \newpage
 
 \paragraph{Comparaison globale des trois configurations.}
@@ -646,22 +656,20 @@ On rejoue enfin le filtre sur \emph{tous} les satellites labellisés avec chacun
 \begin{center}
     \includegraphics[width=0.75\textwidth]{figures/kalman_f1_comparison_configs.png}
 \end{center}
-% TODO : compléter avec les F1 moyennes par config (csv kalman_f1_comparison_configs.csv)
 
-Trois enseignements se dégagent :
+Enseignements de cette analyse :
 \begin{itemize}
-    \item les paramètres optimaux par satellite constituent bien la borne supérieure, mais leur obtention nécessite des labels — la méthode ne passe pas à l'échelle du catalogue ;
-    \item les paramètres moyens dégradent nettement la détection : la dispersion des paramètres optimaux observée sur le dataset (cf. \texttt{stats\_on\_params}) confirme qu'un réglage unique ne peut pas convenir à la diversité des pattern of life LEO ;
+    \item les paramètres optimaux par satellite constituent une excellente borne supérieure, mais leur obtention nécessite des labels — la méthode ne passe pas à l'échelle du catalogue ;
+    \item les paramètres moyens dégradent nettement la détection : la dispersion des paramètres optimaux observée sur le dataset confirme qu'un réglage unique ne peut pas convenir à la diversité des pattern of life LEO ;
     \item les paramètres de clusters se placent entre les deux : lorsque les clusters HDBSCAN sont cohérents, un réglage par sous-classe restitue une partie de la performance optimale, ce qui va dans le sens d'une approche par sous-classes de satellites LEO plutôt que par réglage individuel ou global.
+    \item la robustesse au changement de params sur les objets classés good (notamment avec les params de la clusterisation) nous permet d'imaginer un déploiement éventuel de cette méthode
 \end{itemize}
 
-\subsubsection{A suivre 2 :}
+\subsubsection{A suivre 3 :}
 \begin{itemize}
-    \item Nous avons implémenté un algorithme déterministe qui nous permet d'avoir une baseline pour notre étude : le filtrage Kalman (d'ordre 1 ou 2 selon la finesse nécessaire). On a également la méthode utilisant la longitude moyenne qui est utilisable en GEO. 
-    \item En GEO, nous avons maintenant bien définis les différents patter of life des satellites, grâce aux travail des chercheurs du MIT et du dataset SPLID
-    \item En LEO, notre méthode est prometteuse en termes de précision mais trop grossière, on pourrait la pousser. Cependant, elle est surtout peu automatisable : elle nécessite toujorus in fine du cas par cas.
-    \item En LEO, on va définir des sous-classes, pour pouvoir mieux distinguer les différents pattern of life des satllites.
-
+    \item Nous avons finalement pu tester notre méthode de filtration sur un grand nombre de satellites. Les résultats sont très bons quand on peut optimiser les params des filtres : exemple un client souhaite un suivi sur son satellite, et on applique la méthode d'optimisation : le résultat de la détection sera très bon.
+    \item Il y a une grande variation de performance quand on essaie de généraliser la méthode à de nouveaux satellites.
+    \item Des modèles de ML commencent à être implémentés et sont prometteurs, avec une bonne généralisation.
 \end{itemize}
 \end{document}
  

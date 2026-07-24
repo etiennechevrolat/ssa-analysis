@@ -22,6 +22,8 @@ def kalman_filter_ordre_1(df, var_Q = 0.13, r = 1.0 , p0= 1000.0, metrique = "sm
                     [   0., p0] ])
     f.R = np.array([[r]]) # r = 1.0 km^2 par défaut = bruit de mesure sur le semi-grand axe
 
+
+
     
 
     residuals = []
@@ -95,7 +97,7 @@ def kalman_filter_ordre_2(df, var_Q = 0.13, r = 1.0, p0 = 1000.0, metrique='sma'
 
     return residuals, normalized_residuals, np.asarray(sma_dot)
 
-def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot=True, ax=None, xlim=None, metrique='sma'):
+def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot=True, ax=None, xlim=None, metrique='sma', tol_days=1.0):
     if ordre == 1 :
         _, nis, sma_dot = kalman_filter_ordre_1(df, var_Q=var_Q, r=r, p0=p0, metrique=metrique)
     elif ordre == 2 :
@@ -108,13 +110,30 @@ def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot
 
     threshold = chi2.ppf(alpha, df=1)
     
-    maneuvers = np.where(nis > threshold)[0]
+    maneuvers = np.where(nis > threshold)[0] ## tableau de dates de manoeuvres prédites
+    print(f"prise en compte de l'imprécision : tol_days={tol_days}")
+    
 
     epoch = df['epoch'].to_numpy()[1:]          # séries alignées sur les pas k >= 1
     # Bornes x : mêmes que plot_time_series (epoch complet, pas [1:]) pour aligner
     # parfaitement les deux figures. `xlim` peut être passé identique aux deux.
     epoch_full = df['epoch'].to_numpy()
     xlim = xlim if xlim is not None else (epoch_full[0], epoch_full[-1])
+
+    if maneuvers.size > 0 : 
+        man_with_tol = []
+
+        man_with_tol.append(maneuvers[0]) ## on prend la première man
+
+        for i in range(1, len(maneuvers)):
+            deltat = (epoch[maneuvers[i]] - epoch[maneuvers[i-1]]) / np.timedelta64(1, 'D')
+            if deltat > tol_days : 
+                man_with_tol.append(maneuvers[i])
+
+        man_with_tol = np.asarray(man_with_tol)
+    
+    else :
+        man_with_tol = maneuvers
     
     if ax is not None:
         # Mode comparaison : panneau unique avec nis 
@@ -122,15 +141,15 @@ def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot
         ax.set_ylabel(r"NIS $= y^2/S$")
         ax.set_xlabel("epoch")
         ax.set_title(r"Kalman ($\varepsilon$)")
-        if len(maneuvers):
-            ax.scatter(epoch[maneuvers], nis[maneuvers], color="red",
-                       marker="x", zorder=5, label=f"manœuvres ({len(maneuvers)})")
-            for m in maneuvers:
+        if len(man_with_tol):
+            ax.scatter(epoch[man_with_tol], nis[man_with_tol], color="red",
+                       marker="x", zorder=5, label=f"manœuvres ({len(man_with_tol)})")
+            for m in man_with_tol:
                 ax.axvline(epoch[m], color="red", ls=":", lw=0.6, alpha=0.5)
             ax.legend(loc="best", fontsize=8)
         ax.set_xlim(xlim)
         ax.margins(x=0)
-        return epoch, sma_dot, nis, maneuvers, threshold
+        return epoch, sma_dot, nis, man_with_tol, threshold
 
     if plot:
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
@@ -147,12 +166,12 @@ def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot
         ax2.set_xlabel("epoch")
         ax2.legend(loc="best", fontsize=8)
 
-        if len(maneuvers):
+        if len(man_with_tol):
             for ax, sig in ((ax1, sma_dot), (ax2, nis)):
-                ax.scatter(epoch[maneuvers], sig[maneuvers], color="red",
+                ax.scatter(epoch[man_with_tol], sig[man_with_tol], color="red",
                            marker="x", zorder=5,
-                           label=f"manœuvres ({len(maneuvers)})")
-                for m in maneuvers:
+                           label=f"manœuvres ({len(man_with_tol)})")
+                for m in man_with_tol:
                     ax.axvline(epoch[m], color="red", ls=":", lw=0.6, alpha=0.5)
             ax1.legend(loc="best", fontsize=8)
 
@@ -162,4 +181,4 @@ def detect_kalman(df, ordre = 1, var_Q=0.13, r=1.0, p0=1000.0, alpha=0.997, plot
         plt.tight_layout()
         plt.show()
 
-    return epoch, sma_dot, nis, maneuvers, threshold
+    return epoch, sma_dot, nis, man_with_tol, threshold

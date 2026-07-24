@@ -14,6 +14,7 @@ import os
 import pandas as pd
 import csv
 from pathlib import Path
+import time 
 
 
 def compare_methods(df, norad, threshold_sigma=4.0, min_distance_days=7.0,
@@ -60,7 +61,7 @@ def to_days(times, t0):
     arr = np.asarray(times, dtype="datetime64[ns]")
     return (arr - np.datetime64(t0, "ns")).astype("float64") / 8.64e13
 
-def test_kalman_on_LEO():
+def test_kalman_on_LEO(tol_days=1, tol_days_matching=2):
     """
     Teste la méthode par filtation kalman sur des satellites leo d'intéret, labellisés à la main par mes soins.
     """
@@ -78,6 +79,8 @@ def test_kalman_on_LEO():
     for csv_path in sorted(true_man_path.glob("*.csv")):
         df = pd.read_csv(csv_path) ## de type pd.DataFrame
         m = re.search(r"output_ephemeride_(\d+)",csv_path.name )
+        if not m :
+            continue
         norad = int(m.group(1))
         
         true_maneuvers[norad] = pd.to_datetime(df['date'], errors="coerce").dropna()
@@ -100,6 +103,7 @@ def test_kalman_on_LEO():
         if true_maneuvers[norad].empty:
             print(f"norad {norad} ne manoeuvre pas")
             continue
+
         df = (
             pl.scan_parquet(path_tle_spacetrack)
             .filter(pl.col("norad") == norad)
@@ -111,6 +115,8 @@ def test_kalman_on_LEO():
         ## Méthode kalman pour détection de manoeuvres IN-PLANE (sachant que la labellisation ne permet pas de bien définir les manoeuvres out-plane), on optimise satellite par satellite au préalable, pour avoir la meilleur f1 possible.
         # on teste avec les deux méthodes : ordre 1 et ordre 2. On sauvegarde celle avec la meilleure F1.
         alpha = 0.997
+
+        debut_opti1 = time.time()
         metrics_1 = optimise_seuil_kalman_via_regul_gaussienne(
             path_tle_spacetrack,
             true_maneuvers[norad],
@@ -120,12 +126,17 @@ def test_kalman_on_LEO():
             r_0 = 0.5, ## Params de départ pour l'optimisation
             varQ_0 = 0.05, ##
             p0_0 = 1000, ##
-            sigma_lissage=3.0, ## Params de lissage
+            sigma_lissage=1.0, ## Params de lissage
             beta_lissage=0.1,
-            tol_days=3.0,
+            tol_days=tol_days,
+            tol_days_matching=tol_days_matching,
             metrique='sma'
             )
-        
+        fin_opti1= time.time()
+        print(f"Temps de l'optimisation pour LKF1 : {fin_opti1 - debut_opti1}")
+
+
+        debut_opti2 = time.time()
         metrics_2= optimise_seuil_kalman_via_regul_gaussienne(
                     path_tle_spacetrack,
                     true_maneuvers[norad],
@@ -135,13 +146,16 @@ def test_kalman_on_LEO():
                     r_0 = 0.5, ## Params de départ pour l'optimisation
                     varQ_0 = 0.05, ##
                     p0_0 = 1000, ##
-                    sigma_lissage=3.0, ## Params de lissage
+                    sigma_lissage=1.0, ## Params de lissage
                     beta_lissage=0.1,
-                    tol_days=3.0,
+                    tol_days=1,
+                    tol_days_matching=2,
                     metrique='sma'
                     )
+        fin_opti2 =time.time()
+        print(f"Temps de l'optimisation pour LKF2: {fin_opti2 - debut_opti2}")
 
-        path = 'data/parsed/manual_labels_LEO/kalman_hyperparams_on_LEO.csv'
+        path = 'src/maneuver_detection/kalman_hyperparams_on_LEO.csv'
 
         if metrics_1['f1'] >= metrics_2['f1'] :
             print(f"Ordre 1 plus adapté pour norad {norad}")
@@ -160,8 +174,7 @@ def save_hyperparams(norad,
                      metrique,
                      alpha=0.997, 
                      sigma=2.0,
-                     beta=0.1,
-                     tol_days=2.0
+                     beta=0.1
      ):
     path = Path(path)
     row = { 
@@ -191,7 +204,6 @@ def save_hyperparams(norad,
         path.parent.mkdir(parents=True, exist_ok=True)
         df = pd.DataFrame([row])
     df.sort_values("norad").to_csv(path, index=False)
-
 
 
 def main():
