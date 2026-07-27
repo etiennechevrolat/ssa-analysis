@@ -9,6 +9,12 @@ matching_tolerance = 6 ## 6jours de tolérance pour détection de manoeuvres
 ## Noeuds de manoeuvres réelle
 pol_nodes= ('ID', 'AD', 'IK')
 
+
+
+### EVALUTATION DU LOCALIZER: 
+# Nécessite une mise des prédictions d'un tableau de taille N par batch avec des logits -> à des événements ponctuels dans les deux directions
+
+
 ## Mise des labels au format pour tous les objets :  {oid : {'EW' : [], 'NS' : []}}
 def gt_events_from_labels(labels, # DataFrame : ObjectID, Direction, Node, TimeIndex, Type
                           objects_ids,
@@ -117,4 +123,5 @@ def evaluate_predictions(gt_events: dict,
 
 
                         
+
 

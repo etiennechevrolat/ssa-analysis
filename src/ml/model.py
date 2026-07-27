@@ -126,28 +126,112 @@ class cnn_lstm1(nn.Module):
 
         if self.is_classifier : 
             x_node = self.activation(self.classifier_node_lstm_dense1(x)) ## (B, 32)
-            x_node = self.classifier_node_lstm_dense2(x) ## (B, n_node)
+            x_node = self.classifier_node_lstm_dense2(x_node) ## (B, n_node)
 
-            x_class = self.activation(self.classifier_node_lstm_dense2(x)) ## (B,32)
-            x_class = self.classifier_classes_lstm_dense2(x) ## (B, n_classes)
+            x_class = self.activation(self.classifier_classes_lstm_dense1(x)) ## (B,32)
+            x_class = self.classifier_classes_lstm_dense2(x_class) ## (B, n_classes)
 
             return {'node' : x_node, 'class' : x_class}
+        else : 
+            x=self.lstm_dense1(x) ## (B, 32)
+            x=self.activation(x)
 
-        x=self.lstm_dense1(x) ## (B, 32)
-        x=self.activation(x)
+            x=self.lstm_dense2(x) ## (B,2)
 
-        x=self.lstm_dense2(x) ## (B,2)
-
-
-        return x
-
+            return x
 
 
-def build_model(cfg, *, n_features, window_size):
+class small_lstm(nn.Module):
+    def __init__(self, 
+                     n_features,
+                     window_size,
+                     n_node = 3,
+                     n_classes = 4,
+                     is_classifier=False,
+                    ):
+            super().__init__()
+    
+            self.n_features = n_features
+            self.window_size = window_size
+            self.n_node = n_node
+            self.n_classes = n_classes
+            self.is_classifier = is_classifier
+    
+            ## Le pooling se fait toujours sur la dernière dim, avant les couches denses
+            self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1) 
+    
+            self.activation = nn.ReLU()
+    
+            ## attention à permuter l'axe temporel pour lstm, attend un tenseur time-first(B,W,F).
+            self.lstm_layers = nn.LSTM(9, 32, num_layers=1, batch_first=True) 
+            
+            self.lstm_dense1 = nn.Linear(32*92, 32) 
+    
+            ## Couche dense de localisation 32 -> 2 
+            self.lstm_dense2 = nn.Linear(32,2)
+        
+    
+            ## on modifie la tête pour la classification 
+            ## on récupère un tenseur (B, 32*92) après les couches LSTM et reshape
+            self.classifier_node_lstm_dense1 = nn.Linear(32*92, 32)
+            self.classifier_node_lstm_dense2 = nn.Linear(32, n_node)
+
+            self.classifier_classes_lstm_dense1 = nn.Linear(32*92, 32)
+            self.classifier_classes_lstm_dense2 = nn.Linear(32, n_classes)
+    
+    def forward(self, x):
+    
+        batch_size, features, window_size = x.shape ## (B, F, W) = (256, 9, 97)
+
+        ### Simple couche LSTM, time-first
+        x= x.permute(0,2,1) # (Batch, Window, Features) = (B, 97, 9)
+        x, (h_n, c_n) = self.lstm_layers(x) # (B, 97, 32)
+
+        # on repermute pour le maxpool 
+        
+        x = x.permute(0,2,1) ## (B, F, W) = (B, 32, 97)
+        x = self.lstm_pool(x) ## (B, 32, 92)  
+
+        x= x.reshape(batch_size, 32*92)
+
+        if self.is_classifier : 
+            x_node = self.activation(self.classifier_node_lstm_dense1(x)) ## (B, 32)
+            x_node = self.classifier_node_lstm_dense2(x_node) ## (B, n_node)
+
+            x_class = self.activation(self.classifier_classes_lstm_dense1(x)) ## (B,32)
+            x_class = self.classifier_classes_lstm_dense2(x_class) ## (B, n_classes)
+
+            return {'node' : x_node, 'class' : x_class}
+        else : 
+            x=self.lstm_dense1(x) ## (B, 32)
+            x=self.activation(x)
+
+            x=self.lstm_dense2(x) ## (B,2)
+
+            return x
+
+
+def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
-    if cfg.name == "naive_baseline":
+    if model_cfg.name == "naive_baseline":
         return NaiveBaseLine(n_features, window_size)
-    if cfg.name == "cnn_lstm1" : 
-        return cnn_lstm1(n_features, window_size)
-    raise KeyError (f"modèle inconnu : {cfg.name}")
+
+    if model_cfg.name == "cnn_lstm1": 
+        return cnn_lstm1(
+            n_features, 
+            window_size, 
+            n_node = task_cfg.get('node_classes', 3),
+            n_classes = task_cfg.get('type_classes', 4), 
+            is_classifier=(task_cfg.name == 'classifier')
+            )
+    if model_cfg.name == "small_lstm": 
+        return cnn_lstm1(
+            n_features, 
+            window_size, 
+            n_node = task_cfg.get('node_classes', 3),
+            n_classes = task_cfg.get('type_classes', 4), 
+            is_classifier=(task_cfg.name == 'classifier')
+            )
+
+    raise KeyError (f"modèle inconnu : {model_cfg.name}")
 

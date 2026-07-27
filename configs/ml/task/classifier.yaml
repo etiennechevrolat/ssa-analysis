@@ -1,8 +1,5 @@
 name : classifier
 
-node_classes : 4
-node_loss : cross_entropy
-
-node_type : 3
-class_loss : cross_entropy
+node_classes : 3
+node_type : 4
 

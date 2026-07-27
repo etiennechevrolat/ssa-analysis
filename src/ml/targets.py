@@ -58,18 +58,3 @@ def build_classifier_samples(object_id, labels, nodes=pol_nodes):
                 for c in cp_times:
                     samples.append((c, dir_idx,  type_to_index[node_type], class_to_index[class_type]))
     return samples
-
-import os 
-import pandas as pd
-from pathlib import Path
-
-parent = os.path.dirname(os.path.abspath(__file__)) ## pointe vers ml 
-
-path = Path(os.path.join(parent, '..', '..', 'data', 'raw', 'splid_dataset', 'train_label.csv'))
-
-labels = pd.read_csv(path)
-
-object_id = 1000
-
-samples = build_classifier_samples(object_id, labels)
-print(samples)

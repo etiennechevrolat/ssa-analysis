@@ -1,4 +1,3 @@
 name : localizer
 n_out : 2
-loss : bce 
 half_width : 6

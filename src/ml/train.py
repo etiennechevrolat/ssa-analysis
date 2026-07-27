@@ -6,13 +6,15 @@ import pandas as pd
 import numpy as np
 import hydra 
 from omegaconf import DictConfig
+from sklearn.metrics import accuracy_score, f1_score
 
 
 from ml.datahandler import load_splid_objects
 from ml.dataset import make_loaders, make_loaders_classifiers
 from ml.model import build_model
 
-from ml.utils import to_device 
+from ml.utils import to_device, compute_class_weights 
+
 def train_one_epoch(
         model : nn.Module,
         data_loader : DataLoader,
@@ -94,6 +96,58 @@ def evaluate_epoch(
     avg_loss = running_loss / total
     return avg_loss, metrics
 
+
+
+@torch.no_grad()
+def evaluate_epoch_classifier(
+    model,
+    data_loader,
+    n_node,
+    n_class,
+    loss_fn, 
+    device
+    ):
+
+    model.eval()
+    running_loss, total = 0.0, 0
+    heads = ('node', 'class')
+
+    n_labels = {'node' : n_node, 'class' : n_class}
+    y_true = {h : [] for h in heads}
+    y_pred = {h : [] for h in heads}
+
+    for time_series_batch, node_samples_batch in data_loader:
+        x = time_series_batch.to(device)
+        y = to_device(node_samples_batch, device) 
+
+        logits = model(x) ## {'node' : (B,n_node), 'class' : (B,n_class)}
+        loss = loss_fn(logits, y)
+        batch_size = x.size(0)
+
+        running_loss += float(loss.item()) * batch_size
+        total += batch_size
+
+        for h in heads : 
+            y_true[h].append(node_samples_batch[h].cpu().numpy())
+
+            prediction = logits[h].argmax(dim=1).cpu().numpy()
+            y_pred[h].append(prediction)
+    avg_loss = running_loss / total
+    metrics = {}
+
+    ## on utilise directement les métriques scikit_learn pour de la classification classique 
+    for h in heads:
+        y_t = np.concatenate(y_true[h])
+        y_p = np.concatenate(y_pred[h])
+        metrics[f"{h}_acc"] = accuracy_score(y_t, y_p)
+        metrics[f"{h}_f1"] = f1_score(y_t, y_p, labels=range(n_labels[h]), average='macro', zero_division=0)
+
+    return avg_loss, metrics
+
+
+
+
+
 @hydra.main(version_base=None, config_path="../../configs/ml", config_name="config") 
 ## hydra prend main en point d'entrée, et main() est transformé en wrapper qui récupère et construit l'objet cfg, et enfin applique main(cfg).
 def main(cfg : DictConfig):
@@ -118,10 +172,14 @@ def main(cfg : DictConfig):
             future=cfg.data.future,
             val_split=cfg.data.val_split,
             seed= cfg.seed)
+        print(len(train_loader.dataset), len(val_loader.dataset))
 
         ## y est un dict contenant 'node' : n_node, 'class' : n_class 
-        node_loss = cfg.task.node_loss
-        class_loss = cfg.task.class_loss
+        w_node = compute_class_weights(train_loader.dataset, field = 3, n_node_classes = cfg.task.node_classes, device=device)
+
+        node_loss = nn.CrossEntropyLoss(weight=w_node)
+        class_loss = nn.CrossEntropyLoss()
+
         def loss_fn(pred, y):
             return node_loss(pred['node'], y['node']) + class_loss(pred['class'], y['class'])
 
@@ -137,23 +195,31 @@ def main(cfg : DictConfig):
                     val_split=cfg.data.val_split,
                     seed= cfg.seed)
         
-        loss_fn = cfg.task.loss
+        loss_fn = nn.BCEWithLogitsLoss()
 
     ## On calcule le nombre de features considérées et la taille de la fenêtre temporelle
     n_features = len(meta["feature_cols"])
     window_size  = cfg.data.history + cfg.data.future +1 
 
-    model = build_model(cfg.model, n_features=n_features, window_size=window_size, is_classifier=is_classifier, n_node)
+    model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
     model.to(device)
 
     params = model.parameters()
     optimizer = torch.optim.AdamW(params, lr = cfg.train.lr)
 
-
     for epoch in range(cfg.train.epochs):
         train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-        val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
-        print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
+
+        if is_classifier :
+            val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_type, cfg.task.node_classes, loss_fn, device)
+
+            print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | " 
+                f"node type acc : {metrics['node_acc']:.3f}, f1 : {metrics['node_f1']:.3f} |"
+                f"node class acc : {metrics['class_acc']:.3f}, f1 : {metrics['class_f1']:.3f} ") 
+            
+        else : 
+            val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
+            print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
 
 if __name__ == "__main__":
     main()
