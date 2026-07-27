@@ -517,6 +517,7 @@ Des résultats de la section précédente on a maintenant la volonté d'identifi
 Une étape de clusterisation par apprentissage non supervisé est le meilleur moyen d'obtenir de la donnée sur ces constellations de satellites.
 Guimaraes et al. appliquent cette méthode et obtiennent 86 clusters de satellites en orbite basse. Leurs paramètres orbitaux évoluent de la même manière : on pourrait alors leur appliquer une classification type GEO.
 
+\newpage
 
 \subsection{Performance du filtre de Kalman sur un dataset LEO labellisé à la main}
 Quelques exemples de figures labellisées : 
@@ -524,7 +525,7 @@ Quelques exemples de figures labellisées :
     \includegraphics[scale=0.2]{figures/figure_28885.png}
     \includegraphics[scale=0.2]{figures/figure_39375.png}
     \includegraphics[scale=0.2]{figures/figure_40258.png}
-    \includegraphics[scale=0.2]{figures/matrice_conf_rivesalt.png}
+    \includegraphics[scale=1]{figures/matrice_conf_rivesalt.png}
 \end{center}
 
 
@@ -543,6 +544,7 @@ On classe alors les satellites selon la F1 optimale atteinte :
     \item \textbf{good} : $0.7 \leq F1 < 1$ (36 \% du dataset)
     \item \textbf{perfect} : $F1 = 1$ (30 \% du dataset)
 \end{itemize}
+
 
 
 Après cette première optimisation individuelle, les scores sont très bons : la majorité des satellites se place en catégorie \textbf{good} ou \textbf{perfect}.

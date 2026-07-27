@@ -3,7 +3,7 @@ from collections import defaultdict
 
 ## Paramètres d'évaluation
 
-detection_treshold = 0.1 ## manoeuvre détectée pour proba_pred > treshold
+detection_treshold = 0.5 ## manoeuvre détectée pour proba_pred > treshold
 matching_tolerance = 6 ## 6jours de tolérance pour détection de manoeuvres
 
 ## Noeuds de manoeuvres réelle

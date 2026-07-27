@@ -12,7 +12,7 @@ from ml.datahandler import load_splid_objects
 from ml.dataset import make_loaders, make_loaders_classifiers
 from ml.model import build_model
 
-
+from ml.utils import to_device 
 def train_one_epoch(
         model : nn.Module,
         data_loader : DataLoader,
@@ -25,20 +25,24 @@ def train_one_epoch(
     total = 0
 
     for time_series_batch, labels in data_loader:
-        # time_series_batch: (B,F,W), labels (B,2)
+        # Localizer : 
+        ## time_series_batch: (B,F,W), labels (B,2)
+
+        # Classifier : 
+        ## time_series_batch (B,F,W), labels (B, dict = {'node' : , 'class':  })
         x = time_series_batch.to(device)
-        y = labels.to(device)
+        y = to_device(labels, device)
 
         optimizer.zero_grad()
 
-        pred = model(x)
+        pred = model(x) 
 
 
         loss = loss_fn(pred, y)
-        running_loss+= float(loss.item()) * labels.size(0)
+        running_loss+= float(loss.item()) * x.size(0) 
         loss.backward()
         optimizer.step()
-        total += labels.size(0)
+        total += x.size(0)
     avg_loss = running_loss / total
  
     return avg_loss 
@@ -103,8 +107,9 @@ def main(cfg : DictConfig):
         )
 
     task = cfg.task.name
+    is_classifier = (task == 'classifier')
 
-    if task == 'classifier' : 
+    if is_classifier : 
         train_loader, val_loader, meta = make_loaders_classifiers(
             objects, 
             labels,
@@ -114,7 +119,14 @@ def main(cfg : DictConfig):
             val_split=cfg.data.val_split,
             seed= cfg.seed)
 
-        loss_fn = cfg.task.loss
+        ## y est un dict contenant 'node' : n_node, 'class' : n_class 
+        node_loss = cfg.task.node_loss
+        class_loss = cfg.task.class_loss
+        def loss_fn(pred, y):
+            return node_loss(pred['node'], y['node']) + class_loss(pred['class'], y['class'])
+
+        loss_fn = loss_fn 
+
     else : 
         train_loader, val_loader, meta = make_loaders(
                     objects, 
@@ -131,7 +143,7 @@ def main(cfg : DictConfig):
     n_features = len(meta["feature_cols"])
     window_size  = cfg.data.history + cfg.data.future +1 
 
-    model = build_model(cfg.model, n_features=n_features, window_size=window_size)
+    model = build_model(cfg.model, n_features=n_features, window_size=window_size, is_classifier=is_classifier, n_node)
     model.to(device)
 
     params = model.parameters()

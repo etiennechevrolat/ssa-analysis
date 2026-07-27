@@ -1,7 +1,11 @@
 from torch import nn
 
 ### on a en entrée un tenseur (B,F,W) = (batch_size, features, window_size).
-## pour le moment on veut dim=2 en sortie : manoeuvre EW/NS ? 
+## pour un LOCALIZER on veut dim=2 en sortie : manoeuvre EW/NS ? 
+## pour un CLASSIFIER on veut un dict en sortie : 
+#   une clé node de dim=3 (ID, AD, IK) a priori, une clé classe de dim=4 'NK', 'CK', 'EK', 'HK'
+
+
 class NaiveBaseLine(nn.Module):
     def __init__(self, n_features, window_size):
         super().__init__()
@@ -20,17 +24,30 @@ class NaiveBaseLine(nn.Module):
 
 class cnn_lstm1(nn.Module):
     """Cette classe est inspirée de l'architecture CNN LSTM gagnante du concours détection/classification de manoeuvres sur le dataset SPLID
-    Éléments interessants : paraléllisation de l'architecture pour différencier deux types de détection différentes (EW/NS) sur un backbone commun. 
-    Leur architecture est développée avec lib Keras, ici adaptée à PyTorch
+    Éléments interessants de leur archi : paraléllisation de l'architecture pour différencier deux types de détection différentes (EW/NS) sur un backbone commun. 
+    Leur architecture est développée avec lib Keras, ici adaptée à PyTorch.
+    On retient ici un CNN et un LSTM branchés en série. 
+    Possibilité de paralléliser, i.e. split en deux channels distinct le cnn ou le lstm via les booléens split_cnn ou split_lstm
+    Booléen is_classifier différencie les deux régimes (localizer/classifier) et change la tete de sortie en conséquence.
     """
     def __init__(self, 
                  n_features,
-                 window_size
+                 window_size,
+                 n_node = 3,
+                 n_classes = 4,
+                 is_classifier=False,
+                 split_cnn = False,
+                 split_lstm = False
                 ):
         super().__init__()
+
         self.n_features = n_features
         self.window_size = window_size
-        
+        self.n_node = n_node
+        self.n_classes = n_classes
+        self.is_classifier = is_classifier
+
+        ## Les couches de convolution
         self.conv1 = nn.Conv1d(in_channels=n_features, 
                                out_channels=64, 
                                kernel_size=7, 
@@ -51,25 +68,35 @@ class cnn_lstm1(nn.Module):
                                stride=2,
                                dilation=1,
                                bias=False)  ## (B,64,W-12) = (256,64,85) -> (256,48,40)
+
         
         ## normalisation sur les features. attend un tenseur channel first (B,F,W).
         self.batchnorm1 = nn.BatchNorm1d(64) 
         self.batchnorm2 = nn.BatchNorm1d(64)
         self.batchnorm3 = nn.BatchNorm1d(48) 
 
-
+        ## Le pooling se fait toujours sur la dernière dim, avant les couches denses
+        self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1) 
 
         self.activation = nn.ReLU()
 
         ## attention à permuter l'axe temporel pour lstm, attend un tenseur time-first(B,W,F).
-        self.lstm_layers = nn.LSTM(48, 64, 1, batch_first=True) 
+        self.lstm_layers = nn.LSTM(48, 64, num_layers=1, batch_first=True) 
         
-        self.lstm_dense1 = nn.Linear(64*35, 32)
+        self.lstm_dense1 = nn.Linear(64*35, 32) 
+
+        ## Couche dense de localisation 32 -> 2 
         self.lstm_dense2 = nn.Linear(32,2)
 
-        ## Le pooling se fait toujours sur la dernière dim
-        self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1) 
-    
+        
+
+        ## on modifie la tête pour la classification 
+        ## on récupère un tenseur (B, 64*35) après les couches LSTM et reshape
+        self.classifier_node_lstm_dense1 = nn.Linear(64*35, 32)
+        self.classifier_node_lstm_dense2 = nn.Linear(32, n_node)
+
+        self.classifier_classes_lstm_dense1 = nn.Linear(64*35, 32)
+        self.classifier_classes_lstm_dense2 = nn.Linear(32, n_classes)
 
     def forward(self, x):
         batch_size, features, window_size = x.shape ## (B, F, W) 
@@ -97,6 +124,15 @@ class cnn_lstm1(nn.Module):
 
         x= x.reshape(batch_size, 64*35)
 
+        if self.is_classifier : 
+            x_node = self.activation(self.classifier_node_lstm_dense1(x)) ## (B, 32)
+            x_node = self.classifier_node_lstm_dense2(x) ## (B, n_node)
+
+            x_class = self.activation(self.classifier_node_lstm_dense2(x)) ## (B,32)
+            x_class = self.classifier_classes_lstm_dense2(x) ## (B, n_classes)
+
+            return {'node' : x_node, 'class' : x_class}
+
         x=self.lstm_dense1(x) ## (B, 32)
         x=self.activation(x)
 
@@ -104,7 +140,6 @@ class cnn_lstm1(nn.Module):
 
 
         return x
-
 
 
 
