@@ -518,20 +518,23 @@ Une étape de clusterisation par apprentissage non supervisé est le meilleur mo
 Guimaraes et al. appliquent cette méthode et obtiennent 86 clusters de satellites en orbite basse. Leurs paramètres orbitaux évoluent de la même manière : on pourrait alors leur appliquer une classification type GEO.
 
 
-\subsection{Synthèse : filtre de Kalman sur un dataset LEO labellisé à la main}
+\subsection{Performance du filtre de Kalman sur un dataset LEO labellisé à la main}
 Quelques exemples de figures labellisées : 
 \begin{center}
     \includegraphics[scale=0.2]{figures/figure_28885.png}
     \includegraphics[scale=0.2]{figures/figure_39375.png}
     \includegraphics[scale=0.2]{figures/figure_40258.png}
+    \includegraphics[scale=0.2]{figures/matrice_conf_rivesalt.png}
 \end{center}
+
+
 Nous synthétisons ici les résultats du filtre de Kalman sur l'ensemble des satellites LEO labellisés à la main de 75 objets.
 
-Pour chaque satellite, les hyperparamètres du filtre $(var_Q, r, p_0)$ ainsi que l'ordre (1 ou 2) ont d'abord été optimisés individuellement, par maximisation de la F1 lissée (cf. sections précédentes), avec un seuil statistique $\chi^2_1$ fixe ($\alpha = 0.997$) et une tolérance d'association de 3 jours.
+Pour chaque satellite, les hyperparamètres du filtre $(var_Q, r, p_0)$ ainsi que l'ordre (1 ou 2) ont d'abord été optimisés individuellement, par maximisation de la F1 lissée (cf. sections précédentes), avec un seuil statistique $\chi^2_1$ fixe ($\alpha = 0.997$) et une tolérance d'association de 2 jours.
 
 L'absence de manoeuvres chez certains objets ainsi que l'absence de donnée Spacetrack pour d'autres font que l'on a pu effectivement optimiser le filtre sur 46 objets in fine.
 
-Une passe d'optimisation dure en moyenne entre 30s et 1min par objet (cela pourrait être diminué, notamment avec d'autres techniques d'optimisation, un paragraphe pour détailler cette optimsiation ?)
+Une passe d'optimisation dure en moyenne entre 1min à 2min par objet (cela pourrait être diminué, notamment avec d'autres techniques d'optimisation, un paragraphe pour détailler cette optimsiation ?)
 
 On classe alors les satellites selon la F1 optimale atteinte :
 \begin{itemize}
@@ -568,45 +571,49 @@ Pour chaque catégorie, on retient plusieurs satellites dont les F1 optimales co
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail1_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail1_cluster_nis.png}
 \end{center}
-Ce premier exemple montre quelque chose de très particulier : lorsque les pics sont trop marqués/étalés dans le temps (ce qui correspond à des manoeuvres longues), le seuillage statistique (métrique[t] > seuil) crée de fausses manoeuvres. Dans cet exemple, la détection est en fait très bonne, il faut simplement un moyen plus intelligent de seuiller : le seuillage par proéminence topographique (cf. Zollo et al) 
-
+Ici les manoeuvres étaient déjà difficiles à remarquer à l'oeil nu, avec ces variations des paramètres qui n'ont rien à voir avec les variations habituelles dues à des manoeuvres.
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_fail2_optim_params.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_optim_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_fail2_cluster_nis.png}
 \end{center}
-Ici on a clairement une mauvaise détection des manoeuvres. La détection ne fait pas la différence entre le bruit et les manoeuvres (mauvaise labellisation peut être en cause) 
+Ici le filtre a du mal à différencier le bruit et les manoeuvres, qui sont très fines.
 \newpage
 
 \paragraph{Exemples mid ($0.5 \leq F1 < 0.7$).}
-\begin{center}
-    \includegraphics[width=0.98\textwidth]{figures/kalman_mid1_optim_params.png}
-    \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_optim_nis.png}
-    \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_avg_nis.png}
-    \includegraphics[width=0.75\textwidth]{figures/kalman_mid1_cluster_nis.png}
-\end{center}
 
-Un exemple où notre méthode est intrinsèquement mauvaise : une manoeuvre ponctuelle subite (grande variation) augmente la précision globale du filtre, et tandis que les manoeuvres régulières de maintien à poste bien visibles sont détectées, le bruit aussi est détecté.
-Les cas où le satellite ne suit pas son POL classique, avec un événement ponctuel important, fait chuter la performance de la méthode de filtrage.
-\newpage
+
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_mid2_optim_params.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_optim_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_mid2_cluster_nis.png}
 \end{center}
-Encore un exemple où la détection est bonne, mais où il faudrait plutot une méthode de seuillage par proéminence topographique.
+
+\newpage
+\begin{center}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_mid_64723_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid_64723_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid_64723_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_mid_64723_cluster_nis.png}
+\end{center}
 \newpage
 
 \paragraph{Exemples good ($0.7 \leq F1 < 1$).}
+\begin{center}
+    \includegraphics[width=0.98\textwidth]{figures/kalman_good_28885_optim_params.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good_28885_optim_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good_28885_avg_nis.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_good_28885_cluster_nis.png}
+\end{center}
+\newpage
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_good1_optim_params.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_good1_optim_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_good1_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_good1_cluster_nis.png}
 \end{center}
-Toujours pareil, la proéminence topographique aurait évitée de détecter plusieurs fois la même manoeuvre. 
 \newpage
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_good2_optim_params.png}
@@ -621,25 +628,16 @@ Toujours pareil, la proéminence topographique aurait évitée de détecter plus
     \includegraphics[width=0.75\textwidth]{figures/kalman_good3_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_good3_cluster_nis.png}
 \end{center}
-Excellente détection. On voit la robustesse de ce genre d'exemple même en prenant les paramètres non optimaux.
 \newpage
 
 \paragraph{Exemples perfect ($F1 = 1$).}
-\begin{center}
-    \includegraphics[width=0.98\textwidth]{figures/kalman_perfect1_optim_params.png}
-    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_optim_nis.png}
-    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_avg_nis.png}
-    \includegraphics[width=0.75\textwidth]{figures/kalman_perfect1_cluster_nis.png}
-\end{center}
-Seulement 2 manoeuvres importantes, le filtre les détecte sans problème. 
-\newpage
+
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_perfect2_optim_params.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_optim_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_avg_nis.png}
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect2_cluster_nis.png}
 \end{center}
-Notre tolérance de 2 jours lors du matching manoeuvres vraies vs prédites (due à la labellisation imparfaite à la main) fait que les manoeuvres prédites à la suite comptent comme une seule.
 \newpage
 \begin{center}
     \includegraphics[width=0.98\textwidth]{figures/kalman_perfect3_optim_params.png}
@@ -648,13 +646,14 @@ Notre tolérance de 2 jours lors du matching manoeuvres vraies vs prédites (due
     \includegraphics[width=0.75\textwidth]{figures/kalman_perfect3_cluster_nis.png}
 \end{center}
 
-La F1 drop dans le cas des satellites classés perfect, lorsqu'on n'applique plus les params optimaux du filtre.
 \newpage
 
 \paragraph{Comparaison globale des trois configurations.}
 On rejoue enfin le filtre sur \emph{tous} les satellites labellisés avec chacune des trois configurations, et on compare les distributions de F1 obtenues :
 \begin{center}
     \includegraphics[width=0.75\textwidth]{figures/kalman_f1_comparison_configs.png}
+    \includegraphics[width=0.75\textwidth]{figures/kalman_f1_comparison_configs_good_only.png}
+
 \end{center}
 
 Enseignements de cette analyse :
@@ -662,7 +661,7 @@ Enseignements de cette analyse :
     \item les paramètres optimaux par satellite constituent une excellente borne supérieure, mais leur obtention nécessite des labels — la méthode ne passe pas à l'échelle du catalogue ;
     \item les paramètres moyens dégradent nettement la détection : la dispersion des paramètres optimaux observée sur le dataset confirme qu'un réglage unique ne peut pas convenir à la diversité des pattern of life LEO ;
     \item les paramètres de clusters se placent entre les deux : lorsque les clusters HDBSCAN sont cohérents, un réglage par sous-classe restitue une partie de la performance optimale, ce qui va dans le sens d'une approche par sous-classes de satellites LEO plutôt que par réglage individuel ou global.
-    \item la robustesse au changement de params sur les objets classés good (notamment avec les params de la clusterisation) nous permet d'imaginer un déploiement éventuel de cette méthode
+    \item la meilleure robustesse au changement de paramètres sur les objets classés good (notamment avec les params de cluster) nous permet d'imaginer un déploiement éventuel de cette méthode, en supposant un dataset plus grand et une meilleure clusterisation.
 \end{itemize}
 
 \subsubsection{A suivre 3 :}
