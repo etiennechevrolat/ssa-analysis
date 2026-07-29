@@ -20,6 +20,7 @@ def recupIds(client,samples, constellation, orbit_range=None, shuffle=True):
         format='json',
         orderby='norad_cat_id',
     )
+    
     if inf is not None and sup is not None:
         query['semimajor_axis'] = op.inclusive_range(inf, sup)
     if cstl_name:

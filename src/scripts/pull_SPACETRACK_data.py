@@ -56,7 +56,8 @@ def main():
 
         
         #On écrit dans data
-        tag = f"{constellation.name_pattern or 'ALL_NAMES'}_{constellation.country or 'ALL_COUNTRIES'}_{constellation.norad_ids[:10] or 'ALL_NORADS'}"
+        norad_tag = constellation.norad_ids[:10] if constellation.norad_ids else 'ALL_NORADS'
+        tag = f"{constellation.name_pattern or 'ALL_NAMES'}_{constellation.country or 'ALL_COUNTRIES'}_{norad_tag}"
         date = time.time()
         write_parquet(df, f"data/parsed/SPACETRACK/{tag}_{date}.parquet" )
 

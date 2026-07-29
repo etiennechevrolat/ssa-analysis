@@ -213,24 +213,30 @@ class small_lstm(nn.Module):
 
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
+    is_classifier = (task_cfg.name == 'classifier')
+
+    
     if model_cfg.name == "naive_baseline":
         return NaiveBaseLine(n_features, window_size)
 
+    heads = {}
+    if is_classifier : 
+        heads = {"n_node_types" : task_cfg.node_types, "n_classes" : task_cfg.node_classes}
+    
     if model_cfg.name == "cnn_lstm1": 
         return cnn_lstm1(
             n_features, 
             window_size, 
-            n_node_types = task_cfg.node_types, ## 3 : ID / AD / IK par défault
-            n_classes = task_cfg.node_classes, 
-            is_classifier=(task_cfg.name == 'classifier')
+            is_classifier=is_classifier, 
+            **heads
             )
+    
     if model_cfg.name == "small_lstm": 
         return small_lstm(
             n_features, 
             window_size, 
-            n_node_types = task_cfg.node_types, ## 3 : ID / AD / IK par défault
-            n_classes = task_cfg.node_classes, 
-            is_classifier=(task_cfg.name == 'classifier')
+            is_classifier=is_classifier, 
+            **heads
             )
 
     raise KeyError (f"modèle inconnu : {model_cfg.name}")

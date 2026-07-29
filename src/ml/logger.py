@@ -70,6 +70,7 @@ class RunLogger:
             }, last)
 
         if is_best:
+            print(f" New best checkpoint saved in {self.chekpoint_dir / "best.pt"}" )
             shutil.copyfile(last, self.chekpoint_dir/ "best.pt")
 
     def finish(self):

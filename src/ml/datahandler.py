@@ -2,19 +2,21 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
-
+import polars as pl 
 diff_cols  =['Semimajor Axis (m)', 'q', 'p']
 
+
+
+## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
 def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
     """
-    charge les csv splid en {object_id, df}
+    Charge les csv splid en {object_id, df}
     """
     data_dir = Path(data_dir)
     
     labels = pd.read_csv(labels_path) if labels_path is not None else None
     
     objects = {}
-    
     for csv in sorted(data_dir.glob("*.csv")): ## tri pour garantir reproductibilité, méthode path.glob(motif) cherche des motif dans le path 
         df = pd.read_csv(csv) # dataframe de l'objet considéré
         df["TimeIndex"]=range(len(df)) # création d'une colonne timeindex. unité dans laquelle les labels repèrent les manoeuvres.
@@ -23,6 +25,17 @@ def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
     if not objects:
         raise FileNotFoundError(f"aucun csv trouvé dans {data_dir}")
     return objects, labels 
+
+
+## Récupération des données SPACETRACK pour inférence, une fois le modèle entrainé. 
+### Les données spacetrack sont récupérées au format parquet avec les colonnes suivantes : 
+## ['norad', 'object_name', 'epoch', 'creation_date', 'rev_at_epoch', 'inclination', 'raan', 'arg_perigee', 'mean_anomaly', 'mean_motion', 'eccentricity', 'bstar', 'sma', 'apogee', 'period', 'velocity']
+
+def load_spacetrack_objects(data_dir : Path):
+    for parquet_path in sorted(data_dir.glob("*geo_validation.parquet")) : 
+        df = pl.scan_parquet(parquet_path).collect()
+        
+        print(df.columns)
 
 from ssa.orbital import to_equinoxal, to_keplerian
 
@@ -69,3 +82,18 @@ def build_features(df, diff_cols = diff_cols):
     df[feature_cols] = df[feature_cols].astype(np.float32)
 
     return df, feature_cols
+
+import os 
+from pathlib import Path
+
+def main() : 
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    data_dir_st = Path(os.path.join(base, '..', '..', 'data', 'raw', 'spacetrack'))
+  
+
+    load_spacetrack_objects(data_dir_st)
+
+
+if __name__ == "__main__": 
+    main()
