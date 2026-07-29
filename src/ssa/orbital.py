@@ -35,19 +35,24 @@ def mean_to_true_anomaly(mean_anomaly, e, n_iter=8) :
     E = M.copy()
     for _ in range(n_iter): 
         E = E - (E - e * np.sin(E) - M) / (1 - e * np.cos(E))
-    nu = 2 * np.arctan2(np.srqt(1+e) * np.sin(E/2), np.sqrt(1-e)* np.cos(E/2))
+    nu = 2 * np.arctan2(np.sqrt(1+e) * np.sin(E/2), np.sqrt(1-e)* np.cos(E/2))
 
     return np.degrees(nu) % 360.0
 
-def to_equinoxal(e, i, raan, arg_perigee, true_anomaly):
+def to_equinoxal(e, i, raan, arg_perigee, anomaly, anomaly_type = 'true'):
     # Keplerian angles (e, i, RAAN, arg_perigee, M) from splid dataset -> Equinoxal (k, h , q , p, cos(lamda), sin(lamda)) continuous 
 
     e = np.asarray(e, dtype=float)
     i = np.radians(np.asarray(i, dtype=float))
     raan = np.radians(np.asarray(raan, dtype=float))
     arg_perigee = np.radians(np.asarray(arg_perigee, dtype=float))
-    M = true_to_mean_anomaly(true_anomaly, e)
 
+    if anomaly_type == 'true': 
+        M = true_to_mean_anomaly(anomaly, e)
+    elif anomaly_type == 'mean': 
+        M = np.radians(np.asarray(anomaly, dtype=float))
+    else : 
+        raise ValueError("Anomalie doit valoir 'true' ou 'mean'")
 
     longitude_pericentre = raan + arg_perigee
     k = e*np.cos(longitude_pericentre)
@@ -56,16 +61,14 @@ def to_equinoxal(e, i, raan, arg_perigee, true_anomaly):
     p = np.tan(i/2)*np.sin(raan)
     return k,h,q,p, np.cos(M), np.sin(M)
 
-def to_keplerian(k,h,q,p, cos_lamda, sin_lamda): 
-    #Equinoxal (k, h , q , p, cos(lamda), sin(lamda)) continuous ->  Keplerian angles (e, i, RAAN, arg_perigee, M) 
+def to_keplerian(k,h,q,p, cos_M, sin_M): 
+    #Equinoxal (k, h , q , p, cos(M), sin(M)) continuous ->  Keplerian angles (e, i, RAAN, arg_perigee, M) 
     e = np.hypot(h,k)
     i = 2 * np.arctan(np.hypot(q,p))
-
     varpi = np.arctan2(h,k)
     raan = np.arctan2(p,q)
-
     arg_perigee = varpi - raan 
-    M = np.arctan2(sin_lamda, cos_lamda) - varpi 
+    M = np.arctan2(sin_M, cos_M)
 
     return e, np.degrees(i), np.degrees(raan)%360.0, np.degrees(arg_perigee)%360.0, np.degrees(M)%360.0
 
