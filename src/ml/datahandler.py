@@ -101,13 +101,13 @@ def split_on_gaps(objects, min_length = 1):
 
 
 
-def load_spacetrack_objects(data_dir : Path, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=None, min_length= 2):
+def load_spacetrack_objects(data_dir : Path, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
 
     data_dir = Path(data_dir)
     paths = sorted(data_dir.glob("*geo_validation.parquet"))
 
     raw = pd.concat([pd.read_parquet(path) for path in paths], ignore_index=True)
-
+    raw = raw.rename(columns = spacetrack_to_splid_rename)
     objects={}
     for norad, sub in raw.groupby('norad') : 
         df = _regularize(sub, cadence_hours, max_gap_hours=max_gap_hours)
@@ -132,7 +132,6 @@ def add_continuous_angles(df : pd.DataFrame) -> pd.DataFrame:
     i = df['Inclination (deg)'] 
     RAAN = df['RAAN (deg)']
     arg_perigee = df['Argument of Periapsis (deg)']
-    nu = df['True Anomaly (deg)']
     
     k,h,q,p, cosM, sinM = to_equinoxal(e,i,RAAN, arg_perigee, anomaly, anomaly_type)
     df['k'] = k
@@ -173,9 +172,8 @@ def main() :
     base = os.path.dirname(os.path.abspath(__file__))
     data_dir_st = os.path.join(base, '..', '..', 'data', 'raw', 'spacetrack')
   
-
-    load_spacetrack_objects(data_dir_st)
-
+    objects = load_spacetrack_objects(data_dir_st)
+    
 
 if __name__ == "__main__": 
     main()
