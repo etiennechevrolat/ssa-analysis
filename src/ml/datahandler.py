@@ -3,6 +3,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import polars as pl 
+
+ 
 diff_cols  =['Semimajor Axis (m)', 'q', 'p']
 
 
@@ -30,14 +32,39 @@ def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
 ## Récupération des données SPACETRACK pour inférence, une fois le modèle entrainé. 
 ### Les données spacetrack sont récupérées au format parquet avec les colonnes suivantes : 
 ## ['norad', 'object_name', 'epoch', 'creation_date', 'rev_at_epoch', 'inclination', 'raan', 'arg_perigee', 'mean_anomaly', 'mean_motion', 'eccentricity', 'bstar', 'sma', 'apogee', 'period', 'velocity']
+# Il faut à la fois renommer les bonnes colonnes, et reprojetter une série irrégulière de TLE Spacetrack sur une grille régulière.
+
+spacetrack_to_splid_rename = {
+    "eccentricity" : "Eccentricity", 
+    "inclination" : "Inclination (deg)",
+    "raan" :  "RAAN (deg)",
+    "arg_perigee" : "Argument of Periapsis (deg)",
+    }
+
+def _regularize(df, cadence_hours):
+    """
+    Epochs tle irrégulières -> grille régulière 
+    """
+    df = df.set_index("epoch").sort_index()
+    e = df['Eccentricity'].to_numpy(float)
+    i = df['Inclination (deg)'].to_numpy(float)
+    raan = df['RAAN (deg)'].to_numpy(float)
+    argp = df['Argument of Periapsis (deg)'].to_numpy(float)
+    M = df['Mean Anomaly (deg)'].to_numpy(float)
+
+    nu = mean_to_true_anomaly(M, e)
+    
+
+
+
 
 def load_spacetrack_objects(data_dir : Path):
     for parquet_path in sorted(data_dir.glob("*geo_validation.parquet")) : 
         df = pl.scan_parquet(parquet_path).collect()
-        
         print(df.columns)
 
-from ssa.orbital import to_equinoxal, to_keplerian
+from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
+
 
 def add_continuous_angles(df : pd.DataFrame) -> pd.DataFrame:
     """transforme les paramètres angulaires discontinus : 

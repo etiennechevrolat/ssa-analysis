@@ -24,7 +24,21 @@ def true_to_mean_anomaly(nu, e):
     )
     mean_anomaly = excentric_anomaly - e * np.sin(excentric_anomaly)
     return mean_anomaly
-    
+
+def mean_to_true_anomaly(mean_anomaly, e, n_iter=8) : 
+    """
+    M(deg) -> nu (deg)
+    Equation de Kepler : M = E - e * sin(E). On retrouve E à partir de M avec l'algorithme de Newton
+    """
+    M = np.radians(np.asarray(mean_anomaly, dtype = float))
+    e = np.asarray(e, dtype=float)
+    E = M.copy()
+    for _ in range(n_iter): 
+        E = E - (E - e * np.sin(E) - M) / (1 - e * np.cos(E))
+    nu = 2 * np.arctan2(np.srqt(1+e) * np.sin(E/2), np.sqrt(1-e)* np.cos(E/2))
+
+    return np.degrees(nu) % 360.0
+
 def to_equinoxal(e, i, raan, arg_perigee, true_anomaly):
     # Keplerian angles (e, i, RAAN, arg_perigee, M) from splid dataset -> Equinoxal (k, h , q , p, cos(lamda), sin(lamda)) continuous 
 
@@ -55,15 +69,3 @@ def to_keplerian(k,h,q,p, cos_lamda, sin_lamda):
 
     return e, np.degrees(i), np.degrees(raan)%360.0, np.degrees(arg_perigee)%360.0, np.degrees(M)%360.0
 
-"""
-# Test
-# racine du repo = 2 niveaux au-dessus de src/scripts/plot_history.py
-ROOT = Path(__file__).resolve().parents[2]
-path = ROOT / "data" / "raw" / "STARLINK_US_1782475759.269574.parquet"
-
-df = load_history(path, 
-                  norad=48139, 
-                  params=["semimajor_axis","eccentricity","inclination","raan","arg_perigee","mean_anomaly"]
-)
-print(to_equinoxal(df))
-"""
