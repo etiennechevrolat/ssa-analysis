@@ -225,7 +225,7 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             is_classifier=(task_cfg.name == 'classifier')
             )
     if model_cfg.name == "small_lstm": 
-        return cnn_lstm1(
+        return small_lstm(
             n_features, 
             window_size, 
             n_node = task_cfg.get('node_classes', 3),

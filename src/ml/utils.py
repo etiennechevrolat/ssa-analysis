@@ -21,5 +21,5 @@ def compute_class_weights(dataset, field, n_node_classes, device):
         counts [sample[field]] += 1
     counts=np.maximum(counts, 1)
 
-    w = counts / (n_node_classes * counts)
-    return torch.tensor(w, dtype=torch.float64, device=device)
+    w = counts.sum() / (n_node_classes * counts)
+    return torch.tensor(w, dtype=torch.float32, device=device)

@@ -177,7 +177,7 @@ def main(cfg : DictConfig):
         ## y est un dict contenant 'node' : n_node, 'class' : n_class 
         w_node = compute_class_weights(train_loader.dataset, field = 3, n_node_classes = cfg.task.node_classes, device=device)
 
-        node_loss = nn.CrossEntropyLoss(weight=w_node)
+        node_loss = nn.CrossEntropyLoss()
         class_loss = nn.CrossEntropyLoss()
 
         def loss_fn(pred, y):
@@ -211,7 +211,7 @@ def main(cfg : DictConfig):
         train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
 
         if is_classifier :
-            val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_type, cfg.task.node_classes, loss_fn, device)
+            val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_classes, cfg.task.node_type, loss_fn, device)
 
             print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | " 
                 f"node type acc : {metrics['node_acc']:.3f}, f1 : {metrics['node_f1']:.3f} |"
