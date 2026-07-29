@@ -28,7 +28,7 @@ def load_checkpoint(path, device):
     
 
 def scaler_from_checkpoint(ckpt, data_dir=None):
-    cfg = OmegaConf.creat(ckpt['config'])
+    cfg = OmegaConf.create(ckpt['config'])
     objects,_ = load_splid_objects(data_dir or cfg.data.data_dir)
 
     X_by_obj = {}
@@ -44,11 +44,11 @@ def scaler_from_checkpoint(ckpt, data_dir=None):
 
 
 @torch.no_grad()
-def predict_scores(model, X, history, past, future, device, batch_size=256):
+def predict_scores(model, X, history, future, device, batch_size=256):
     """
     X (L,F) déjà normalisé -> scores (L,2)
     """
-    Xpad = np.pad(X((history, future), (0,0)), mode='constant')
+    Xpad = np.pad(X, ((history, future), (0,0)), mode='constant')
     W = history + future + 1
 
     windows = np.lib.stride_tricks.sliding_window_view(Xpad, W, axis=0) # (L,F,W)
@@ -77,3 +77,15 @@ def main(ckpt_path, data_dir):
             for t in idxs : 
                 print(f"{key} {direction} {seg['TimeStamp'].iloc[t]}")
 
+if __name__ == "__main__" : 
+    import os 
+    from pathlib import Path
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    ckpt_path = Path(os.path.join(base, '..' , '..', 'outputs', 'ml', 'localizer', '2026-07-29_14-24-19', 'checkpoints', 'best.pt' ))
+    data_dir = Path(os.path.join(base, '..' , '..', 'data', 'raw', 'spacetrack'))
+
+    main(ckpt_path, data_dir)
+
+
+    
