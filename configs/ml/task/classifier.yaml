@@ -1,5 +1,6 @@
 name : classifier
 
-node_classes : 3
-node_type : 4
+node_types : 3 ## (ID,AD,IK)
+node_classes : 4 ## (NK, CK,EK,HK)
+
 

@@ -111,8 +111,8 @@ def evaluate_epoch(
 def evaluate_epoch_classifier(
     model,
     data_loader,
-    n_node,
-    n_class,
+    n_node_types,
+    n_classes,
     loss_fn, 
     device
     ):
@@ -121,7 +121,7 @@ def evaluate_epoch_classifier(
     running_loss, total = 0.0, 0
     heads = ('node', 'class')
 
-    n_labels = {'node' : n_node, 'class' : n_class}
+    n_labels = {'node' : n_node_types, 'class' : n_classes}
     y_true = {h : [] for h in heads}
     y_pred = {h : [] for h in heads}
 
@@ -184,14 +184,13 @@ def main(cfg : DictConfig):
         print(len(train_loader.dataset), len(val_loader.dataset))
 
         ## y est un dict contenant 'node' : n_node, 'class' : n_class 
-        w_node = compute_class_weights(train_loader.dataset, field = 3, n_node_classes = cfg.task.node_classes, device=device)
+        w_node = compute_class_weights(train_loader.dataset, field = 3, n_classes = cfg.task.node_classes, device=device)
 
-        node_loss = nn.CrossEntropyLoss(weight=w_node)
+        node_loss = nn.CrossEntropyLoss()
 
         class_loss = nn.CrossEntropyLoss()
 
         def loss_fn(pred, y):
-            print("node", pred["node"].shape, y["node"].shape)
             return node_loss(pred['node'], y['node']) + class_loss(pred['class'], y['class'])
 
         loss_fn = loss_fn 
@@ -225,7 +224,7 @@ def main(cfg : DictConfig):
         train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
 
         if is_classifier :
-            val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_classes, cfg.task.node_type, loss_fn, device)
+            val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_types, cfg.task.node_classes, loss_fn, device)
 
             line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | " 
                 f"node type acc : {metrics['node_acc']:.3f}, f1 : {metrics['node_f1']:.3f} |"

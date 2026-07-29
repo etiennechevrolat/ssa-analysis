@@ -33,7 +33,7 @@ class cnn_lstm1(nn.Module):
     def __init__(self, 
                  n_features,
                  window_size,
-                 n_node = 3,
+                 n_node_types = 3,
                  n_classes = 4,
                  is_classifier=False,
                  split_cnn = False,
@@ -43,7 +43,7 @@ class cnn_lstm1(nn.Module):
 
         self.n_features = n_features
         self.window_size = window_size
-        self.n_node = n_node
+        self.n_node_types = n_node_types
         self.n_classes = n_classes
         self.is_classifier = is_classifier
 
@@ -93,7 +93,7 @@ class cnn_lstm1(nn.Module):
         ## on modifie la tête pour la classification 
         ## on récupère un tenseur (B, 64*35) après les couches LSTM et reshape
         self.classifier_node_lstm_dense1 = nn.Linear(64*35, 32)
-        self.classifier_node_lstm_dense2 = nn.Linear(32, n_node)
+        self.classifier_node_lstm_dense2 = nn.Linear(32, n_node_types)
 
         self.classifier_classes_lstm_dense1 = nn.Linear(64*35, 32)
         self.classifier_classes_lstm_dense2 = nn.Linear(32, n_classes)
@@ -145,7 +145,7 @@ class small_lstm(nn.Module):
     def __init__(self, 
                      n_features,
                      window_size,
-                     n_node = 3,
+                     n_node_types = 3,
                      n_classes = 4,
                      is_classifier=False,
                     ):
@@ -153,7 +153,7 @@ class small_lstm(nn.Module):
     
             self.n_features = n_features
             self.window_size = window_size
-            self.n_node = n_node
+            self.n_node_types = n_node_types
             self.n_classes = n_classes
             self.is_classifier = is_classifier
     
@@ -174,7 +174,7 @@ class small_lstm(nn.Module):
             ## on modifie la tête pour la classification 
             ## on récupère un tenseur (B, 32*92) après les couches LSTM et reshape
             self.classifier_node_lstm_dense1 = nn.Linear(32*92, 32)
-            self.classifier_node_lstm_dense2 = nn.Linear(32, n_node)
+            self.classifier_node_lstm_dense2 = nn.Linear(32, n_node_types)
 
             self.classifier_classes_lstm_dense1 = nn.Linear(32*92, 32)
             self.classifier_classes_lstm_dense2 = nn.Linear(32, n_classes)
@@ -196,7 +196,7 @@ class small_lstm(nn.Module):
 
         if self.is_classifier : 
             x_node = self.activation(self.classifier_node_lstm_dense1(x)) ## (B, 32)
-            x_node = self.classifier_node_lstm_dense2(x_node) ## (B, n_node)
+            x_node = self.classifier_node_lstm_dense2(x_node) ## (B, n_node_types)
 
             x_class = self.activation(self.classifier_classes_lstm_dense1(x)) ## (B,32)
             x_class = self.classifier_classes_lstm_dense2(x_class) ## (B, n_classes)
@@ -220,16 +220,16 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
         return cnn_lstm1(
             n_features, 
             window_size, 
-            n_node = task_cfg.get('node_type', 4),
-            n_classes = task_cfg.get('type_classes', 3), 
+            n_node_types = task_cfg.node_types, ## 3 : ID / AD / IK par défault
+            n_classes = task_cfg.node_classes, 
             is_classifier=(task_cfg.name == 'classifier')
             )
     if model_cfg.name == "small_lstm": 
         return small_lstm(
             n_features, 
             window_size, 
-            n_node = task_cfg.get('node_type', 4),
-            n_classes = task_cfg.get('node_classes', 3), 
+            n_node_types = task_cfg.node_types, ## 3 : ID / AD / IK par défault
+            n_classes = task_cfg.node_classes, 
             is_classifier=(task_cfg.name == 'classifier')
             )
 
