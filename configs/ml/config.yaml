@@ -9,6 +9,12 @@ defaults :
 
 seed : 42
 
+wandb :
+  enabled : False
+  project : ssa-maneuver-detection
+  mode : online 
+  watch : True
+
 hydra : 
   run :
    dir : ${hydra:runtime.cwd}/outputs/ml/${task.name}/${now:%Y-%m-%d_%H-%M-%S}

@@ -7,6 +7,8 @@ import numpy as np
 import hydra 
 from omegaconf import DictConfig
 from sklearn.metrics import accuracy_score, f1_score
+from tqdm import tqdm
+from hydra.core.hydra_config import HydraConfig
 
 
 from ml.datahandler import load_splid_objects
@@ -15,18 +17,23 @@ from ml.model import build_model
 
 from ml.utils import to_device, compute_class_weights 
 
+from ml.logger import RunLogger
+
 def train_one_epoch(
         model : nn.Module,
         data_loader : DataLoader,
         loss_fn : nn.Module, 
         optimizer : torch.optim.Optimizer,
-        device : torch.device
+        device : torch.device,
+        epoch=0
     ):
     model.train()
     running_loss = 0.0
     total = 0
 
-    for time_series_batch, labels in data_loader:
+    bar = tqdm(data_loader, desc=f"train {epoch}", leave=False)
+
+    for time_series_batch, labels in bar:
         # Localizer : 
         ## time_series_batch: (B,F,W), labels (B,2)
 
@@ -45,6 +52,8 @@ def train_one_epoch(
         loss.backward()
         optimizer.step()
         total += x.size(0)
+        bar.set_postfix(loss=f"{running_loss / total :.4f}")
+
     avg_loss = running_loss / total
  
     return avg_loss 
@@ -64,7 +73,7 @@ def evaluate_epoch(
     running_loss = 0.0
     total=0
     all_probs = []
-    for time_series_batch, labels_batch in data_loader:
+    for time_series_batch, labels_batch in tqdm(data_loader, desc="val", leave=False):
         x = time_series_batch.to(device)
         y = labels_batch.to(device)
 
@@ -116,7 +125,7 @@ def evaluate_epoch_classifier(
     y_true = {h : [] for h in heads}
     y_pred = {h : [] for h in heads}
 
-    for time_series_batch, node_samples_batch in data_loader:
+    for time_series_batch, node_samples_batch in tqdm(data_loader, desc="val", leave=False):
         x = time_series_batch.to(device)
         y = to_device(node_samples_batch, device) 
 
@@ -177,7 +186,8 @@ def main(cfg : DictConfig):
         ## y est un dict contenant 'node' : n_node, 'class' : n_class 
         w_node = compute_class_weights(train_loader.dataset, field = 3, n_node_classes = cfg.task.node_classes, device=device)
 
-        node_loss = nn.CrossEntropyLoss()
+        node_loss = nn.CrossEntropyLoss(weight=w_node)
+
         class_loss = nn.CrossEntropyLoss()
 
         def loss_fn(pred, y):
@@ -207,19 +217,28 @@ def main(cfg : DictConfig):
     params = model.parameters()
     optimizer = torch.optim.AdamW(params, lr = cfg.train.lr)
 
-    for epoch in range(cfg.train.epochs):
+    logger = RunLogger(cfg, HydraConfig.get().runtime.output_dir, )
+    logger.watch(model)
+
+    for epoch in tqdm(range(cfg.train.epochs), desc="epochs"):
         train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
 
         if is_classifier :
             val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_classes, cfg.task.node_type, loss_fn, device)
 
-            print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | " 
+            line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | " 
                 f"node type acc : {metrics['node_acc']:.3f}, f1 : {metrics['node_f1']:.3f} |"
-                f"node class acc : {metrics['class_acc']:.3f}, f1 : {metrics['class_f1']:.3f} ") 
-            
+                f"node class acc : {metrics['class_acc']:.3f}, f1 : {metrics['class_f1']:.3f} ")
+        
         else : 
             val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
-            print(f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
+            line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
+
+        tqdm.write(line) 
+        is_best = logger.log_epoch(epoch, train_loss, val_loss, metrics)
+        logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size)
+
+    logger.finish()
 
 if __name__ == "__main__":
     main()
