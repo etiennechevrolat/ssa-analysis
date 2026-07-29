@@ -220,16 +220,16 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
         return cnn_lstm1(
             n_features, 
             window_size, 
-            n_node = task_cfg.get('node_classes', 3),
-            n_classes = task_cfg.get('type_classes', 4), 
+            n_node = task_cfg.get('node_type', 4),
+            n_classes = task_cfg.get('type_classes', 3), 
             is_classifier=(task_cfg.name == 'classifier')
             )
     if model_cfg.name == "small_lstm": 
         return small_lstm(
             n_features, 
             window_size, 
-            n_node = task_cfg.get('node_classes', 3),
-            n_classes = task_cfg.get('type_classes', 4), 
+            n_node = task_cfg.get('node_type', 4),
+            n_classes = task_cfg.get('node_classes', 3), 
             is_classifier=(task_cfg.name == 'classifier')
             )
 

@@ -5,7 +5,7 @@ Journalisation des entrainements : métriques, checkpoints et W&B
 from __future__ import annotations
 import torch
 import wandb
-
+import numpy as np 
 import shutil 
 
 from pathlib import Path
@@ -41,7 +41,7 @@ class RunLogger:
         """Enregistre une epoch, et renvoie True si c'est la meilleure val_loss"""
 
         row = {"epoch" :epoch, "train loss" : train_loss, "val loss" : val_loss}
-        row.update({f"val {k}": float(v) for k,v in metrics.items()})
+        row.update({f"val {k}: {float(v)}" for k,v in metrics.items() if np.ndim(v) == 0})
         # un JSON par ligne
         with (self.run_dir / "metrics.jsonl").open("a") as f:
             f.write(json.dumps(row) + "\n")

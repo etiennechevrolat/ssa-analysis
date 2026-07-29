@@ -191,6 +191,7 @@ def main(cfg : DictConfig):
         class_loss = nn.CrossEntropyLoss()
 
         def loss_fn(pred, y):
+            print("node", pred["node"].shape, y["node"].shape)
             return node_loss(pred['node'], y['node']) + class_loss(pred['class'], y['class'])
 
         loss_fn = loss_fn 
