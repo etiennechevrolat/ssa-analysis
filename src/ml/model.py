@@ -344,9 +344,9 @@ import numpy as np
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, num_patches, embed_dim, n_heads, dropout_rate=0.1):
+    def __init__(self, embed_dim, n_heads, dropout_rate=0.1):
         super().__init__()
-        self.x_len = num_patches
+
         self.x_dim = embed_dim
         self.hidden_dim = embed_dim
         self.n_heads = n_heads
@@ -375,12 +375,14 @@ class MultiHeadSelfAttention(nn.Module):
 
         similarity_matrix = torch.einsum('bdik,bdjk->bdij', Q, K) / self.head_dim**0.5   ## (B, num_heads, N, N)
         attn_weights = torch.softmax(similarity_matrix, dim=-1) ## softmax sur les colonnes pour avoir des poids à passer à V
-
+        attn_weights = self.dropout(attn_weights)
         attn = torch.einsum('bdij,bdjk->bdik', attn_weights, V) ## (B, num_heads, N, head_dim)
         ## merge des têtes
-        attn.transpose(1,2).reshape(batch_size, num_patches, self.hidden_dim)
-        attn = self.dropout(attn)
+        attn = attn.transpose(1,2).reshape(batch_size, num_patches, self.hidden_dim)
+       
         attn = self.output_proj(attn)
+        attn = self.dropout(attn)
+
         return attn
 
 class MLP(nn.Module):
@@ -396,19 +398,20 @@ class MLP(nn.Module):
         x = self.activation(x)
         x = self.dropout(x)
         x = self.dense2(x)
+        x=self.dropout(x)
         return x
 
     
 class TransformerBlock(nn.Module):
-    def __init__(self, x_len, embed_dim, n_attn_heads, dropout_rate):
+    def __init__(self, x_len, embed_dim, n_attn_heads, expansion_factor, dropout_rate):
         super().__init__()
-    
 
-        self.norm1 = nn.LayerNorm(self.embed_dim)
-        self.norm2 = nn.LayerNorm(self.embed_dim)
 
-        self.MSA = MultiHeadSelfAttention(x_len, embed_dim, n_attn_heads)
-        self.MLP = MLP(embed_dim, dropout=dropout_rate)
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.norm2 = nn.LayerNorm(embed_dim)
+
+        self.MSA = MultiHeadSelfAttention(x_len, embed_dim, n_attn_heads, dropout_rate)
+        self.MLP = MLP(embed_dim, expansion_factor, dropout=dropout_rate)
 
 
     def forward(self, x):
@@ -423,39 +426,46 @@ class TransformerBlock(nn.Module):
         x = x +  x_id_2
         return x
 
-class Encoder(nn.Module):
+class ViTEncoder(nn.Module):
     def __init__(self, 
-        n_features, 
-        num_patches, 
+        n_features,  
         n_epochs, 
         patch_size, 
         embed_dim, 
         n_attn_heads, 
         n_blocks, 
+        expansion_factor,
         dropout_rate=0.1
         ):
 
         super().__init__()
 
         self.patch_embedding = PatchEmbedding(n_features, n_epochs, patch_size, embed_dim)
-        self.pos_embedding = LearnedPositionalEmbedding(embed_dim, n_epochs)
+        self.num_patches = self.patch_embedding.num_patches
+        self.pos_embedding = LearnedPositionalEmbedding(embed_dim, self.num_patches)
 
-        self.blocks = nn.Sequential(
-            TransformerBlock(num_patches, embed_dim, n_attn_heads, dropout_rate) for _ in range(n_blocks)
+        self.cls_token = nn.Parameter(torch.zeros(1,1, embed_dim))
+        nn.init.trunc_normal_(self.cls_token, std=0.02)
+        nn.init.trunc_normal_(self.pos_embedding.PE.weight, std=0.02)
+
+        self.blocks = nn.ModuleList(
+            [TransformerBlock(self.num_patches, embed_dim, n_attn_heads, expansion_factor, dropout_rate) for _ in range(n_blocks)]
         )
+        self.final_norm = nn.LayerNorm(embed_dim)
 
 
     def forward(self, x):
         # raw x: (B, n_features, n_epochs)
         x = self.patch_embedding(x) # (B,N,embed_dim)
         x = self.pos_embedding(x) 
+        cls =self.cls_token.expand(x.size(0), -1, -1)
+
+        x = torch.cat([cls, x], dim=1)
         
         for bloc in self.blocks : 
             x= bloc(x)
-        return x 
-
-class Decoder(nn.Module):
-
+        x=self.final_norm(x)
+        return x
 
 
 
