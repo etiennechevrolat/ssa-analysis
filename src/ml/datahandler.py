@@ -99,19 +99,29 @@ def split_on_gaps(objects, min_length = 1):
             segments[f"{oid}_{i}"] = seg
     return segments
 
+import csv
 
-
-def load_spacetrack_objects(data_dir : Path, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
+def load_spacetrack_objects(data_dir : Path, out_dir = None, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
 
     data_dir = Path(data_dir)
+    out_dir = Path(out_dir) 
+
     paths = sorted(data_dir.glob("*geo_validation.parquet"))
 
     raw = pd.concat([pd.read_parquet(path) for path in paths], ignore_index=True)
     raw = raw.rename(columns = spacetrack_to_splid_rename)
     objects={}
+    
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     for norad, sub in raw.groupby('norad') : 
+        
+        csv_path =out_dir/ "geo_splid_format" /  f"{norad}.csv"
         df = _regularize(sub, cadence_hours, max_gap_hours=max_gap_hours)
+        df.to_csv(csv_path, index=False)
+
         objects[int(norad)] = df
+        
     return objects
 
 
@@ -171,8 +181,9 @@ def main() :
 
     base = os.path.dirname(os.path.abspath(__file__))
     data_dir_st = os.path.join(base, '..', '..', 'data', 'raw', 'spacetrack')
-  
-    objects = load_spacetrack_objects(data_dir_st)
+    out_dir = os.path.join(base, '..', '..', 'data', 'parsed', 'SPACETRACK')
+
+    objects = load_spacetrack_objects(data_dir_st, out_dir, cadence_hours=2.0, max_gap_hours=48 + 48 + 1)
     
 
 if __name__ == "__main__": 

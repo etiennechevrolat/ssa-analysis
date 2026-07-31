@@ -140,6 +140,80 @@ class cnn_lstm1(nn.Module):
 
             return x
 
+class small_cnn(nn.Module):
+    """
+    Un simple CNN de quelques couches pour de la localisation de maneouvres uniquement.
+    """
+    def __init__(self, 
+                 n_features,
+                 window_size,
+                 split_cnn = False
+                ):
+        super().__init__()
+
+        self.n_features = n_features
+        self.window_size = window_size
+        
+
+        ## Les couches de convolution
+        self.conv1 = nn.Conv1d(in_channels=n_features, 
+                               out_channels=64, 
+                               kernel_size=7, 
+                               stride=1,
+                               dilation=1, 
+                               bias=False)  ## (B,F,W)  = (256, 9, 97)-> (B,64, W-6)=(256, 64,91)
+        
+        self.conv2 = nn.Conv1d(in_channels=64, 
+                               out_channels=64, 
+                               kernel_size=7, 
+                               stride=1,
+                               dilation=1,
+                               bias=False)  ## (B,64,W-6)=(256, 64, 91) -> (256,64, 85)
+
+        self.conv3 = nn.Conv1d(in_channels=64, 
+                               out_channels=48, 
+                               kernel_size=7, 
+                               stride=2,
+                               dilation=1,
+                               bias=False)  ## (B,64,W-12) = (256,64,85) -> (256,48,40)
+
+        
+        ## normalisation sur les features. attend un tenseur channel first (B,F,W).
+        self.batchnorm1 = nn.BatchNorm1d(64) 
+        self.batchnorm2 = nn.BatchNorm1d(64)
+        self.batchnorm3 = nn.BatchNorm1d(48) 
+
+  
+        self.activation = nn.ReLU()
+
+        ## Couche dense. en sortie des couches de convolution : (B,F,W) = (256, 48, 40)
+        self.dense1 = nn.Linear(48*40, 32)
+        self.dense2 = nn.Linear(32, 2)
+
+
+    def forward(self, x):
+        batch_size, features, window_size = x.shape ## (B, F, W) 
+
+        x= self.conv1(x)
+        x= self.batchnorm1(x)
+        x= self.activation(x)
+
+        x= self.conv2(x)
+        x= self.batchnorm2(x)
+        x= self.activation(x)
+
+        x= self.conv3(x)
+        x= self.batchnorm3(x)
+        x= self.activation(x) ## (Batch, Features, Window) = (B, 48, 40) .
+
+        x= x.reshape(batch_size, 48*40)
+
+        x=self.dense1(x) ## (B,32)
+        x=self.activation(x)
+        x=self.dense2(x) #(B,2)
+
+        return x
+
 
 class small_lstm(nn.Module):
     def __init__(self, 
@@ -211,6 +285,115 @@ class small_lstm(nn.Module):
             return x
 
 
+
+### On implémente ici une architecture de d'autoencoder via l'approche ViT. 
+## Les données massives proviennent de spacetrack x = (Features, Temps). 
+# Ce sont des séries temporelles très étalées dans le temps : on peut récupérer les features sur quelques mois, plusieurs années. 
+## 1° On divise ces données en patchs non superposés cela se fait via PatchEmbedding : 
+#       x_1  = (Features, Window), x_2 = (Features, Window), ... , x_p avec la taille de Window à choisir. (Guimareas et al prennent 8)
+#  1.5 ° On sample un sous ensemble aléatoire de patch pas trop faible  (40 - 50%).
+#  2° On ajoute des PosEmbedding à ces patchs
+#  3° On projette les données dans l'espace latent de dimension D = 16 
+#  4° On ajoute un token qui représente la données dans sa globalité  : x_class, 
+#  5° On fait passer ces données dans un nombre L = 8 de têtes d'attention. 
+
+import torch
+
+class PatchEmbedding(nn.Module):
+    def __init__(self, n_features, n_epochs, patch_size=8, embed_dim=16):
+        super().__init__()
+        assert n_epochs % patch_size == 0
+        self.n_features = n_features
+        self.n_epochs = n_epochs
+        self.patch_size = patch_size
+        self.embed_dim =embed_dim
+
+        self.num_patches = n_epochs // patch_size
+
+        self.proj = nn.Conv1d(
+            in_channels=n_features,
+            out_channels=embed_dim,
+            kernel_size=patch_size,
+            stride=patch_size, 
+            bias=True
+        )
+
+    def forward(self, x):
+        #x: (B, F, T)
+        x = self.proj(x) # (B, embed_dim,  num_patches)
+        x = x.transpose(1,2) # (B, num_patches, embed_dim)
+
+        return x 
+
+class LearnedPositionalEmbedding(nn.Module):
+    def __init__(self, embed_dim, max_len):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.max_len = max_len
+        self.PE = nn.Embedding(max_len, embed_dim)
+
+    def forward(self, x):
+        #x : (B, num_patches, embed_dim)
+        batch_size, num_patches, _ = x.shape
+
+        positions = torch.arange(num_patches, device=x.device).unsqueeze(0) # (1, num_patches). unsqueeze add the batch dimension
+        # add positional embedding
+        x = x+ self.PE(positions) # (B, num_patches, embed_dim)
+        return x 
+    
+import numpy as np 
+
+
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, num_patches, embed_dim, hidden_dim, n_heads):
+        super().__init__()
+        self.x_len = num_patches
+        self.x_dim = embed_dim
+        self.hidden_dim = hidden_dim
+        self.n_heads = n_heads
+
+        assert hidden_dim % n_heads == 0
+        self.head_dim = hidden_dim // n_heads
+
+        self.query_matrix = nn.Linear(self.x_dim, hidden_dim)
+        self.key_matrix = nn.Linear(self.x_dim, hidden_dim)
+        self.value_matrix = nn.Linear(self.x_dim, hidden_dim)
+
+        self.output_proj = nn.Linear(hidden_dim,hidden_dim)
+
+    def forward(self, x):
+        # x: (B, num_patches, embed_dim)
+        batch_size, num_patches, embed_dim = x.shape
+        Q = self.query_matrix(x) ## (B, num_patches, hidden_dim) le produit s'applique bien sur la dernière dim ? 
+        K = self.key_matrix(x) ## (B, num_patches, hidden_dim)
+        V = self.value_matrix(x) ## (B, num_patches, hidden_dim)
+
+        ## principe de l'attention multi-tête:  on projette sur les sous-espaces de l'espace latent 
+        Q = Q.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2) ## (B, num_patches, num_heads, head_dim) précise le comportement de view
+        K = K.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2)
+        V = V.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2)
+
+        similarity_matrix = torch.einsum('bdik,bdjk->bdij', Q, K) / self.head_dim**0.5   ## (B, num_patches, num_heads, head_dim)
+        attn_weights = torch.softmax(similarity_matrix, dim=-1)
+
+        attn = torch.einsum('bdik,bdjk->bdij', attn_weights, V)
+        output = self.output_proj(attn)
+
+        return output
+    
+class TransformerBlock(nn.Module):
+    def __init__(self, data_dim, embed_dim, n_attn_heads=8, dropout_rate=0.1):
+        super().__init__()
+        self.data_dim = data_dim
+        self.embed_dim= embed_dim
+        self.n_attn_heads = n_attn_heads
+        self.dropout_rate=dropout_rate
+
+        
+    def forward(self, x):
+        return x
+
+
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
     is_classifier = (task_cfg.name == 'classifier')
@@ -238,6 +421,11 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             is_classifier=is_classifier, 
             **heads
             )
-
+    if model_cfg.name == "small_cnn": ## ne fait que du localizer
+            return small_cnn(
+                n_features, 
+                window_size, 
+                )
+        
     raise KeyError (f"modèle inconnu : {model_cfg.name}")
 

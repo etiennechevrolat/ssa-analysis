@@ -1,4 +1,7 @@
-"""Inférence du localizer/classifier"""
+"""Inférence du localizer/classifier
+Premiers résultats sur SpaceTrack : extrémement mauvais. voué à l'échec : tle spacetrack sortent des paramètres moyennés, à intervalle de temps irréguliers.
+Les données Splid sont très limitées : du GEO, quasi equatorial.
+"""
 
 from sklearn.preprocessing import StandardScaler
 import numpy as np
@@ -59,13 +62,13 @@ def predict_scores(model, X, history, future, device, batch_size=256):
         out.append(torch.sigmoid(model(x.to(device))).cpu().numpy())
     return np.concatenate(out)
 
-def main(ckpt_path, data_dir):
+def main(ckpt_path, data_dir, out_dir):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device('cpu')
 
     model, cfg, mean, scale = load_checkpoint(ckpt_path, device)
     history, future = cfg.data.history, cfg.data.future 
 
-    objects= load_spacetrack_objects(data_dir)
+    objects= load_spacetrack_objects(data_dir, out_dir)
     segments = split_on_gaps(objects, min_length=history + future + 1)
 
     for key, seg in segments.items():
@@ -84,8 +87,9 @@ if __name__ == "__main__" :
     base = os.path.dirname(os.path.abspath(__file__))
     ckpt_path = Path(os.path.join(base, '..' , '..', 'outputs', 'ml', 'localizer', '2026-07-29_14-24-19', 'checkpoints', 'best.pt' ))
     data_dir = Path(os.path.join(base, '..' , '..', 'data', 'raw', 'spacetrack'))
+    out_dir = os.path.join(base, '..', '..', 'data', 'parsed', 'SPACETRACK')
 
-    main(ckpt_path, data_dir)
+    main(ckpt_path, data_dir, out_dir)
 
 
     
