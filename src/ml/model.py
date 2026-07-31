@@ -340,8 +340,6 @@ class LearnedPositionalEmbedding(nn.Module):
         x = x+ self.PE(positions) # (B, num_patches, embed_dim)
         return x 
     
-import numpy as np 
-
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, embed_dim, n_heads, dropout_rate=0.1):
@@ -400,17 +398,16 @@ class MLP(nn.Module):
         x = self.dense2(x)
         x=self.dropout(x)
         return x
-
     
 class TransformerBlock(nn.Module):
-    def __init__(self, x_len, embed_dim, n_attn_heads, expansion_factor, dropout_rate):
+    def __init__(self, embed_dim, n_attn_heads, expansion_factor, dropout_rate):
         super().__init__()
 
 
         self.norm1 = nn.LayerNorm(embed_dim)
         self.norm2 = nn.LayerNorm(embed_dim)
 
-        self.MSA = MultiHeadSelfAttention(x_len, embed_dim, n_attn_heads, dropout_rate)
+        self.MSA = MultiHeadSelfAttention(embed_dim, n_attn_heads, dropout_rate)
         self.MLP = MLP(embed_dim, expansion_factor, dropout=dropout_rate)
 
 
@@ -426,7 +423,7 @@ class TransformerBlock(nn.Module):
         x = x +  x_id_2
         return x
 
-class ViTEncoder(nn.Module):
+class VanillaViT(nn.Module):
     def __init__(self, 
         n_features,  
         n_epochs, 
@@ -461,19 +458,36 @@ class ViTEncoder(nn.Module):
         cls =self.cls_token.expand(x.size(0), -1, -1)
 
         x = torch.cat([cls, x], dim=1)
-        
+
         for bloc in self.blocks : 
             x= bloc(x)
         x=self.final_norm(x)
         return x
 
+## On utilise notre ViT précédent pour construire des modèles avec de l'attention
+
+class small_vit(VanillaViT):
+    """
+    Un premier modèle avec à peu près 200k params, 
+    pour vérifier la pertinence d'un transformer face à CNN/LSTM avant de faire du self-supervised
+    """
+    def __init__(self, n_features, n_epochs, patch_size):
+        super().__init__(n_features, n_epochs, patch_size, 
+            embed_dim  = 64, 
+            n_attn_heads = 4, 
+            n_blocks = 4, 
+            expansion_factor = 4, 
+            dropout_rate= 0.1
+        )
+
+    def forward(self, x):
+        return self.forward(x)
 
 
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
     is_classifier = (task_cfg.name == 'classifier')
 
-    
     if model_cfg.name == "naive_baseline":
         return NaiveBaseLine(n_features, window_size)
 
@@ -497,10 +511,13 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             **heads
             )
     if model_cfg.name == "small_cnn": ## ne fait que du localizer
-            return small_cnn(
-                n_features, 
-                window_size, 
-                )
-        
+        return small_cnn(
+            n_features, 
+            window_size, 
+            )
+
+    if model_cfg.name == "small_vit":
+        return small_vit(n_features, window_size, n_epochs)
+    
     raise KeyError (f"modèle inconnu : {model_cfg.name}")
 
