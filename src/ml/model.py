@@ -344,53 +344,119 @@ import numpy as np
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, num_patches, embed_dim, hidden_dim, n_heads):
+    def __init__(self, num_patches, embed_dim, n_heads, dropout_rate=0.1):
         super().__init__()
         self.x_len = num_patches
         self.x_dim = embed_dim
-        self.hidden_dim = hidden_dim
+        self.hidden_dim = embed_dim
         self.n_heads = n_heads
 
-        assert hidden_dim % n_heads == 0
-        self.head_dim = hidden_dim // n_heads
+        assert self.hidden_dim % n_heads == 0
+        self.head_dim = self.hidden_dim // n_heads
 
-        self.query_matrix = nn.Linear(self.x_dim, hidden_dim)
-        self.key_matrix = nn.Linear(self.x_dim, hidden_dim)
-        self.value_matrix = nn.Linear(self.x_dim, hidden_dim)
+        self.query_matrix = nn.Linear(self.x_dim, self.hidden_dim)
+        self.key_matrix = nn.Linear(self.x_dim, self.hidden_dim)
+        self.value_matrix = nn.Linear(self.x_dim, self.hidden_dim)
 
-        self.output_proj = nn.Linear(hidden_dim,hidden_dim)
-
+        self.output_proj = nn.Linear(self.hidden_dim,self.hidden_dim)
+        self.dropout = nn.Dropout(dropout_rate)
     def forward(self, x):
-        # x: (B, num_patches, embed_dim)
-        batch_size, num_patches, embed_dim = x.shape
-        Q = self.query_matrix(x) ## (B, num_patches, hidden_dim) le produit s'applique bien sur la dernière dim ? 
-        K = self.key_matrix(x) ## (B, num_patches, hidden_dim)
-        V = self.value_matrix(x) ## (B, num_patches, hidden_dim)
+        # x: (B, N, embed_dim)
+        batch_size, num_patches, _ = x.shape
+  
+        Q = self.query_matrix(x) ## (B, N, hidden_dim)
+        K = self.key_matrix(x) ## (B, N, hidden_dim)
+        V = self.value_matrix(x) ## (B, N, hidden_dim)
 
         ## principe de l'attention multi-tête:  on projette sur les sous-espaces de l'espace latent 
-        Q = Q.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2) ## (B, num_patches, num_heads, head_dim) précise le comportement de view
+        Q = Q.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2) ## (B, num_heads, N, head_dim) 
         K = K.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2)
         V = V.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2)
 
-        similarity_matrix = torch.einsum('bdik,bdjk->bdij', Q, K) / self.head_dim**0.5   ## (B, num_patches, head_dim, head_dim)
-        attn_weights = torch.softmax(similarity_matrix, dim=-1) 
+        similarity_matrix = torch.einsum('bdik,bdjk->bdij', Q, K) / self.head_dim**0.5   ## (B, num_heads, N, N)
+        attn_weights = torch.softmax(similarity_matrix, dim=-1) ## softmax sur les colonnes pour avoir des poids à passer à V
 
-        attn = torch.einsum('bdij,bdjk->bdik', attn_weights, V) ## (B, num_patches, head_dim, )
-        output = self.output_proj(attn)
+        attn = torch.einsum('bdij,bdjk->bdik', attn_weights, V) ## (B, num_heads, N, head_dim)
+        ## merge des têtes
+        attn.transpose(1,2).reshape(batch_size, num_patches, self.hidden_dim)
+        attn = self.dropout(attn)
+        attn = self.output_proj(attn)
+        return attn
 
-        return output
+class MLP(nn.Module):
+    def __init__(self, in_channels, expansion_factor = 4, dropout=0.1):
+        super().__init__()
+        self.dense1 = nn.Linear(in_channels, expansion_factor * in_channels)
+        self.dense2 = nn.Linear(expansion_factor * in_channels, in_channels)
+
+        self.dropout = nn.Dropout(dropout)
+        self.activation = nn.GELU()
+    def forward(self, x) :
+        x = self.dense1(x)
+        x = self.activation(x)
+        x = self.dropout(x)
+        x = self.dense2(x)
+        return x
+
     
 class TransformerBlock(nn.Module):
-    def __init__(self, data_dim, embed_dim, n_attn_heads=8, dropout_rate=0.1):
+    def __init__(self, x_len, embed_dim, n_attn_heads, dropout_rate):
         super().__init__()
-        self.data_dim = data_dim
-        self.embed_dim= embed_dim
-        self.n_attn_heads = n_attn_heads
-        self.dropout_rate=dropout_rate
+    
 
-        
+        self.norm1 = nn.LayerNorm(self.embed_dim)
+        self.norm2 = nn.LayerNorm(self.embed_dim)
+
+        self.MSA = MultiHeadSelfAttention(x_len, embed_dim, n_attn_heads)
+        self.MLP = MLP(embed_dim, dropout=dropout_rate)
+
+
     def forward(self, x):
+        # x: (B, N, embed_dim)
+        x_id = x 
+        x = self.norm1(x)
+        attn = self.MSA(x)
+        x = x_id  + attn 
+
+        x_id_2 = x 
+        x = self.MLP(self.norm2(x))
+        x = x +  x_id_2
         return x
+
+class Encoder(nn.Module):
+    def __init__(self, 
+        n_features, 
+        num_patches, 
+        n_epochs, 
+        patch_size, 
+        embed_dim, 
+        n_attn_heads, 
+        n_blocks, 
+        dropout_rate=0.1
+        ):
+
+        super().__init__()
+
+        self.patch_embedding = PatchEmbedding(n_features, n_epochs, patch_size, embed_dim)
+        self.pos_embedding = LearnedPositionalEmbedding(embed_dim, n_epochs)
+
+        self.blocks = nn.Sequential(
+            TransformerBlock(num_patches, embed_dim, n_attn_heads, dropout_rate) for _ in range(n_blocks)
+        )
+
+
+    def forward(self, x):
+        # raw x: (B, n_features, n_epochs)
+        x = self.patch_embedding(x) # (B,N,embed_dim)
+        x = self.pos_embedding(x) 
+        
+        for bloc in self.blocks : 
+            x= bloc(x)
+        return x 
+
+class Decoder(nn.Module):
+
+
 
 
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
