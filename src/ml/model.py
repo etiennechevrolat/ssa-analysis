@@ -289,11 +289,10 @@ class small_lstm(nn.Module):
 ### On implémente ici une architecture de d'autoencoder via l'approche ViT. 
 ## Les données massives proviennent de spacetrack x = (Features, Temps). 
 # Ce sont des séries temporelles très étalées dans le temps : on peut récupérer les features sur quelques mois, plusieurs années. 
-## 1° On divise ces données en patchs non superposés cela se fait via PatchEmbedding : 
+## 1° On divise ces données en patchs non superposés et on projette dans l'espace latent D=16 : 
 #       x_1  = (Features, Window), x_2 = (Features, Window), ... , x_p avec la taille de Window à choisir. (Guimareas et al prennent 8)
-#  1.5 ° On sample un sous ensemble aléatoire de patch pas trop faible  (40 - 50%).
-#  2° On ajoute des PosEmbedding à ces patchs
-#  3° On projette les données dans l'espace latent de dimension D = 16 
+#  1.5 ° On ajoute des PosEmbedding à ces patchs
+#  2° On sample un sous ensemble aléatoire de patch pas trop faible  (40 - 50%).
 #  4° On ajoute un token qui représente la données dans sa globalité  : x_class, 
 #  5° On fait passer ces données dans un nombre L = 8 de têtes d'attention. 
 
@@ -320,7 +319,7 @@ class PatchEmbedding(nn.Module):
 
     def forward(self, x):
         #x: (B, F, T)
-        x = self.proj(x) # (B, embed_dim,  num_patches)
+        x = self.proj(x) # (B, embed_dim,  num_patches) le découpage et la projection linéaire sont fait simultanément
         x = x.transpose(1,2) # (B, num_patches, embed_dim)
 
         return x 
@@ -373,10 +372,10 @@ class MultiHeadSelfAttention(nn.Module):
         K = K.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2)
         V = V.view(batch_size, num_patches, self.n_heads, self.head_dim).transpose(1,2)
 
-        similarity_matrix = torch.einsum('bdik,bdjk->bdij', Q, K) / self.head_dim**0.5   ## (B, num_patches, num_heads, head_dim)
-        attn_weights = torch.softmax(similarity_matrix, dim=-1)
+        similarity_matrix = torch.einsum('bdik,bdjk->bdij', Q, K) / self.head_dim**0.5   ## (B, num_patches, head_dim, head_dim)
+        attn_weights = torch.softmax(similarity_matrix, dim=-1) 
 
-        attn = torch.einsum('bdik,bdjk->bdij', attn_weights, V)
+        attn = torch.einsum('bdij,bdjk->bdik', attn_weights, V) ## (B, num_patches, head_dim, )
         output = self.output_proj(attn)
 
         return output
