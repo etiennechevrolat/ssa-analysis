@@ -7,7 +7,7 @@ import polars as pl
 from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
  
 diff_cols  =['Semimajor Axis (m)', 'q', 'p']
-
+diff_cols_spacetrack = ['sma', 'q', 'p']
 
 
 ## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
@@ -40,6 +40,7 @@ spacetrack_to_splid_rename = {
     "inclination" : "Inclination (deg)",
     "raan" :  "RAAN (deg)",
     "arg_perigee" : "Argument of Periapsis (deg)",
+    "mean_anomaly" : 'Mean Anomaly (deg)'
     }
 
 SPLID_CADENCE_HOURS = 2.0 # 1 TimeIndex Splid = 2h 
@@ -100,6 +101,7 @@ def split_on_gaps(objects, min_length = 1):
     return segments
 
 import csv
+import os 
 
 def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
 
@@ -127,46 +129,51 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
 ### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour entrainement non supervisé.
 
 
-def load_spacetrack_objects(data_dir : Path, out_dir = None):
+def load_spacetrack_objects(data_dir : Path):
 
-    data_dir = Path(data_dir)
-    out_dir = Path(out_dir) 
+    data_dir = Path(os.path.join(data_dir, "starlink_1000_samples.parquet" ))
 
-    paths = sorted(data_dir.glob("STARLINK_US_ALL*"))
-
-    raw = pd.concat([pd.read_parquet(path) for path in paths], ignore_index=True)
+    raw = pd.read_parquet(data_dir)
 
     objects={}
-    
-    out_dir.mkdir(parents=True, exist_ok=True)
 
-    for norad, sub in raw.groupby('norad') : 
-        
-        csv_path =out_dir/ "starlink" /  f"starlink_{norad}.csv"
-        df = sub.sort_values(['epoch, creation_date']).drop_duplicates('epoch', keep='last')
 
-        df.to_csv(csv_path, index=False)
+    for norad,sub in raw.groupby('norad'): 
 
+        ## traitement du dataframe
+        df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last')
+        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 3600 ## epochs en heures
+        df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) #" distribution à queue lourde"
+
+        ## sauvegarde dans objects
         objects[int(norad)] = df
         
     return objects
 
 
-def add_continuous_angles(df : pd.DataFrame) -> pd.DataFrame:
+def add_continuous_angles(df : pd.DataFrame, spacetrack=False) -> pd.DataFrame:
     """transforme les paramètres angulaires discontinus : 
     (e, i, RAAN, arg_perigee, M) en paramètres equinoxaux continus :
     (k, h , q , p, cos(lamda), sin(lamda))
     et les ajoutent au dataframe
     df : pd.DataFrame contenant les paramètres d'un objet du dataset
     """
-    if 'True Anomaly (deg)' in df.columns:
-        anomaly, anomaly_type = df['True Anomaly (deg)'], 'true'
+    if spacetrack : 
+        e = df['eccentricity']
+        i = df['inclination'] 
+        RAAN = df['raan']
+        arg_perigee = df['arg_perigee']
+        anomaly = df['mean_anomaly']
+        anomaly_type = 'mean'
     else: 
-        anomaly, anomaly_type = df['Mean Anomaly (deg)'], 'mean'
-    e = df['Eccentricity']
-    i = df['Inclination (deg)'] 
-    RAAN = df['RAAN (deg)']
-    arg_perigee = df['Argument of Periapsis (deg)']
+        if 'True Anomaly (deg)' in df.columns:
+            anomaly, anomaly_type = df['True Anomaly (deg)'], 'true'
+        else: 
+            anomaly, anomaly_type = df['Mean Anomaly (deg)'], 'mean'
+        e = df['Eccentricity']
+        i = df['Inclination (deg)'] 
+        RAAN = df['RAAN (deg)']
+        arg_perigee = df['Argument of Periapsis (deg)']
     
     k,h,q,p, cosM, sinM = to_equinoxal(e,i,RAAN, arg_perigee, anomaly, anomaly_type)
     df['k'] = k
@@ -176,6 +183,7 @@ def add_continuous_angles(df : pd.DataFrame) -> pd.DataFrame:
     df['cosM'] = cosM
     df['sinM'] = sinM
     return df
+
 
 def add_diff(df, diff_cols = diff_cols):
     """ajoute les derivées discrètes = résidus des colonnes de diff_cols au dataframe.
@@ -187,29 +195,14 @@ def add_diff(df, diff_cols = diff_cols):
         df[f"{col}_diff"]= np.diff(v, prepend=v[0])
     return df
 
-def build_features(df, diff_cols = diff_cols):
+def build_features(df, diff_cols = diff_cols, spacetrack=False):
     """
     Applique les transformations et renvois le dataframe enrichi des features précédentes utilisées par le modèle
     """
     df = df.copy()
-    df = add_continuous_angles(df)
+    df = add_continuous_angles(df, spacetrack)
     df = add_diff(df, diff_cols)
     feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
     df[feature_cols] = df[feature_cols].astype(np.float32)
 
     return df, feature_cols
-
-import os 
-from pathlib import Path
-
-def main() : 
-
-    base = os.path.dirname(os.path.abspath(__file__))
-    data_dir_st = os.path.join(base, '..', '..', 'data', 'raw', 'spacetrack')
-    out_dir = os.path.join(base, '..', '..', 'data', 'parsed', 'SPACETRACK')
-
-    objects = load_spacetrack_objects(data_dir_st, out_dir)
-    
-
-if __name__ == "__main__": 
-    main()

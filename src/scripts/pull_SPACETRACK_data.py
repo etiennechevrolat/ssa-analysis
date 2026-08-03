@@ -42,8 +42,7 @@ def main():
 
     for constellation in config.constellations: 
         #Parametrès de la requete : samples = nombre d'ids max différents, period = durée de l'historique
-        samples = 10000
-
+        samples = 1000
         #Recup les ids
         orbit_range= config.orbit_range
         satids = recupIds(client, samples, constellation, orbit_range, shuffle=False)

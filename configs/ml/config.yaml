@@ -1,4 +1,4 @@
-## Config Hydra : assemble les groupes model / data / train
+## Config Hydra : assemble les groupes model / data / train / ... 
 
 defaults : 
   - task : localizer

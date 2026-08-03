@@ -11,8 +11,8 @@ from tqdm import tqdm
 from hydra.core.hydra_config import HydraConfig
 
 
-from ml.datahandler import load_splid_objects
-from ml.dataset import make_loaders, make_loaders_classifiers
+from ml.datahandler import load_splid_objects, load_spacetrack_objects
+from ml.dataset import make_loaders, make_loaders_classifiers, make_pretrain_loader
 from ml.model import build_model
 
 from ml.utils import to_device, compute_class_weights 
@@ -162,15 +162,22 @@ def evaluate_epoch_classifier(
 def main(cfg : DictConfig):
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
-    ## Recup des données et creation des dataloaders
-    objects, labels = load_splid_objects(
-        cfg.data.data_dir, 
-        cfg.data.labels_dir,
-        )
-
     task = cfg.task.name
     is_classifier = (task == 'classifier')
+    is_pretrain = (task == 'pretrain')
+
+
+    ## Recup des données et creation des dataloaders
+    if is_pretrain :
+        objects = load_spacetrack_objects(cfg.data.data_dir)
+
+    else:
+        objects, labels = load_splid_objects(
+            cfg.data.data_dir, 
+            cfg.data.labels_dir,
+            )
+
+    
 
     if is_classifier : 
         train_loader, val_loader, meta = make_loaders_classifiers(
@@ -195,7 +202,20 @@ def main(cfg : DictConfig):
 
         loss_fn = loss_fn 
 
-    else : 
+    elif is_pretrain : 
+        window_size = cfg.data.window_size
+        train_loader, val_loader, meta = make_pretrain_loader(
+            objects, 
+            window_size=cfg.data.window_size, 
+            stride = cfg.data.stride, 
+            batch_size=cfg.train.batch_size,
+            val_split=cfg.data.val_split,
+            seed= cfg.seed
+            )
+
+        loss_fn = nn.CrossEntropyLoss()
+
+    else: 
         train_loader, val_loader, meta = make_loaders(
                     objects, 
                     labels,
@@ -204,12 +224,13 @@ def main(cfg : DictConfig):
                     future=cfg.data.future,
                     val_split=cfg.data.val_split,
                     seed= cfg.seed)
-        
+        ## taille de la fenetre temporelle pour le dataset splid (différente de la fenetre pretrain spacetrack)
+        window_size  = cfg.data.history + cfg.data.future +1
         loss_fn = nn.BCEWithLogitsLoss()
 
     ## On calcule le nombre de features considérées et la taille de la fenêtre temporelle
     n_features = len(meta["feature_cols"])
-    window_size  = cfg.data.history + cfg.data.future +1 
+    
 
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
     model.to(device)

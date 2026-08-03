@@ -6,7 +6,7 @@ import torch
 import numpy as np
 
 
-def build_arrays(objects, labels, half_width=6):
+def build_arrays(objects, labels=None, half_width=6):
     """
     chaque objet -> (X: (L,F), Y: (L,2))
     retourne per_obj, feature_cols
@@ -15,7 +15,10 @@ def build_arrays(objects, labels, half_width=6):
     for oid, df in objects.items():
         df_feat, feature_cols = build_features(df)
         X = df_feat[feature_cols].to_numpy(np.float32)
-        Y = build_target(df, oid, labels, half_width=half_width)
+        if labels is not None :
+            Y = build_target(df, oid, labels, half_width=half_width)
+        else : 
+            Y = None
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
@@ -31,7 +34,6 @@ def build_classifier_arrays(objects,labels):
         Y = build_classifier_samples(oid, labels)
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
-
 
 def split_by_object(object_ids, val_split=0.2, seed=42):
     """
@@ -111,7 +113,29 @@ class NodeWindowDataset(Dataset):
 
         return x,y
 
+class UnlabaledWindowDataset(Dataset):
+    """Séries longues par objet -> fenêtres (F,W) sans label, pour le preentrainement MAE"""
 
+    def __init__(self, per_obj, objects_ids, window_size, stride):
+        self.series = {}
+        self.index = [] # index plat
+        for oid in objects_ids:
+            X, _= per_obj[oid]
+            if len(X) < window_size: 
+                continue
+            self.series[oid] = X
+            print(len(X), window_size, stride)
+            self.index += [(oid, t) for t in range(0, len(X) - window_size + 1, stride)] ### len(X) = nombre de pas de temps
+    def __len__(self):
+        return len(self.index)
+    
+    def __getitem__(self, index):
+        oid, t = self.index[index]
+        window = self.series[oid][t:t+ self.windowsize] # (W, F) 
+        x = torch.from_numpy(window.T).float() # (Features, Window)  + transformation en tenseurs pytorch 
+        return x 
+
+## Les dataloader pour le training
 def make_loaders(objects, labels, batch_size=256, history=48, future=48, val_split=0.2, seed=42, half_width=6):
     # arrays bruts par objet
     per_obj , feature_cols = build_arrays(objects, labels, half_width=half_width)
@@ -166,6 +190,22 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
     return train_dl, val_dl, meta
-    
 
-    
+def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42):
+    per_obj =  {}
+    for oid, df in objects :
+        df_feat, feature_cols = build_features(df)
+        per_obj[oid] = df_feat[df_feat[feature_cols].to_numpy(np.float32), None]
+
+    train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
+
+    scaler = fit_scaler_on_train(per_obj, train_ids)
+
+    train_dataset = UnlabaledWindowDataset(per_obj, train_ids, window_size, stride)
+    val_dataset = UnlabaledWindowDataset(per_obj, val_ids, window_size, stride)
+
+    train_dl = DataLoader(train_dataset, batch_size, shuffle=True)
+    val_dl = DataLoader(val_dataset, batch_size, shuffle=True)
+    meta = {"feature_cols" : feature_cols, "scaler" : scaler,
+                "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
+    return train_dl, val_dl, meta
