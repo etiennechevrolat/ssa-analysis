@@ -1,0 +1,11 @@
+name : small_vit
+
+patch_size : 8 ## 8 pas de temps (pour splid = 16h par token)
+embed_dim : 64
+n_attn_heads : 4 ## head_dim = 16
+n_blocks : 4
+expansion_factor : 4
+dropout_rate : 0.1
+
+pretrained_ckpt : null
+freeze_encoder : False

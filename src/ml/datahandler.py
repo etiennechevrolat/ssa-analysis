@@ -30,7 +30,7 @@ def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
     return objects, labels 
 
 
-## Récupération des données SPACETRACK pour inférence, une fois le modèle entrainé. 
+## Récupération des données SPACETRACK pour inférence, une fois le modèle entrainé. Les fonctions suivantes le remette au format des données SPLID
 ### Les données spacetrack sont récupérées au format parquet avec les colonnes suivantes : 
 ## ['norad', 'object_name', 'epoch', 'creation_date', 'rev_at_epoch', 'inclination', 'raan', 'arg_perigee', 'mean_anomaly', 'mean_motion', 'eccentricity', 'bstar', 'sma', 'apogee', 'period', 'velocity']
 # Il faut à la fois renommer les bonnes colonnes, et reprojetter une série irrégulière de TLE Spacetrack sur une grille régulière.
@@ -101,7 +101,7 @@ def split_on_gaps(objects, min_length = 1):
 
 import csv
 
-def load_spacetrack_objects(data_dir : Path, out_dir = None, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
+def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
 
     data_dir = Path(data_dir)
     out_dir = Path(out_dir) 
@@ -124,7 +124,32 @@ def load_spacetrack_objects(data_dir : Path, out_dir = None, cadence_hours=SPLID
         
     return objects
 
+### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour entrainement non supervisé.
 
+
+def load_spacetrack_objects(data_dir : Path, out_dir = None):
+
+    data_dir = Path(data_dir)
+    out_dir = Path(out_dir) 
+
+    paths = sorted(data_dir.glob("STARLINK_US_ALL*"))
+
+    raw = pd.concat([pd.read_parquet(path) for path in paths], ignore_index=True)
+
+    objects={}
+    
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for norad, sub in raw.groupby('norad') : 
+        
+        csv_path =out_dir/ "starlink" /  f"starlink_{norad}.csv"
+        df = sub.sort_values(['epoch, creation_date']).drop_duplicates('epoch', keep='last')
+
+        df.to_csv(csv_path, index=False)
+
+        objects[int(norad)] = df
+        
+    return objects
 
 
 def add_continuous_angles(df : pd.DataFrame) -> pd.DataFrame:
@@ -183,7 +208,7 @@ def main() :
     data_dir_st = os.path.join(base, '..', '..', 'data', 'raw', 'spacetrack')
     out_dir = os.path.join(base, '..', '..', 'data', 'parsed', 'SPACETRACK')
 
-    objects = load_spacetrack_objects(data_dir_st, out_dir, cadence_hours=2.0, max_gap_hours=48 + 48 + 1)
+    objects = load_spacetrack_objects(data_dir_st, out_dir)
     
 
 if __name__ == "__main__": 

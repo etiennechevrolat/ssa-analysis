@@ -42,7 +42,7 @@ def main():
 
     for constellation in config.constellations: 
         #Parametrès de la requete : samples = nombre d'ids max différents, period = durée de l'historique
-        samples = 300
+        samples = 10000
 
         #Recup les ids
         orbit_range= config.orbit_range

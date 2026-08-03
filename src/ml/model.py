@@ -446,7 +446,7 @@ class VanillaViT(nn.Module):
         nn.init.trunc_normal_(self.pos_embedding.PE.weight, std=0.02)
 
         self.blocks = nn.ModuleList(
-            [TransformerBlock(self.num_patches, embed_dim, n_attn_heads, expansion_factor, dropout_rate) for _ in range(n_blocks)]
+            [TransformerBlock(embed_dim, n_attn_heads, expansion_factor, dropout_rate) for _ in range(n_blocks)]
         )
         self.final_norm = nn.LayerNorm(embed_dim)
 
@@ -466,24 +466,35 @@ class VanillaViT(nn.Module):
 
 ## On utilise notre ViT précédent pour construire des modèles avec de l'attention
 
-class small_vit(VanillaViT):
+class small_vit(nn.Module):
     """
     Un premier modèle avec à peu près 200k params, 
     pour vérifier la pertinence d'un transformer face à CNN/LSTM avant de faire du self-supervised
     """
-    def __init__(self, n_features, n_epochs, patch_size):
-        super().__init__(n_features, n_epochs, patch_size, 
-            embed_dim  = 64, 
-            n_attn_heads = 4, 
-            n_blocks = 4, 
-            expansion_factor = 4, 
-            dropout_rate= 0.1
-        )
+    def __init__(self, n_features, window_size,
+        patch_size = 8,
+        embed_dim = 64, 
+        n_attn_heads=4,
+        n_blocks = 4,
+        expansion_factor = 4,
+        dropout_rate=0.1
+        ):
+        super().__init__()
+
+        self.encoder = VanillaViT(n_features, window_size, patch_size,embed_dim, n_attn_heads, n_blocks, expansion_factor, dropout_rate)
+
+        self.dense1 = nn.Linear(embed_dim, 32)
+        self.dense2 = nn.Linear(32, 2)
+        self.activation = nn.GELU()
 
     def forward(self, x):
-        return self.forward(x)
-
-
+        # x: (B, n_features, n_epochs) en entrée
+        out = self.encoder.forward(x) # (B, N + 1, embed_dim)
+        z = out[:,0] # (B, embed_dim)
+        z = self.dense2(self.activation(self.dense1(z))) # (B, 2)
+        return z 
+    
+        
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
     is_classifier = (task_cfg.name == 'classifier')
@@ -517,7 +528,20 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             )
 
     if model_cfg.name == "small_vit":
-        return small_vit(n_features, window_size, n_epochs)
-    
+        model = small_vit(
+            n_features,
+            window_size,
+            patch_size=model_cfg.patch_size,
+            embed_dim=model_cfg.embed_dim,
+            n_attn_heads=model_cfg.n_attn_heads,
+            n_blocks=model_cfg.n_blocks,
+            expansion_factor=model_cfg.expansion_factor,
+            dropout_rate=model_cfg.dropout_rate
+            )
+        if model_cfg.get("pretrained_ckpt"):
+            ckpt = torch.load(model_cfg.pretrained_ckpt, map_location='cpu', weights_only=False)
+            model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
+        return model
+        
     raise KeyError (f"modèle inconnu : {model_cfg.name}")
 
