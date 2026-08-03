@@ -113,7 +113,7 @@ class NodeWindowDataset(Dataset):
 
         return x,y
 
-class UnlabaledWindowDataset(Dataset):
+class UnlabeledWindowDataset(Dataset):
     """Séries longues par objet -> fenêtres (F,W) sans label, pour le preentrainement MAE"""
 
     def __init__(self, per_obj, objects_ids, window_size, stride):
@@ -125,7 +125,7 @@ class UnlabaledWindowDataset(Dataset):
             if len(X) < window_size: 
                 continue
             self.series[oid] = X
-            print(len(X), window_size, stride)
+
             self.index += [(oid, t) for t in range(0, len(X) - window_size + 1, stride)] ### len(X) = nombre de pas de temps
     def __len__(self):
         return len(self.index)
@@ -202,11 +202,11 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
 
     scaler = fit_scaler_on_train(per_obj, train_ids)
 
-    train_dataset = UnlabaledWindowDataset(per_obj, train_ids, window_size, stride)
-    val_dataset = UnlabaledWindowDataset(per_obj, val_ids, window_size, stride)
+    train_dataset = UnlabeledWindowDataset(per_obj, train_ids, window_size, stride)
+    val_dataset = UnlabeledWindowDataset(per_obj, val_ids, window_size, stride)
 
     train_dl = DataLoader(train_dataset, batch_size, shuffle=True)
-    val_dl = DataLoader(val_dataset, batch_size, shuffle=True)
+    val_dl = DataLoader(val_dataset, batch_size, shuffle=False)
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
                 "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
     return train_dl, val_dl, meta

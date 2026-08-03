@@ -339,7 +339,7 @@ class LearnedPositionalEmbedding(nn.Module):
         # add positional embedding
         x = x+ self.PE(positions) # (B, num_patches, embed_dim)
         return x 
-    
+
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, embed_dim, n_heads, dropout_rate=0.1):
@@ -493,6 +493,116 @@ class small_vit(nn.Module):
         z = out[:,0] # (B, embed_dim)
         z = self.dense2(self.activation(self.dense1(z))) # (B, 2)
         return z 
+
+
+def masking(B : int, num_patches : int, embed_dim : int, device, masking_ratio =0.5 ):
+    """
+    Reçoit un tenseur (B,N,embed_dim), et renvoi un mask (B, num_patches)
+    """
+    n_mask = round(num_patches * masking_ratio)
+    rand = torch.rand(B,num_patches) #(B,12)
+    ids_shuffle = torch.argsort(rand, dim=1) #(B, 12) permutation aléatoire par ligne du batch 
+    ids_restore = torch.argsort(ids_shuffle, dim=1) #(B,12)
+
+    ids_keep = ids_shuffle[:, : n_mask]
+
+    
+
+class TimeSeriesMAE(nn.Module):
+    """
+    Architecture de masked-auto-encoder pour times series, inspiré de Guimaraes, adapté de VideoMAEv2
+    """
+    def __init__(self, 
+            n_features,  
+            n_epochs, 
+            patch_size, 
+            encoder_embed_dim, 
+            encoder_n_attn_heads, 
+            encoder_n_blocks, 
+            decoder_embed_dim,
+            decoder_n_attn_heads, 
+            decoder_n_blocks,
+            expansion_factor,
+            masking_ratio = 0.5,
+            dropout_rate=0.1
+            ):
+
+            super().__init__()
+
+            self.patch_embedding = PatchEmbedding(n_features, n_epochs, patch_size, encoder_embed_dim)
+            self.num_patches = self.patch_embedding.num_patches
+            self.encoder_pos_embedding = LearnedPositionalEmbedding(encoder_embed_dim, self.num_patches)
+            self.decoder_pos_embedding = LearnedPositionalEmbedding(decoder_embed_dim, self.num_patches)
+
+            self.cls_token = nn.Parameter(torch.zeros(1,1, encoder_embed_dim))
+            nn.init.trunc_normal_(self.cls_token, std=0.02)
+            nn.init.trunc_normal_(self.encoder_pos_embedding.PE.weight, std=0.02)
+            self.mask_token = nn.Parameter(torch.zeros(1,1, decoder_embed_dim))
+            nn.init.trunc_normal_(self.mask_token, std=0.02)
+            nn.init.trunc_normal_(self.decoder_pos_embedding.PE.weight, std=0.02)
+
+            self.encoder_blocks = nn.ModuleList(
+                [TransformerBlock(encoder_embed_dim, encoder_n_attn_heads, expansion_factor, dropout_rate) for _ in range(encoder_n_blocks)]
+            )
+
+            self.decoder_blocks = nn.ModuleList(
+                            [TransformerBlock(decoder_embed_dim, decoder_n_attn_heads, expansion_factor, dropout_rate) for _ in range(decoder_n_blocks)]
+                        )
+
+            self.masking_ratio = masking_ratio 
+
+            self.encoder_norm = nn.LayerNorm(encoder_embed_dim)
+            self.encoder_to_decoder_embedding = nn.Linear(encoder_embed_dim, decoder_embed_dim, bias=True)
+            self.decoder_norm = nn.LayerNorm(decoder_embed_dim)
+
+    def forward(self, x):
+        # raw x: (B, n_features, n_epochs)
+        x = self.patch_embedding(x) # (B,N,embed_dim)
+        x = self.pos_embedding(x) 
+
+        ## Masking 
+        B, N, embed_dim = x.shape
+
+        n_mask = round(N * self.masking_ratio)
+        ## rand crée un tenseur aléatoire de shape (B,N), et argsort donne les indices pour trier la liste :  i.e. une permu aléatoire de (1,..,N)*
+        ### le deuxième argsort donne la permutation inverse, utile pour reconstruction 
+        rand = torch.rand(B,N) #(B,12)
+        ids_shuffle = torch.argsort(rand, dim=1) #(B, 12) 
+        ids_restore = torch.argsort(ids_shuffle, dim=1) #(B,12)
+        ids_keep = ids_shuffle[:, : n_mask] # (B, N_masked)
+        ids_keep = ids_keep.expand(-1,-1, embed_dim) #(B, N_masked, embed_dim)
+        x_vis = torch.gather(x, dim=1, index=ids_keep) # (B, N_masked, embed_dim)
+        cls =self.cls_token.expand(B, -1, -1)
+        h = torch.cat([cls, x_vis], dim=1) # (B, N_maksed + 1, embed_dim)
+
+        # Encoder 
+        for bloc in self.encoder_blocks : 
+            h= bloc(h)
+        h=self.encoder_norm(h)
+
+        # Projection enc -> dec et séquence pour le décodeur
+        y = self.encoder_to_decoder_embedding(h) #(B, N_masked+1, decoder_embed_dim)
+
+        _, _, decoder_embed_dim = y.shape
+        mask_tokens = self.mask_token.expand(B, n_mask, -1) # (B, N_maksed, decoder_dim), ordre mélangé
+        y_ = torch.cat(y[:,1:], mask_tokens, dim=1)
+        y_ = torch.gather(y_, 1, ids_restore[..., None].expand(-1,-1,decoder_embed_dim))
+        y = torch.cat([y[:,:1],y_], dim=1)
+
+        y = y + self.decoder_pos_embedding(y)
+
+        for block in self.decoder_blocks:
+            y = block(y)
+        y =self.decoder_norm
+
+
+
+        
+        return x
+
+
+
+
 
 ### on construit le modèle à partir des classes ci-dessus   
         

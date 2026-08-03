@@ -142,7 +142,7 @@ def load_spacetrack_objects(data_dir : Path):
 
         ## traitement du dataframe
         df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last')
-        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en heures
+        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) #" distribution à queue lourde"
 
         ## sauvegarde dans objects
@@ -191,7 +191,7 @@ def add_diff(df, diff_cols = diff_cols):
     """
     df = df.copy()
     for col in diff_cols:
-        v = df[col].to_numpy(dtype=np.float32)
+        v = df[col].to_numpy(dtype=np.float64)
         df[f"{col}_diff"]= np.diff(v, prepend=v[0])
     return df
 
@@ -205,7 +205,7 @@ def build_features(df, diff_cols = diff_cols, spacetrack=False):
 
     df = add_continuous_angles(df, spacetrack)
     df = add_diff(df, diff_cols)
-    feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+    feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
     df[feature_cols] = df[feature_cols].astype(np.float32)
 
     return df, feature_cols
