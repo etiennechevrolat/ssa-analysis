@@ -493,7 +493,8 @@ class small_vit(nn.Module):
         z = out[:,0] # (B, embed_dim)
         z = self.dense2(self.activation(self.dense1(z))) # (B, 2)
         return z 
-    
+
+### on construit le modèle à partir des classes ci-dessus   
         
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
@@ -527,6 +528,7 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             window_size, 
             )
 
+    ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de MAE
     if model_cfg.name == "small_vit":
         model = small_vit(
             n_features,

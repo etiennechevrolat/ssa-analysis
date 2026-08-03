@@ -7,7 +7,7 @@ import polars as pl
 from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
  
 diff_cols  =['Semimajor Axis (m)', 'q', 'p']
-diff_cols_spacetrack = ['sma', 'q', 'p']
+diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km 
 
 
 ## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
@@ -142,7 +142,7 @@ def load_spacetrack_objects(data_dir : Path):
 
         ## traitement du dataframe
         df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last')
-        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 3600 ## epochs en heures
+        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en heures
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) #" distribution à queue lourde"
 
         ## sauvegarde dans objects
@@ -200,6 +200,9 @@ def build_features(df, diff_cols = diff_cols, spacetrack=False):
     Applique les transformations et renvois le dataframe enrichi des features précédentes utilisées par le modèle
     """
     df = df.copy()
+    if spacetrack : 
+        diff_cols = diff_cols_spacetrack
+
     df = add_continuous_angles(df, spacetrack)
     df = add_diff(df, diff_cols)
     feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]

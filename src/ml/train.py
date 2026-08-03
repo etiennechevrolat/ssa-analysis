@@ -19,6 +19,7 @@ from ml.utils import to_device, compute_class_weights
 
 from ml.logger import RunLogger
 
+
 def train_one_epoch(
         model : nn.Module,
         data_loader : DataLoader,
@@ -48,6 +49,43 @@ def train_one_epoch(
 
 
         loss = loss_fn(pred, y)
+        running_loss+= float(loss.item()) * x.size(0) 
+        loss.backward()
+        optimizer.step()
+        total += x.size(0)
+        bar.set_postfix(loss=f"{running_loss / total :.4f}")
+
+    avg_loss = running_loss / total
+ 
+    return avg_loss 
+
+
+def pretrain_one_epoch(
+        model : nn.Module,
+        data_loader : DataLoader,
+        loss_fn : nn.Module, 
+        optimizer : torch.optim.Optimizer,
+        device : torch.device,
+        epoch=0
+    ):
+    ## dataloader renvoie des batchs de times series sans label de type UnlabelledWindowDataset() cf dataset.py
+    model.train()
+    running_loss = 0.0
+    total = 0
+
+    bar = tqdm(data_loader, desc=f"train {epoch}", leave=False)
+
+    for time_series_batch in bar:
+       
+        x = time_series_batch.to(device)
+
+        optimizer.zero_grad()
+
+        ## sortie du modèle : une time series de la même forme que x avec un certain nombre d'éléments reconstruits par le decoder
+        pred = model(x) 
+
+        ## on évalue donc l'image initiale vs la reconstruction 
+        loss = loss_fn(pred, x)
         running_loss+= float(loss.item()) * x.size(0) 
         loss.backward()
         optimizer.step()
@@ -170,7 +208,6 @@ def main(cfg : DictConfig):
     ## Recup des données et creation des dataloaders
     if is_pretrain :
         objects = load_spacetrack_objects(cfg.data.data_dir)
-
     else:
         objects, labels = load_splid_objects(
             cfg.data.data_dir, 
@@ -212,8 +249,8 @@ def main(cfg : DictConfig):
             val_split=cfg.data.val_split,
             seed= cfg.seed
             )
-
-        loss_fn = nn.CrossEntropyLoss()
+        ## le pretrain est une régression : on choisit la MSE 
+        loss_fn = nn.MSELoss()
 
     else: 
         train_loader, val_loader, meta = make_loaders(

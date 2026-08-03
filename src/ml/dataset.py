@@ -119,6 +119,7 @@ class UnlabaledWindowDataset(Dataset):
     def __init__(self, per_obj, objects_ids, window_size, stride):
         self.series = {}
         self.index = [] # index plat
+        self.window_size = window_size
         for oid in objects_ids:
             X, _= per_obj[oid]
             if len(X) < window_size: 
@@ -131,7 +132,7 @@ class UnlabaledWindowDataset(Dataset):
     
     def __getitem__(self, index):
         oid, t = self.index[index]
-        window = self.series[oid][t:t+ self.windowsize] # (W, F) 
+        window = self.series[oid][t:t+ self.window_size] # (W, F) 
         x = torch.from_numpy(window.T).float() # (Features, Window)  + transformation en tenseurs pytorch 
         return x 
 
@@ -193,9 +194,9 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
 
 def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42):
     per_obj =  {}
-    for oid, df in objects :
-        df_feat, feature_cols = build_features(df)
-        per_obj[oid] = df_feat[df_feat[feature_cols].to_numpy(np.float32), None]
+    for oid, df in objects.items() :
+        df_feat, feature_cols = build_features(df, spacetrack=True)
+        per_obj[oid] = [df_feat[feature_cols].to_numpy(np.float32), None]
 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
 
