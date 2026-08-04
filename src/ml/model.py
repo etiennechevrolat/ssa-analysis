@@ -467,8 +467,7 @@ class VanillaViT(nn.Module):
 
 class small_vit(nn.Module):
     """
-    Un premier modèle avec à peu près 200k params, 
-    pour vérifier la pertinence d'un transformer face à CNN/LSTM avant de faire du self-supervised
+    Un premier modèle avec à peu près 200k params
     """
     def __init__(self, n_features, window_size,
         patch_size = 8,
@@ -625,7 +624,7 @@ class TimeSeriesMAE(nn.Module):
     def encoder_state_dict(self) : 
         """Poids de l'encodeur seul renommé au format VanillaViT"""
         out={}
-        for k,v in self.state_dict().items:
+        for k,v in self.state_dict().items():
             if k =="cls_token":
                 out[k] = v
                 continue
@@ -635,7 +634,6 @@ class TimeSeriesMAE(nn.Module):
                     break
         return out 
 
-### on construit le modèle à partir des classes ci-dessus   
         
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
@@ -668,9 +666,9 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             n_features, 
             window_size, 
             )
-
+    
     if model_cfg.name == "small_vit":
-        model = small_vit(
+        return small_vit(
             n_features,
             window_size,
             patch_size=model_cfg.patch_size,
@@ -679,48 +677,26 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             n_blocks=model_cfg.n_blocks,
             expansion_factor=model_cfg.expansion_factor,
             dropout_rate=model_cfg.dropout_rate
-            )
-    
+            ) 
     ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de MAE
     
-    if model_cfg.name == "miniMAE": 
-            """
-            Un modèle de test pour la pipeline 
-            """
-            model = TimeSeriesMAE(
-                n_features,
-                window_size = model_cfg.window_size,
-                patch_size=model_cfg.patch_size,
-                masking_ratio=model_cfg.masking_ratio,
-                encoder_embed_dim=model_cfg.encoder_embed_dim,
-                encoder_n_attn_heads=model_cfg.encoder_n_attn_heads,
-                encoder_n_blocks=model_cfg.encoder_n_blocks,
-                decoder_embed_dim= model_cfg.decoder_embed_dim,
-                decoder_n_attn_heads= model_cfg.decoder_n_attn_heads,
-                decoder_n_blocks=model_cfg.decoder_n_blocks,
-                expansion_factor=model_cfg.expansion_factor,
-                dropout_rate=model_cfg.dropout_rate
-                )
-    
-    if model_cfg.name == "MAEv1": 
-            """
-            Un premier modèle qui adapte la méthode de pretraining d'après VideoMAEv2. 
-
-            """
-            model = TimeSeriesMAE(
-                n_features,
-                window_size=model_cfg.window_size,
-                patch_size=model_cfg.patch_size,
-                masking_ratio=model_cfg.masking_ratio,
-                encoder_embed_dim=model_cfg.encoder_embed_dim,
-                encoder_n_attn_heads=model_cfg.encoder_n_attn_heads,
-                encoder_n_blocks=model_cfg.encoder_n_blocks,
-                decoder_embed_dim= model_cfg.decoder_embed_dim,
-                decoder_n_attn_heads= model_cfg.decoder_n_attn_heads,
-                decoder_n_blocks=model_cfg.decoder_n_blocks,
-                expansion_factor=model_cfg.expansion_factor,
-                dropout_rate=model_cfg.dropout_rate
-                )
-        
+    if model_cfg.name in ("miniMAE", "MAEv1"): 
+        """
+        Les modèles de pretraining non supervisés. On réutilisera les poids de l'encodeur
+        """
+        return TimeSeriesMAE(
+            n_features,
+            window_size,
+            patch_size=model_cfg.patch_size,
+            masking_ratio=model_cfg.masking_ratio,
+            encoder_embed_dim=model_cfg.encoder_embed_dim,
+            encoder_n_attn_heads=model_cfg.encoder_n_attn_heads,
+            encoder_n_blocks=model_cfg.encoder_n_blocks,
+            decoder_embed_dim= model_cfg.decoder_embed_dim,
+            decoder_n_attn_heads= model_cfg.decoder_n_attn_heads,
+            decoder_n_blocks=model_cfg.decoder_n_blocks,
+            expansion_factor=model_cfg.expansion_factor,
+            dropout_rate=model_cfg.dropout_rate
+            )
     raise KeyError (f"modèle inconnu : {model_cfg.name}")
 

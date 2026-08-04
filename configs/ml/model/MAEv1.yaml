@@ -1,8 +1,7 @@
 name : MAEv1
 ## Premier masked auto encoder avec 240k params.
 
-window_size : 96
-patch_size : 12 # le patch size doit diviser windo_size
+patch_size : 12 # le patch size doit diviser window_size
 masking_ratio : 0.5
 encoder_embed_dim : 64
 encoder_n_attn_heads : 4

@@ -194,7 +194,6 @@ def evaluate_epoch_classifier(
 def evaluate_pretraining_epoch(
     model,
     data_loader,
-    meta,
     loss_fn, 
     device,
     seed = 0
@@ -204,16 +203,19 @@ def evaluate_pretraining_epoch(
     total=0
 
     # on fige le rng le temps de l'évaluation, sinon le masque tiré aléatoirement à chaque forward fait varier la val loss 
-    rng_sate = torch.get_rng_state()
+    rng_state = torch.get_rng_state()
     torch.manual_seed(seed)
 
-    for time_series_batch in tqdm(data_loader, desc="val", leave=False):
-        x = time_series_batch.to(device)
-        pred, target = model(x)
-        loss = loss_fn(pred, target)
-        running_loss+= float(loss.item()) * x.size(0)
-        total += x.size(0)
-        
+    try : 
+        for time_series_batch in tqdm(data_loader, desc="val", leave=False):
+            x = time_series_batch.to(device)
+            pred, target = model(x)
+            loss = loss_fn(pred, target)
+            running_loss+= float(loss.item()) * x.size(0)
+            total += x.size(0)
+    finally :
+        torch.set_rng_state(rng_state)
+
     avg_loss = running_loss / total
     return avg_loss
 
@@ -303,12 +305,12 @@ def main(cfg : DictConfig):
 
         if is_pretrain : 
             train_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device)
-            val_loss = evaluate_pretraining_epoch(model, val_loader, loss_fn, optimizer, device)
+            val_loss = evaluate_pretraining_epoch(model=model, data_loader=val_loader, loss_fn=loss_fn, device=device, seed=cfg.seed ) 
             metrics = {}
             line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | ")
         else : 
             train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-            
+
             if is_classifier :
                 val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_types, cfg.task.node_classes, loss_fn, device)
 
@@ -319,13 +321,13 @@ def main(cfg : DictConfig):
             else : 
                 val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
                 line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
-            
-            tqdm.write(line) 
-            is_best = logger.log_epoch(epoch, train_loss, val_loss, metrics)
-            logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size,
-                scaler_mean = meta['scaler'].mean_,
-                scaler_scale = meta['scaler'].scale_
-                )
+        
+        tqdm.write(line) 
+        is_best = logger.log_epoch(epoch, train_loss, val_loss, metrics)
+        logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size,
+            scaler_mean = meta['scaler'].mean_,
+            scaler_scale = meta['scaler'].scale_
+            )
 
     logger.finish()
 

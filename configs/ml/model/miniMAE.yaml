@@ -1,7 +1,6 @@
 name : miniMAE
 ## Plus petit MAE pour test pipeline
 
-window_size : 96 
 patch_size : 12
 masking_ratio : 0.5
 encoder_embed_dim : 32

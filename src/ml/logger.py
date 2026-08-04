@@ -76,7 +76,7 @@ class RunLogger:
             shutil.copyfile(last, self.chekpoint_dir/ "best.pt")
 
     def finish(self):
-        print(f"[logger] meilleure val loss =  {self.best_loss:.4f} epoch {self.best_epoch})")
+        print(f"[logger] meilleure val loss =  {self.best_loss:.4f} pour l'epoch {self.best_epoch}")
         print(f"[logger] artefacts : {self.run_dir}")
         if self.use_wandb : 
             wandb.finish()

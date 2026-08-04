@@ -18,13 +18,11 @@ def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
     data_dir = Path(data_dir)
     
     labels = pd.read_csv(labels_path) if labels_path is not None else None
-    
     objects = {}
     for csv in sorted(data_dir.glob("*.csv")): ## tri pour garantir reproductibilité, méthode path.glob(motif) cherche des motif dans le path 
         df = pd.read_csv(csv) # dataframe de l'objet considéré
         df["TimeIndex"]=range(len(df)) # création d'une colonne timeindex. unité dans laquelle les labels repèrent les manoeuvres.
         objects[int(csv.stem)] = df # .Stem est le nom du fichier sans le dossier ni l'extension
-    
     if not objects:
         raise FileNotFoundError(f"aucun csv trouvé dans {data_dir}")
     return objects, labels 
@@ -100,7 +98,6 @@ def split_on_gaps(objects, min_length = 1):
             segments[f"{oid}_{i}"] = seg
     return segments
 
-import csv
 import os 
 
 def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
@@ -128,23 +125,15 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
 
 ### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour entrainement non supervisé.
 
-
 def load_spacetrack_objects(data_dir : Path):
-
     data_dir = Path(os.path.join(data_dir, "starlink_1000_samples.parquet" ))
-
     raw = pd.read_parquet(data_dir)
-
     objects={}
-
-
     for norad,sub in raw.groupby('norad'): 
-
         ## traitement du dataframe
         df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last')
         times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) #" distribution à queue lourde"
-
         ## sauvegarde dans objects
         objects[int(norad)] = df
         
@@ -202,10 +191,10 @@ def build_features(df, diff_cols = diff_cols, spacetrack=False):
     df = df.copy()
     if spacetrack : 
         diff_cols = diff_cols_spacetrack
-
     df = add_continuous_angles(df, spacetrack)
     df = add_diff(df, diff_cols)
-    feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+    feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
     df[feature_cols] = df[feature_cols].astype(np.float32)
 
     return df, feature_cols
+

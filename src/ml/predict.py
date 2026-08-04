@@ -13,6 +13,7 @@ from ml.datahandler import load_splid_objects, build_features, load_spacetrack_o
 from ml.dataset import split_by_object
 from ml.evaluate import extract_events
 
+
 def load_checkpoint(path, device):
     ckpt = torch.load(path, map_location=device, weights_only=False)
     cfg = OmegaConf.create(ckpt['config'])
@@ -74,6 +75,7 @@ def main(ckpt_path, data_dir, out_dir):
     for key, seg in segments.items():
         feats, feature_cols = build_features(seg)
         X = (feats[feature_cols].to_numpy(np.float32) - mean) / scale
+        
         scores = predict_scores(model, X, history, future, device)
 
         for direction, idxs in extract_events(scores).items(): 
@@ -87,7 +89,7 @@ if __name__ == "__main__" :
     base = os.path.dirname(os.path.abspath(__file__))
     ckpt_path = Path(os.path.join(base, '..' , '..', 'outputs', 'ml', 'localizer', '2026-07-29_14-24-19', 'checkpoints', 'best.pt' ))
     data_dir = Path(os.path.join(base, '..' , '..', 'data', 'raw', 'spacetrack'))
-    out_dir = os.path.join(base, '..', '..', 'data', 'parsed', 'SPACETRACK')
+    out_dir = os.path.join(base, '..', '..', 'data', 'parsed', 'spacetrack')
 
     main(ckpt_path, data_dir, out_dir)
 
