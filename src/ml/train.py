@@ -278,25 +278,29 @@ def main(cfg : DictConfig):
     logger.watch(model)
 
     for epoch in tqdm(range(cfg.train.epochs), desc="epochs"):
-        train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-
-        if is_classifier :
-            val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_types, cfg.task.node_classes, loss_fn, device)
-
-            line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | " 
-                f"node type acc : {metrics['node_acc']:.3f}, f1 : {metrics['node_f1']:.3f} |"
-                f"node class acc : {metrics['class_acc']:.3f}, f1 : {metrics['class_f1']:.3f} ")
-        
+        if is_pretrain : 
+            pretrain_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device)
+            val_loss = evaluate_epoch(model, val_loader, )
         else : 
-            val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
-            line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
-        
-        tqdm.write(line) 
-        is_best = logger.log_epoch(epoch, train_loss, val_loss, metrics)
-        logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size,
-            scaler_mean = meta['scaler'].mean_,
-            scaler_scale = meta['scaler'].scale_
-            )
+            train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
+
+            if is_classifier :
+                val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_types, cfg.task.node_classes, loss_fn, device)
+
+                line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | " 
+                    f"node type acc : {metrics['node_acc']:.3f}, f1 : {metrics['node_f1']:.3f} |"
+                    f"node class acc : {metrics['class_acc']:.3f}, f1 : {metrics['class_f1']:.3f} ")
+
+            else : 
+                val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
+                line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
+            
+            tqdm.write(line) 
+            is_best = logger.log_epoch(epoch, train_loss, val_loss, metrics)
+            logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size,
+                scaler_mean = meta['scaler'].mean_,
+                scaler_scale = meta['scaler'].scale_
+                )
 
     logger.finish()
 

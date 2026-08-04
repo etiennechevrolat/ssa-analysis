@@ -299,15 +299,15 @@ class small_lstm(nn.Module):
 import torch
 
 class PatchEmbedding(nn.Module):
-    def __init__(self, n_features, n_epochs, patch_size=8, embed_dim=16):
+    def __init__(self, n_features, window_size, patch_size=8, embed_dim=16):
         super().__init__()
-        assert n_epochs % patch_size == 0
+        assert window_size % patch_size == 0
         self.n_features = n_features
-        self.n_epochs = n_epochs
+        self.window_size = window_size
         self.patch_size = patch_size
         self.embed_dim =embed_dim
 
-        self.num_patches = n_epochs // patch_size
+        self.num_patches = window_size // patch_size
 
         self.proj = nn.Conv1d(
             in_channels=n_features,
@@ -513,7 +513,7 @@ class TimeSeriesMAE(nn.Module):
             masking_ratio = 0.5,
             dropout_rate=0.1
             ):
-
+            
             super().__init__()
 
             self.patch_embedding = PatchEmbedding(n_features, n_epochs, patch_size, encoder_embed_dim)
@@ -660,17 +660,20 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             expansion_factor=model_cfg.expansion_factor,
             dropout_rate=model_cfg.dropout_rate
             )
-        if model_cfg.get("pretrained_ckpt"):
-            ckpt = torch.load(model_cfg.pretrained_ckpt, map_location='cpu', weights_only=False)
-            model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
-        return model
     
     ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de MAE
-    if model_cfg.name == "MAEv1":
+    
+
+    if model_cfg.name == "miniMAE": 
+            """
+            Un modèle de test pour la pipeline 
+
+            """
             model = TimeSeriesMAE(
                 n_features,
-                window_size,
+                window_size = model_cfg.window_size,
                 patch_size=model_cfg.patch_size,
+                masking_ratio=model_cfg.masking_ratio,
                 encoder_embed_dim=model_cfg.encoder_embed_dim,
                 encoder_n_attn_heads=model_cfg.encoder_n_attn_heads,
                 encoder_n_blocks=model_cfg.encoder_n_blocks,
@@ -680,10 +683,26 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
                 expansion_factor=model_cfg.expansion_factor,
                 dropout_rate=model_cfg.dropout_rate
                 )
-            if model_cfg.get("pretrained_ckpt"):
-                ckpt = torch.load(model_cfg.pretrained_ckpt, map_location='cpu', weights_only=False)
-                model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
-            return model
+    
+    if model_cfg.name == "MAEv1": 
+            """
+            Un premier modèle qui adapte la méthode de pretraining d'après VideoMAEv2. 
+
+            """
+            model = TimeSeriesMAE(
+                n_features,
+                window_size=model_cfg.window_size,
+                patch_size=model_cfg.patch_size,
+                masking_ratio=model_cfg.masking_ratio,
+                encoder_embed_dim=model_cfg.encoder_embed_dim,
+                encoder_n_attn_heads=model_cfg.encoder_n_attn_heads,
+                encoder_n_blocks=model_cfg.encoder_n_blocks,
+                decoder_embed_dim= model_cfg.decoder_embed_dim,
+                decoder_n_attn_heads= model_cfg.decoder_n_attn_heads,
+                decoder_n_blocks=model_cfg.decoder_n_blocks,
+                expansion_factor=model_cfg.expansion_factor,
+                dropout_rate=model_cfg.dropout_rate
+                )
         
     raise KeyError (f"modèle inconnu : {model_cfg.name}")
 

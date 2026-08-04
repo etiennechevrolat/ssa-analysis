@@ -1,0 +1,14 @@
+name : miniMAE
+## Premier masked auto encoder avec 200k params.
+
+window_size : 96 
+patch_size : 12
+masking_ratio : 0.5
+encoder_embed_dim : 32
+encoder_n_attn_heads : 1
+encoder_n_blocks : 1
+decoder_embed_dim : 16
+decoder_n_attn_heads : 1
+decoder_n_blocks : 1
+expansion_factor : 1
+dropout_rate : 0.0

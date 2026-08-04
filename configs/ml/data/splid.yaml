@@ -1,0 +1,6 @@
+data_dir : ${hydra:runtime.cwd}/data/raw/splid_dataset/training
+labels_dir: ${hydra:runtime.cwd}/data/raw/splid_dataset/train_label.csv
+history : 48
+future : 47
+
+val_split: 0.2 
