@@ -495,19 +495,6 @@ class small_vit(nn.Module):
         return z 
 
 
-def masking(B : int, num_patches : int, embed_dim : int, device, masking_ratio =0.5 ):
-    """
-    Reçoit un tenseur (B,N,embed_dim), et renvoi un mask (B, num_patches)
-    """
-    n_mask = round(num_patches * masking_ratio)
-    rand = torch.rand(B,num_patches) #(B,12)
-    ids_shuffle = torch.argsort(rand, dim=1) #(B, 12) permutation aléatoire par ligne du batch 
-    ids_restore = torch.argsort(ids_shuffle, dim=1) #(B,12)
-
-    ids_keep = ids_shuffle[:, : n_mask]
-
-    
-
 class TimeSeriesMAE(nn.Module):
     """
     Architecture de masked-auto-encoder pour times series, inspiré de Guimaraes, adapté de VideoMAEv2
@@ -554,26 +541,37 @@ class TimeSeriesMAE(nn.Module):
             self.encoder_norm = nn.LayerNorm(encoder_embed_dim)
             self.encoder_to_decoder_embedding = nn.Linear(encoder_embed_dim, decoder_embed_dim, bias=True)
             self.decoder_norm = nn.LayerNorm(decoder_embed_dim)
+            
+            self.pred_space_proj = nn.Linear(decoder_embed_dim, n_features * patch_size)
 
     def forward(self, x):
-        # raw x: (B, n_features, n_epochs)
-        x = self.patch_embedding(x) # (B,N,embed_dim)
-        x = self.pos_embedding(x) 
+        # raw x: (B, n_features, window_size)
+        x_id = x 
+        B, n_features,window_size = x.shape
 
+        print(x.shape)
+        x = self.patch_embedding(x) # (B,N,embed_dim)
+        print(x.shape)
+        x = self.encoder_pos_embedding(x) 
+        print(x.shape)
         ## Masking 
-        B, N, embed_dim = x.shape
+        _, N, embed_dim = x.shape
 
         n_mask = round(N * self.masking_ratio)
+        n_keep = N - n_mask
         ## rand crée un tenseur aléatoire de shape (B,N), et argsort donne les indices pour trier la liste :  i.e. une permu aléatoire de (1,..,N)*
         ### le deuxième argsort donne la permutation inverse, utile pour reconstruction 
         rand = torch.rand(B,N) #(B,12)
         ids_shuffle = torch.argsort(rand, dim=1) #(B, 12) 
+
         ids_restore = torch.argsort(ids_shuffle, dim=1) #(B,12)
-        ids_keep = ids_shuffle[:, : n_mask] # (B, N_masked)
-        ids_keep = ids_keep.expand(-1,-1, embed_dim) #(B, N_masked, embed_dim)
-        x_vis = torch.gather(x, dim=1, index=ids_keep) # (B, N_masked, embed_dim)
+ 
+        ids_keep = ids_shuffle[:, : n_keep] # (B, N_keep)
+        ids_keep = ids_keep.unsqueeze(-1).expand(-1,-1, embed_dim) #(B, N_keep, embed_dim)
+        x_vis = torch.gather(x, dim=1, index=ids_keep) # (B, N_keep, embed_dim)
+
         cls =self.cls_token.expand(B, -1, -1)
-        h = torch.cat([cls, x_vis], dim=1) # (B, N_maksed + 1, embed_dim)
+        h = torch.cat([cls, x_vis], dim=1) # (B, N_keep + 1, embed_dim)
 
         # Encoder 
         for bloc in self.encoder_blocks : 
@@ -581,27 +579,64 @@ class TimeSeriesMAE(nn.Module):
         h=self.encoder_norm(h)
 
         # Projection enc -> dec et séquence pour le décodeur
-        y = self.encoder_to_decoder_embedding(h) #(B, N_masked+1, decoder_embed_dim)
+        y = self.encoder_to_decoder_embedding(h) #(B, N_keep+1, decoder_embed_dim)
 
         _, _, decoder_embed_dim = y.shape
-        mask_tokens = self.mask_token.expand(B, n_mask, -1) # (B, N_maksed, decoder_dim), ordre mélangé
-        y_ = torch.cat(y[:,1:], mask_tokens, dim=1)
-        y_ = torch.gather(y_, 1, ids_restore[..., None].expand(-1,-1,decoder_embed_dim))
-        y = torch.cat([y[:,:1],y_], dim=1)
+        mask_tokens = self.mask_token.expand(B, n_mask, -1) # (B, N_masked, decoder_dim), ordre mélangé
+        # on concatène les tokens visibles (sans le cls token) avec les tokens de mask
+        y_ = torch.cat([y[:,1:], mask_tokens], dim=1) # (B, N, decoder_dim)
+        # on reordonne selon la séquence initiale 
+        y_ = torch.gather(y_, 1, ids_restore.unsqueeze(-1).expand(-1,-1,decoder_embed_dim))
 
-        y = y + self.decoder_pos_embedding(y)
+
+        ## Decodeur
+        y = self.decoder_pos_embedding(y)
+        # on remet en tête le cls token
+        y = torch.cat([y[:,:1],y_], dim=1) 
 
         for block in self.decoder_blocks:
             y = block(y)
-        y =self.decoder_norm
-
-
-
         
-        return x
+        y =self.decoder_norm(y)
 
 
+        #Construction cible
+        target = x_id
 
+        # Projection dans l'espace des prédictions (B, N, num_features * patch_size)
+        target = target.reshape(B,n_features, self.num_patches, -1).permute(1,2).reshape(B,self.num_patches, -1)
+
+        ids_masked = ids_shuffle[:, n_mask:] 
+        ids_masked = ids_masked.unsqueeze(-1).expand(-1,-1, decoder_embed_dim)
+
+        ## on ne regarde que la loss sur les patchs maskés
+        target_masked = torch.gather(target, dim=1, index=ids_masked) #(B, N_masked, decoder_dim)
+
+        pred = self.pred_space_proj(y[:, n_mask:])
+
+        return 
+
+def main(): 
+    maetest = TimeSeriesMAE(
+        n_features=10, 
+        n_epochs=96, 
+        patch_size=12,
+        encoder_embed_dim=64,
+        encoder_n_attn_heads=4,
+        encoder_n_blocks=4, 
+        decoder_embed_dim=32, 
+        decoder_n_attn_heads=2,
+        decoder_n_blocks=2, 
+        expansion_factor=4,
+        masking_ratio=0.75
+        )
+    
+    x_test= torch.randn((256,10,96))
+    maetest(x_test)
+
+
+if __name__=="__main__":
+    main()
 
 
 ### on construit le modèle à partir des classes ci-dessus   
