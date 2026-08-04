@@ -518,8 +518,8 @@ class TimeSeriesMAE(nn.Module):
 
             self.patch_embedding = PatchEmbedding(n_features, n_epochs, patch_size, encoder_embed_dim)
             self.num_patches = self.patch_embedding.num_patches
-            self.encoder_pos_embedding = LearnedPositionalEmbedding(encoder_embed_dim, self.num_patches)
-            self.decoder_pos_embedding = LearnedPositionalEmbedding(decoder_embed_dim, self.num_patches)
+            self.encoder_pos_embedding = LearnedPositionalEmbedding(encoder_embed_dim, self.num_patches+1)
+            self.decoder_pos_embedding = LearnedPositionalEmbedding(decoder_embed_dim, self.num_patches+1)
 
             self.cls_token = nn.Parameter(torch.zeros(1,1, encoder_embed_dim))
             nn.init.trunc_normal_(self.cls_token, std=0.02)
@@ -549,11 +549,9 @@ class TimeSeriesMAE(nn.Module):
         x_id = x 
         B, n_features,window_size = x.shape
 
-        print(x.shape)
         x = self.patch_embedding(x) # (B,N,embed_dim)
-        print(x.shape)
         x = self.encoder_pos_embedding(x) 
-        print(x.shape)
+    
         ## Masking 
         _, N, embed_dim = x.shape
 
@@ -563,17 +561,19 @@ class TimeSeriesMAE(nn.Module):
         ### le deuxième argsort donne la permutation inverse, utile pour reconstruction 
         rand = torch.rand(B,N) #(B,12)
         ids_shuffle = torch.argsort(rand, dim=1) #(B, 12) 
-
         ids_restore = torch.argsort(ids_shuffle, dim=1) #(B,12)
  
         ids_keep = ids_shuffle[:, : n_keep] # (B, N_keep)
+        ids_mask = ids_shuffle[:, n_keep:]
+
         ids_keep = ids_keep.unsqueeze(-1).expand(-1,-1, embed_dim) #(B, N_keep, embed_dim)
         x_vis = torch.gather(x, dim=1, index=ids_keep) # (B, N_keep, embed_dim)
 
+        
+
+        # Encoder ne voit que les patchs visibles
         cls =self.cls_token.expand(B, -1, -1)
         h = torch.cat([cls, x_vis], dim=1) # (B, N_keep + 1, embed_dim)
-
-        # Encoder 
         for bloc in self.encoder_blocks : 
             h= bloc(h)
         h=self.encoder_norm(h)
@@ -589,54 +589,30 @@ class TimeSeriesMAE(nn.Module):
         y_ = torch.gather(y_, 1, ids_restore.unsqueeze(-1).expand(-1,-1,decoder_embed_dim))
 
 
-        ## Decodeur
-        y = self.decoder_pos_embedding(y)
-        # on remet en tête le cls token
+        ## Decodeur on reconstitue la séquence puis on ajoute le PE
         y = torch.cat([y[:,:1],y_], dim=1) 
+        y = self.decoder_pos_embedding(y)
+        
 
         for block in self.decoder_blocks:
             y = block(y)
-        
         y =self.decoder_norm(y)
 
+        # proejction vers l'espace des patchs (sans le cls)
+        pred_all = self.pred_space_proj(y[:, 1:])  #(B,N,F*P)
 
         #Construction cible
-        target = x_id
-
-        # Projection dans l'espace des prédictions (B, N, num_features * patch_size)
-        target = target.reshape(B,n_features, self.num_patches, -1).permute(1,2).reshape(B,self.num_patches, -1)
-
-        ids_masked = ids_shuffle[:, n_mask:] 
-        ids_masked = ids_masked.unsqueeze(-1).expand(-1,-1, decoder_embed_dim)
+        target_all = (
+            x_id.reshape(B,n_features, self.num_patches, -1)
+                .permute(0,2,1,3)
+                .reshape(B,self.num_patches, -1)
+                )
 
         ## on ne regarde que la loss sur les patchs maskés
-        target_masked = torch.gather(target, dim=1, index=ids_masked) #(B, N_masked, decoder_dim)
-
-        pred = self.pred_space_proj(y[:, n_mask:])
-
-        return 
-
-def main(): 
-    maetest = TimeSeriesMAE(
-        n_features=10, 
-        n_epochs=96, 
-        patch_size=12,
-        encoder_embed_dim=64,
-        encoder_n_attn_heads=4,
-        encoder_n_blocks=4, 
-        decoder_embed_dim=32, 
-        decoder_n_attn_heads=2,
-        decoder_n_blocks=2, 
-        expansion_factor=4,
-        masking_ratio=0.75
-        )
-    
-    x_test= torch.randn((256,10,96))
-    maetest(x_test)
-
-
-if __name__=="__main__":
-    main()
+        ids_mask = ids_mask.unsqueeze(-1).expand(-1,-1, n_features * self.patch_embedding.patch_size)
+        pred = torch.gather(pred_all, 1, ids_mask) # (B, N_mask, F*P)
+        target = torch.gather(target_all, 1, ids_mask)
+        return pred, target
 
 
 ### on construit le modèle à partir des classes ci-dessus   
@@ -673,7 +649,6 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             window_size, 
             )
 
-    ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de MAE
     if model_cfg.name == "small_vit":
         model = small_vit(
             n_features,
@@ -689,6 +664,26 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             ckpt = torch.load(model_cfg.pretrained_ckpt, map_location='cpu', weights_only=False)
             model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
         return model
+    
+    ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de MAE
+    if model_cfg.name == "MAEv1":
+            model = TimeSeriesMAE(
+                n_features,
+                window_size,
+                patch_size=model_cfg.patch_size,
+                encoder_embed_dim=model_cfg.encoder_embed_dim,
+                encoder_n_attn_heads=model_cfg.encoder_n_attn_heads,
+                encoder_n_blocks=model_cfg.encoder_n_blocks,
+                decoder_embed_dim= model_cfg.decoder_embed_dim,
+                decoder_n_attn_heads= model_cfg.decoder_n_attn_heads,
+                decoder_n_blocks=model_cfg.decoder_n_blocks,
+                expansion_factor=model_cfg.expansion_factor,
+                dropout_rate=model_cfg.dropout_rate
+                )
+            if model_cfg.get("pretrained_ckpt"):
+                ckpt = torch.load(model_cfg.pretrained_ckpt, map_location='cpu', weights_only=False)
+                model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
+            return model
         
     raise KeyError (f"modèle inconnu : {model_cfg.name}")
 

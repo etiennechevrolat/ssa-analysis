@@ -1,0 +1,11 @@
+name : MAEv1
+
+patch_size : 12
+encoder_embed_dim : 64
+encoder_n_attn_heads : 4
+encoder_n_blocks : 4
+decoder_embed_dim : 32
+decoder_n_attn_heads : 4
+decoder_n_blocks : 2
+expansion_factor : 4
+dropout_rate : 0.1

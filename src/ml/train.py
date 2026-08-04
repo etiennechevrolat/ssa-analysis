@@ -81,11 +81,10 @@ def pretrain_one_epoch(
 
         optimizer.zero_grad()
 
-        ## sortie du modèle : une time series de la même forme que x avec un certain nombre d'éléments reconstruits par le decoder
-        pred = model(x) 
+        pred, target = model(x) 
 
         ## on évalue donc l'image initiale vs la reconstruction 
-        loss = loss_fn(pred, x)
+        loss = loss_fn(pred, target)
         running_loss+= float(loss.item()) * x.size(0) 
         loss.backward()
         optimizer.step()
@@ -249,7 +248,7 @@ def main(cfg : DictConfig):
             val_split=cfg.data.val_split,
             seed= cfg.seed
             )
-        ## le pretrain est une régression : on choisit la MSE 
+        ## le pretrain est une régression :
         loss_fn = nn.MSELoss()
 
     else: 
