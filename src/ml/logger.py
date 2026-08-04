@@ -55,20 +55,22 @@ class RunLogger:
         return is_best
 
     def save_checkpoint(self, model, epoch, is_best = False, **info):
-
         """
         Ecris last.pt et le copie en best.pt si l'époque est la meilleure
         On sauvegarde le state_dict (dict de tenseurs model.state_dict) avec torch.save(model)
         """
         last = self.chekpoint_dir / "last.pt"
 
-        torch.save({
+        payload = {
             "epoch" : epoch, 
             "model_state": model.state_dict(),
             "config" : OmegaConf.to_container(self.cfg, resolve=True), 
             **info, 
-            }, last)
+            }
+        if hasattr(model, "encoder_state_dict"):
+            payload["encoder_state"] = model.encoder_state_dict()
 
+        torch.save(payload, last)
         if is_best:
             print(f" New best checkpoint saved in {self.chekpoint_dir / "best.pt"}" )
             shutil.copyfile(last, self.chekpoint_dir/ "best.pt")

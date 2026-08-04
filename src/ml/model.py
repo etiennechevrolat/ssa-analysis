@@ -340,7 +340,6 @@ class LearnedPositionalEmbedding(nn.Module):
         x = x+ self.PE(positions) # (B, num_patches, embed_dim)
         return x 
 
-
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, embed_dim, n_heads, dropout_rate=0.1):
         super().__init__()
@@ -501,7 +500,7 @@ class TimeSeriesMAE(nn.Module):
     """
     def __init__(self, 
             n_features,  
-            n_epochs, 
+            window_size, 
             patch_size, 
             encoder_embed_dim, 
             encoder_n_attn_heads, 
@@ -516,9 +515,9 @@ class TimeSeriesMAE(nn.Module):
             
             super().__init__()
 
-            self.patch_embedding = PatchEmbedding(n_features, n_epochs, patch_size, encoder_embed_dim)
+            self.patch_embedding = PatchEmbedding(n_features, window_size, patch_size, encoder_embed_dim)
             self.num_patches = self.patch_embedding.num_patches
-            self.encoder_pos_embedding = LearnedPositionalEmbedding(encoder_embed_dim, self.num_patches+1)
+            self.encoder_pos_embedding = LearnedPositionalEmbedding(encoder_embed_dim, self.num_patches)
             self.decoder_pos_embedding = LearnedPositionalEmbedding(decoder_embed_dim, self.num_patches+1)
 
             self.cls_token = nn.Parameter(torch.zeros(1,1, encoder_embed_dim))
@@ -615,6 +614,27 @@ class TimeSeriesMAE(nn.Module):
         return pred, target
 
 
+    ## correspondance MAE -> VanillaViT
+    ENCODER_KEY_MAP = {
+        "patch_embedding." : "patch_embedding.",
+        "encoder_pos_embedding." : "pos_embedding.",
+        "encoder_blocks." : "blocks.",
+        "encoder_norm." : "final_norm"
+        }
+    
+    def encoder_state_dict(self) : 
+        """Poids de l'encodeur seul renommé au format VanillaViT"""
+        out={}
+        for k,v in self.state_dict().items:
+            if k =="cls_token":
+                out[k] = v
+                continue
+            for src, dst in self.ENCODER_KEY_MAP.items():
+                if k.startswith(src):
+                    out[dst + k[len(src):]] = v
+                    break
+        return out 
+
 ### on construit le modèle à partir des classes ci-dessus   
         
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
@@ -663,11 +683,9 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
     
     ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de MAE
     
-
     if model_cfg.name == "miniMAE": 
             """
             Un modèle de test pour la pipeline 
-
             """
             model = TimeSeriesMAE(
                 n_features,

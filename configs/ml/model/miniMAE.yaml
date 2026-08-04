@@ -1,5 +1,5 @@
 name : miniMAE
-## Premier masked auto encoder avec 200k params.
+## Plus petit MAE pour test pipeline
 
 window_size : 96 
 patch_size : 12

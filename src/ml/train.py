@@ -190,6 +190,32 @@ def evaluate_epoch_classifier(
 
     return avg_loss, metrics
 
+@torch.no_grad()
+def evaluate_pretraining_epoch(
+    model,
+    data_loader,
+    meta,
+    loss_fn, 
+    device,
+    seed = 0
+    ):
+    model.eval() ## différents de torch.no_grad, change le comportement de certaines couches : Dropout, BatchNorm.
+    running_loss = 0.0
+    total=0
+
+    # on fige le rng le temps de l'évaluation, sinon le masque tiré aléatoirement à chaque forward fait varier la val loss 
+    rng_sate = torch.get_rng_state()
+    torch.manual_seed(seed)
+
+    for time_series_batch in tqdm(data_loader, desc="val", leave=False):
+        x = time_series_batch.to(device)
+        pred, target = model(x)
+        loss = loss_fn(pred, target)
+        running_loss+= float(loss.item()) * x.size(0)
+        total += x.size(0)
+        
+    avg_loss = running_loss / total
+    return avg_loss
 
 
 
@@ -213,8 +239,6 @@ def main(cfg : DictConfig):
             cfg.data.labels_dir,
             )
 
-    
-
     if is_classifier : 
         train_loader, val_loader, meta = make_loaders_classifiers(
             objects, 
@@ -230,9 +254,7 @@ def main(cfg : DictConfig):
         w_node = compute_class_weights(train_loader.dataset, field = 3, n_classes = cfg.task.node_classes, device=device)
 
         node_loss = nn.CrossEntropyLoss()
-
         class_loss = nn.CrossEntropyLoss()
-
         def loss_fn(pred, y):
             return node_loss(pred['node'], y['node']) + class_loss(pred['class'], y['class'])
 
@@ -278,12 +300,15 @@ def main(cfg : DictConfig):
     logger.watch(model)
 
     for epoch in tqdm(range(cfg.train.epochs), desc="epochs"):
+
         if is_pretrain : 
-            pretrain_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device)
-            val_loss = evaluate_epoch(model, val_loader, )
+            train_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device)
+            val_loss = evaluate_pretraining_epoch(model, val_loader, loss_fn, optimizer, device)
+            metrics = {}
+            line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | ")
         else : 
             train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-
+            
             if is_classifier :
                 val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_types, cfg.task.node_classes, loss_fn, device)
 
