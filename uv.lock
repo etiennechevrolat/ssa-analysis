@@ -280,6 +280,22 @@ wheels = [
 ]
 
 [[package]]
+name = "dbscan"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scikit-learn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ec/25/30582913c170d4b606e791c8b6182b832a29777ca760c436da6ff546d164/dbscan-1.0.0.tar.gz", hash = "sha256:8ea6c8b72b8ff98d12422a3b9d7c56c3feac5390ab18b4be5e37042124ada1ce", size = 168880, upload-time = "2025-06-29T13:19:03.952Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/95/2480b873982729f53fcc635c9a3b9af3037af9ffafbbfe5e0660db61f7fb/dbscan-1.0.0-cp39-abi3-macosx_10_9_x86_64.whl", hash = "sha256:9208c13159de06007047a7120334d96c52dc9a11d8f979dd5439327c400ff50d", size = 1211219, upload-time = "2025-06-29T13:18:56.578Z" },
+    { url = "https://files.pythonhosted.org/packages/22/06/a9ad2dcb2a23db045f5bc8570a6ec1bef6bf4333035dc9fe0168593acb7a/dbscan-1.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:e0c602ff948c4fd8a0a0c0d01dd4cb847cc4d5d206b961fa98582b29de858e9d", size = 1260838, upload-time = "2025-06-29T13:18:57.947Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/31/b75be9bdff24f9d8fa58959391de5557d27b48554010d42bbb9efa0af40a/dbscan-1.0.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:535377c21f0c7e49ad03aeb8e93b4bb6654a294e01cb41a648116cee947ad31c", size = 9541392, upload-time = "2025-06-29T13:18:59.569Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/e7/160c3324565254aaf6ebf88e78c90b5de675024795dff2f68b522d755e43/dbscan-1.0.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e9a87909cc5814ea865ecb05bd2c363a48ca070b4d5feb794f70b049ca902cd6", size = 10008129, upload-time = "2025-06-29T13:19:02.081Z" },
+]
+
+[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1712,6 +1728,7 @@ name = "ssa-analysis"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "dbscan" },
     { name = "filterpy" },
     { name = "hdbscan" },
     { name = "hydra-core" },
@@ -1756,6 +1773,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dbscan", specifier = ">=1.0.0" },
     { name = "filterpy", specifier = ">=1.4.5" },
     { name = "hdbscan", specifier = ">=0.8.44" },
     { name = "hydra-core", specifier = ">=1.3.4" },

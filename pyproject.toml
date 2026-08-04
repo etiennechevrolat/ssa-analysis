@@ -21,6 +21,7 @@ dependencies = [
   "hdbscan>=0.8.44",
   "wandb>=0.28.1",
   "tqdm>=4.70.0",
+  "dbscan>=1.0.0",
 ]
 
 [project.optional-dependencies]
