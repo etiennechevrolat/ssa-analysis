@@ -3,10 +3,8 @@ from acquisition.client import initClient
 from acquisition.catalog import recupIds
 from ssa.orbital import derive
 from acquisition.fetch import fetch_history_batched, group_by_sat
-from storage.excel import write_excel
-from storage.parquet import write_parquet
 from config import load_data_config
-import time 
+
 
 def build_dataframe(grouped): 
     #grouped = dico des historiques des satellites, après être passé par fetch 
@@ -32,7 +30,7 @@ def build_dataframe(grouped):
                 }
             )
     return pd.DataFrame(rows)
- 
+
 def main(): 
     
     #Client SpaceTrack
@@ -45,21 +43,20 @@ def main():
         samples = 1000
         #Recup les ids
         orbit_range= config.orbit_range
-        satids = recupIds(client, samples, constellation, orbit_range, shuffle=False)
+        satids = recupIds(client, None, constellation, orbit_range, shuffle=False)
         
         #Fetching, on récupère un dico avec les données rangées par ids, epochs
-        records = fetch_history_batched(client, satids, start, end)
-        grouped = group_by_sat(records)
+        ## on itère le yield 
+        for n,records in enumerate(fetch_history_batched(client, satids, start,end)):
+            grouped = group_by_sat(records)
+            df = build_dataframe(grouped)
 
-        df = build_dataframe(grouped)
-
-        
-        #On écrit dans data
-        norad_tag = constellation.norad_ids[:10] if constellation.norad_ids else 'ALL_NORADS'
-        tag = f"{constellation.name_pattern or 'ALL_NAMES'}_{constellation.country or 'ALL_COUNTRIES'}_{norad_tag}"
-        date = time.time()
-        write_parquet(df, f"data/parsed/SPACETRACK/{tag}_{date}.parquet" )
-
+            #On écrit dans data/raw 
+            tag = f"batch_{n}_{constellation.name_pattern or 'ALL_NAMES'}_{constellation.country or 'ALL_COUNTRIES'}"
+            date = pd.Timestamp.now().strftime('%Y-%m-%d_%H_%M-%S')
+            path = f"data/raw/spacetrack/leo_unlabelled_dataset/{tag}_{date}.parquet"
+            df.to_parquet(path, index= False)
+            print(f"{len(df)} lignes écrites dans {path}")
 
 if __name__=="__main__": 
     main()

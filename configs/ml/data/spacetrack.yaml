@@ -3,4 +3,4 @@ data_dir : ${hydra:runtime.cwd}/data/raw/spacetrack
 val_split: 0.2 
 
 window_size : 96
-stride : 1
+stride : 24

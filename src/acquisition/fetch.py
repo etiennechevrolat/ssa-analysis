@@ -41,12 +41,13 @@ def _fetch_batch(client, batch, start, end, retries=3):
 
 
 def fetch_history_batched(client, sat_ids, start, end, batch_size=50):
-    all_records = []
+
     batches = list(chunked(sat_ids, batch_size))
     for n, batch in enumerate(batches, 1):
         print(f"Batch {n}/{len(batches)} ({len(batch)} satellites)...")
-        all_records.extend(_fetch_batch(client, batch, start, end))
-    return all_records
+        yield _fetch_batch(client, batch, start, end)
+        
+
 
 def group_by_sat(records): 
     grouped = defaultdict(list)

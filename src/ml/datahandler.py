@@ -126,8 +126,9 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
 ### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour entrainement non supervisé.
 
 def load_spacetrack_objects(data_dir : Path):
-    data_dir = Path(os.path.join(data_dir, "starlink_1000_samples.parquet" ))
-    raw = pd.read_parquet(data_dir)
+    dataset_dir = Path(os.path.join(data_dir, "leo_unlabelled_dataset" ))
+    parquet_paths = dataset_dir.glob('*.parquet')
+    raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
     for norad,sub in raw.groupby('norad'): 
         ## traitement du dataframe
@@ -136,7 +137,6 @@ def load_spacetrack_objects(data_dir : Path):
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) #" distribution à queue lourde"
         ## sauvegarde dans objects
         objects[int(norad)] = df
-        
     return objects
 
 
