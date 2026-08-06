@@ -678,9 +678,9 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             expansion_factor=model_cfg.expansion_factor,
             dropout_rate=model_cfg.dropout_rate
             ) 
-    ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de MAE
+    ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de VideoMAE
     
-    if model_cfg.name in ("miniMAE", "MAEv1"): 
+    if model_cfg.name in ("miniMAE", "MAEv1", "MAEv2"): 
         """
         Les modèles de pretraining non supervisés. On réutilisera les poids de l'encodeur
         """

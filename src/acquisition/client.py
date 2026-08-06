@@ -3,14 +3,6 @@ from spacetrack import SpaceTrackClient
 import os 
 
 
-# -- constantes REST (conservées pour référence, non utilisées avec le client)
-uriBase             = "https://www.space-track.org"
-requestLogin        = "/ajaxauth/login"
-requestCmdAction    = "/basicspacedata/query"
-requestOMMStarlink1 = "/class/gp/NORAD_CAT_ID/"
-requestOMMStarlink2 = "/orderby/EPOCH/format/xml"
-
-
 def initClient(ini_path):
     # -- config 
     config = configparser.ConfigParser()

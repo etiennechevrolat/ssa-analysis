@@ -2,12 +2,11 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
-import polars as pl 
-
+import os
 from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
  
 diff_cols  =['Semimajor Axis (m)', 'q', 'p']
-diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km 
+diff_cols_spacetrack = ['log(sma)', 'q', 'p'] ## attention : le sma spacetrack est en km 
 
 
 ## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
@@ -98,7 +97,6 @@ def split_on_gaps(objects, min_length = 1):
             segments[f"{oid}_{i}"] = seg
     return segments
 
-import os 
 
 def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_hours=SPLID_CADENCE_HOURS, max_gap_hours=24.0):
 
@@ -130,11 +128,14 @@ def load_spacetrack_objects(data_dir : Path):
     parquet_paths = dataset_dir.glob('*.parquet')
     raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
+
     for norad,sub in raw.groupby('norad'): 
-        ## traitement du dataframe
-        df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last')
+        ## traitement du dataframe spécifique aux données spacetrack.
+        df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last') ## on retire les doublons.
         times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
-        df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) #" distribution à queue lourde"
+        df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) # distribution à queue lourde. on ajoute une feature temporelle
+        df["log(sma)"] = np.log(df['sma']) 
+
         ## sauvegarde dans objects
         objects[int(norad)] = df
     return objects
@@ -184,7 +185,16 @@ def add_diff(df, diff_cols = diff_cols):
         df[f"{col}_diff"]= np.diff(v, prepend=v[0])
     return df
 
-def build_features(df, diff_cols = diff_cols, spacetrack=False):
+log_cols = ['sma']
+
+def add_log(df, log_cols):
+    df = df.copy()
+    for col in log_cols : 
+        v = df[col].to_numpy(dtype=np.float64)
+        df[f"log({col})"] = np.log(v)
+    return df 
+
+def build_features(df, diff_cols = diff_cols, log_cols = log_cols, spacetrack=False):
     """
     Applique les transformations et renvois le dataframe enrichi des features précédentes utilisées par le modèle
     """
@@ -192,8 +202,11 @@ def build_features(df, diff_cols = diff_cols, spacetrack=False):
     if spacetrack : 
         diff_cols = diff_cols_spacetrack
     df = add_continuous_angles(df, spacetrack)
+    df = add_log(df, log_cols)
     df = add_diff(df, diff_cols)
-    feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+
+    feature_cols = ['dt', 'log(sma)', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+    
     df[feature_cols] = df[feature_cols].astype(np.float32)
 
     return df, feature_cols
