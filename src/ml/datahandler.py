@@ -130,11 +130,10 @@ def load_spacetrack_objects(data_dir : Path):
     objects={}
 
     for norad,sub in raw.groupby('norad'): 
-        ## traitement du dataframe spécifique aux données spacetrack.
+        ## traitement du dataframe spécifique aux données spacetrack : epochs non régulières
         df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last') ## on retire les doublons.
         times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) # distribution à queue lourde. on ajoute une feature temporelle
-        df["log(sma)"] = np.log(df['sma']) 
 
         ## sauvegarde dans objects
         objects[int(norad)] = df

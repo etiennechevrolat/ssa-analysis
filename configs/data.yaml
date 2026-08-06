@@ -24,7 +24,7 @@ constellations:
 data_range: {start: 2025-09-01, end: 2026-07-01}
 
 ### On modifie ici le type d'orbite que l'on sélectionne via une range de semi-grand axe
-orbit_range: {borneinf: 6000.0, bornesup : 9000.0}
+## orbit_range: {borneinf: 6000.0, bornesup : 9000.0}
 
 ## Pour parser 
 maneuvers : {sat_name : "srl"} ## identifiant ILRS composé de 3 lettres 
