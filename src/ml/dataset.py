@@ -195,7 +195,7 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
 def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42):
     per_obj =  {}
     for oid, df in objects.items() :
-        df_feat, feature_cols = build_features(df, spacetrack=True)
+        df_feat, feature_cols = build_features(df, log_features=True, spacetrack=True)
         per_obj[oid] = [df_feat[feature_cols].to_numpy(np.float32), None]
 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
