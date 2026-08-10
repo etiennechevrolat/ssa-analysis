@@ -557,7 +557,7 @@ class TimeSeriesMAE(nn.Module):
         n_keep = N - n_mask
         ## rand crée un tenseur aléatoire de shape (B,N), et argsort donne les indices pour trier la liste :  i.e. une permu aléatoire de (1,..,N)*
         ### le deuxième argsort donne la permutation inverse, utile pour reconstruction 
-        rand = torch.rand(B,N) #(B,12)
+        rand = torch.rand(B,N, device=x.device) #(B,12)
         ids_shuffle = torch.argsort(rand, dim=1) #(B, 12) 
         ids_restore = torch.argsort(ids_shuffle, dim=1) #(B,12)
  
