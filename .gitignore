@@ -9,6 +9,7 @@ wheels/
 /data/ 
 *.xlsx
 outputs/
+*.wandb
 # Virtual environments
 .venv
 .DS_Store
