@@ -6,7 +6,7 @@ import os
 from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
  
 diff_cols  =['Semimajor Axis (m)', 'q', 'p']
-diff_cols_spacetrack = ['log(sma)', 'q', 'p'] ## attention : le sma spacetrack est en km 
+diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km 
 
 
 ## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
@@ -125,7 +125,7 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
 
 def load_spacetrack_objects(data_dir : Path):
     dataset_dir = Path(os.path.join(data_dir, "leo_unlabelled_dataset" ))
-    parquet_paths = dataset_dir.glob('*.parquet')
+    parquet_paths = sorted(dataset_dir.glob('*.parquet'))
     raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
 
@@ -193,7 +193,7 @@ def add_log(df, log_cols):
         df[f"log({col})"] = np.log(v)
     return df 
 
-def build_features(df, diff_cols = diff_cols, log_cols = log_cols, spacetrack=False):
+def build_features(df, log_features = False, diff_cols = diff_cols, log_cols = log_cols, spacetrack=False):
     """
     Applique les transformations et renvois le dataframe enrichi des features précédentes utilisées par le modèle
     """
@@ -201,11 +201,15 @@ def build_features(df, diff_cols = diff_cols, log_cols = log_cols, spacetrack=Fa
     if spacetrack : 
         diff_cols = diff_cols_spacetrack
     df = add_continuous_angles(df, spacetrack)
-    df = add_log(df, log_cols)
-    df = add_diff(df, diff_cols)
 
-    feature_cols = ['dt', 'log(sma)', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
-    
+    if log_features : 
+        df = add_log(df, log_cols)
+        df = add_diff(df, diff_cols)
+        feature_cols = ['dt', 'log(sma)', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+    else : 
+        df = add_diff(df, diff_cols)
+        feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+
     df[feature_cols] = df[feature_cols].astype(np.float32)
 
     return df, feature_cols

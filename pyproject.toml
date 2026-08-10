@@ -23,6 +23,7 @@ dependencies = [
   "tqdm>=4.70.0",
   "dbscan>=1.0.0",
   "seaborn>=0.13.2",
+  "tmux",
 ]
 
 [project.optional-dependencies]

@@ -8,7 +8,7 @@ wheels/
 *.ini
 /data/ 
 *.xlsx
-outputs/
+
 # Virtual environments
 .venv
 .DS_Store
