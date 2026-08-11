@@ -15,7 +15,8 @@ from ml.datahandler import load_splid_objects, load_spacetrack_objects
 from ml.dataset import make_loaders, make_loaders_classifiers, make_pretrain_loader
 from ml.model import build_model
 
-from ml.utils import to_device, compute_class_weights 
+from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
+
 
 from ml.logger import RunLogger
 
@@ -272,8 +273,10 @@ def main(cfg : DictConfig):
             val_split=cfg.data.val_split,
             seed= cfg.seed
             )
-        ## le pretrain est une régression :
-        loss_fn = nn.MSELoss()
+        ## le pretrain est une régression : mean-square-error loss
+        w = torch.ones(n_features)
+        w[meta['feature_cols'].index("dt")] = 0.0 ## on mets le poids de dt à zero.
+        loss_fn = MaskedChannelMSE(w).to(device)
 
     else: 
         train_loader, val_loader, meta = make_loaders(

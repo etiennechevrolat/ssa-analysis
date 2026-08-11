@@ -1,5 +1,6 @@
 import numpy as np 
 import torch
+from torch import nn
 
 
 def to_device(batch, device):
@@ -23,3 +24,14 @@ def compute_class_weights(dataset, field, n_classes, device):
 
     w = counts.sum() / (n_classes * counts)
     return torch.tensor(w, dtype=torch.float32, device=device)
+
+class MaskedChannelMSE(nn.Module):
+    def __init__(self, channel_weights):
+        super().__init__()  
+        self.register_buffer("w", channel_weights)
+
+    def forward(self, pred, target):
+        B,N,_ = pred.shape 
+        F = self.w.numel()
+        d2= (pred-target).reshape(B,N,F,-1).pow(2).mean(dim=(0,1,3))
+        return (d2 * self.w).sum() / self.w.sum()

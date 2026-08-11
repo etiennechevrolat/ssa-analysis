@@ -6,7 +6,7 @@ dist/
 wheels/
 *.egg-info
 *.ini
-/data/ 
+/data
 *.xlsx
 outputs/
 *.wandb
