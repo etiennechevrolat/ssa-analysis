@@ -195,7 +195,7 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
 def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42):
     per_obj =  {}
     for oid, df in objects.items() :
-        df_feat, feature_cols = build_features(df, log_features=True, spacetrack=True)
+        df_feat, feature_cols = build_features(df, log_features=True)
         per_obj[oid] = [df_feat[feature_cols].to_numpy(np.float32), None]
 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
@@ -205,8 +205,8 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
     train_dataset = UnlabeledWindowDataset(per_obj, train_ids, window_size, stride)
     val_dataset = UnlabeledWindowDataset(per_obj, val_ids, window_size, stride)
 
-    train_dl = DataLoader(train_dataset, batch_size, shuffle=True)
-    val_dl = DataLoader(val_dataset, batch_size, shuffle=False)
+    train_dl = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
+    val_dl = DataLoader(val_dataset, batch_size, shuffle=False, num_workers=4, pin_memory=True, persistent_workers=True)
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
                 "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
     return train_dl, val_dl, meta
