@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import numpy as np
 import hydra 
+import math 
 from omegaconf import DictConfig
 from sklearn.metrics import accuracy_score, f1_score
 from tqdm import tqdm
@@ -41,7 +42,7 @@ def train_one_epoch(
 
         # Classifier : 
         ## time_series_batch (B,F,W), labels (B, dict = {'node' : , 'class':  })
-        x = time_series_batch.to(device)
+        x = time_series_batch.to(device, non_blocking=True)
         y = to_device(labels, device)
 
         optimizer.zero_grad()
@@ -67,7 +68,8 @@ def pretrain_one_epoch(
         loss_fn : nn.Module, 
         optimizer : torch.optim.Optimizer,
         device : torch.device,
-        epoch=0
+        epoch=0,
+        scheduler=None
     ):
     ## dataloader renvoie des batchs de times series sans label de type UnlabelledWindowDataset() cf dataset.py
     model.train()
@@ -78,7 +80,7 @@ def pretrain_one_epoch(
 
     for time_series_batch in bar:
        
-        x = time_series_batch.to(device)
+        x = time_series_batch.to(device, non_blocking=True)
 
         optimizer.zero_grad()
 
@@ -89,6 +91,9 @@ def pretrain_one_epoch(
         running_loss+= float(loss.item()) * x.size(0) 
         loss.backward()
         optimizer.step()
+        if scheduler is not None: 
+            scheduler.step()
+
         total += x.size(0)
         bar.set_postfix(loss=f"{running_loss / total :.4f}")
 
@@ -209,7 +214,7 @@ def evaluate_pretraining_epoch(
 
     try : 
         for time_series_batch in tqdm(data_loader, desc="val", leave=False):
-            x = time_series_batch.to(device)
+            x = time_series_batch.to(device, non_blocking=True)
             pred, target = model(x)
             loss = loss_fn(pred, target)
             running_loss+= float(loss.item()) * x.size(0)
@@ -298,8 +303,43 @@ def main(cfg : DictConfig):
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
     model.to(device)
 
-    params = model.parameters()
-    optimizer = torch.optim.AdamW(params, lr = cfg.train.lr)
+    def build_param_groups(model, weight_decay):
+        no_decay_exact={"cls_token", "mask_token"}
+        decay, no_decay = [], []
+        for name,p in model.named_parameters():
+            if not p.requires_grad:
+                continue
+            if p.ndim <= 1 or name in no_decay_exact or "pos_embedding" in name:
+                no_decay.append(p)
+            else : 
+                decay.append(p)
+        return [
+            {"params": decay, "weight_decay":weight_decay}, {"params":no_decay, "weight_decay":0.0}
+        ]
+    ## OPTIMIZER
+    optimizer = torch.optim.AdamW(
+        build_param_groups(model, cfg.train.weight_decay),
+        lr = cfg.train.lr, 
+        betas=(0.9, 0.95)
+        )
+    
+    def build_lr_scheduler(optimizer, total_steps, warmup_ratio=0.05, min_lr_ratio=0.0):
+        """
+        Warmup linéaire puis décroissance cosine, mis à jour à chaque pas d'optimisation
+        """
+        warmup_steps = max(1, int(total_steps*warmup_ratio))
+
+        def lr_lambda(step):
+            if step < warmup_steps :
+                return step / warmup_steps
+            progress = (step - warmup_steps) / (max(1, total_steps - warmup_steps))
+            cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return min_lr_ratio + (1.0 - min_lr_ratio) * cosine
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    
+    ## SCHEDULER 
+    total_steps = cfg.train.epochs * len(train_loader)
+    scheduler = build_lr_scheduler(optimizer, total_steps, warmup_ratio=cfg.train.warmup_ratio)
 
     logger = RunLogger(cfg, HydraConfig.get().runtime.output_dir, )
     logger.watch(model)
@@ -307,9 +347,9 @@ def main(cfg : DictConfig):
     for epoch in tqdm(range(cfg.train.epochs), desc="epochs"):
 
         if is_pretrain : 
-            train_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device)
+            train_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch=epoch, scheduler=scheduler)
             val_loss = evaluate_pretraining_epoch(model=model, data_loader=val_loader, loss_fn=loss_fn, device=device, seed=cfg.seed ) 
-            metrics = {}
+            metrics = {"lr": scheduler.get_last_lr()[0]}
             line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | ")
         else : 
             train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)

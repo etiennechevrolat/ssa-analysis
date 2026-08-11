@@ -205,8 +205,8 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
     train_dataset = UnlabeledWindowDataset(per_obj, train_ids, window_size, stride)
     val_dataset = UnlabeledWindowDataset(per_obj, val_ids, window_size, stride)
 
-    train_dl = DataLoader(train_dataset, batch_size, shuffle=True)
-    val_dl = DataLoader(val_dataset, batch_size, shuffle=False)
+    train_dl = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
+    val_dl = DataLoader(val_dataset, batch_size, shuffle=False, num_workers=4, pin_memory=True, persistent_workers=True)
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
                 "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
     return train_dl, val_dl, meta
