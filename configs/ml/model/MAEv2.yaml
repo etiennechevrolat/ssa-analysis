@@ -9,4 +9,5 @@ decoder_embed_dim : 64
 decoder_n_attn_heads : 4 ## sous-espaces de dimension 16 
 decoder_n_blocks : 4
 expansion_factor : 4 ## projection MLP de dimension 512
-dropout_rate : 0.1
+dropout_rate : 0.0
+
