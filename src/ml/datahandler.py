@@ -4,9 +4,6 @@ import pandas as pd
 import numpy as np
 import os
 from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
- 
-diff_cols  =['Semimajor Axis (m)', 'q', 'p']
-diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km 
 
 
 ## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
@@ -139,8 +136,13 @@ def load_spacetrack_objects(data_dir : Path):
         objects[int(norad)] = df
     return objects
 
+## Features engineering 
 
-def add_continuous_angles(df : pd.DataFrame, spacetrack=False) -> pd.DataFrame:
+log_cols = ['sma']
+diff_cols_splid  =['Semimajor Axis (m)', 'q', 'p']
+diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km 
+
+def add_continuous_angles(df : pd.DataFrame, spacetrack=True) -> pd.DataFrame:
     """transforme les paramètres angulaires discontinus : 
     (e, i, RAAN, arg_perigee, M) en paramètres equinoxaux continus :
     (k, h , q , p, cos(lamda), sin(lamda))
@@ -154,7 +156,7 @@ def add_continuous_angles(df : pd.DataFrame, spacetrack=False) -> pd.DataFrame:
         arg_perigee = df['arg_perigee']
         anomaly = df['mean_anomaly']
         anomaly_type = 'mean'
-    else: 
+    else: ## SPLID data nomenclature
         if 'True Anomaly (deg)' in df.columns:
             anomaly, anomaly_type = df['True Anomaly (deg)'], 'true'
         else: 
@@ -174,7 +176,8 @@ def add_continuous_angles(df : pd.DataFrame, spacetrack=False) -> pd.DataFrame:
     return df
 
 
-def add_diff(df, diff_cols = diff_cols):
+
+def add_diff(df, diff_cols = diff_cols_spacetrack):
     """ajoute les derivées discrètes = résidus des colonnes de diff_cols au dataframe.
     suppose d'avoir déjà transformée les coordonnées angulaires kepleriennes en coordonnées equinoxales pour éviter les sauts brutaux liés au passage 360° -> 1°.
     """
@@ -184,7 +187,7 @@ def add_diff(df, diff_cols = diff_cols):
         df[f"{col}_diff"]= np.diff(v, prepend=v[0])
     return df
 
-log_cols = ['sma']
+
 
 def add_log(df, log_cols):
     df = df.copy()
@@ -193,19 +196,17 @@ def add_log(df, log_cols):
         df[f"log({col})"] = np.log(v)
     return df 
 
-def build_features(df, log_features = False, diff_cols = diff_cols, log_cols = log_cols, spacetrack=False):
+def build_features(df, log_features = False, diff_cols = diff_cols_spacetrack, log_cols = log_cols):
     """
     Applique les transformations et renvois le dataframe enrichi des features précédentes utilisées par le modèle
     """
     df = df.copy()
-    if spacetrack : 
-        diff_cols = diff_cols_spacetrack
-    df = add_continuous_angles(df, spacetrack)
+    df = add_continuous_angles(df)
 
     if log_features : 
         df = add_log(df, log_cols)
         df = add_diff(df, diff_cols)
-        feature_cols = ['dt', 'log(sma)', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+        feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols] + [f"log({col})" for col in log_cols]
     else : 
         df = add_diff(df, diff_cols)
         feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
