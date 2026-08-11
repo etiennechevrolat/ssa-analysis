@@ -316,7 +316,8 @@ def main(cfg : DictConfig):
     ## OPTIMIZER
     optimizer = torch.optim.AdamW(
         build_param_groups(model, cfg.train.weight_decay),
-        lr = cfg.train.lr
+        lr = cfg.train.lr, 
+        betas=(0.9, 0.95)
         )
     
     def build_lr_scheduler(optimizer, total_steps, warmup_ratio=0.05, min_lr_ratio=0.0):
