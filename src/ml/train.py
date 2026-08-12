@@ -25,10 +25,11 @@ from ml.logger import RunLogger
 def train_one_epoch(
         model : nn.Module,
         data_loader : DataLoader,
-        loss_fn : nn.Module, 
+        loss_fn : nn.Module,
         optimizer : torch.optim.Optimizer,
         device : torch.device,
-        epoch=0
+        epoch=0,
+        scheduler=None
     ):
     model.train()
     running_loss = 0.0
@@ -37,23 +38,25 @@ def train_one_epoch(
     bar = tqdm(data_loader, desc=f"train {epoch}", leave=False)
 
     for time_series_batch, labels in bar:
-        # Localizer : 
+        # Localizer :
         ## time_series_batch: (B,F,W), labels (B,2)
 
-        # Classifier : 
+        # Classifier :
         ## time_series_batch (B,F,W), labels (B, dict = {'node' : , 'class':  })
         x = time_series_batch.to(device, non_blocking=True)
         y = to_device(labels, device)
 
         optimizer.zero_grad()
 
-        pred = model(x) 
+        pred = model(x)
 
 
         loss = loss_fn(pred, y)
-        running_loss+= float(loss.item()) * x.size(0) 
+        running_loss+= float(loss.item()) * x.size(0)
         loss.backward()
         optimizer.step()
+        if scheduler is not None:
+            scheduler.step()
         total += x.size(0)
         bar.set_postfix(loss=f"{running_loss / total :.4f}")
 
@@ -232,7 +235,12 @@ def evaluate_pretraining_epoch(
 ## hydra prend main en point d'entrée, et main() est transformé en wrapper qui récupère et construit l'objet cfg, et enfin applique main(cfg).
 def main(cfg : DictConfig):
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     task = cfg.task.name
     is_classifier = (task == 'classifier')
     is_pretrain = (task == 'pretrain')
@@ -240,65 +248,64 @@ def main(cfg : DictConfig):
 
     ## Recup des données et creation des dataloaders
     if is_pretrain :
-        objects = load_spacetrack_objects(cfg.data.data_dir)
+        objects = load_spacetrack_objects(cfg.data.data_dir, cfg.data.dataset)
     else:
         objects, labels = load_splid_objects(
             cfg.data.data_dir, 
             cfg.data.labels_dir,
             )
 
-    if is_classifier : 
+    if is_classifier :
         train_loader, val_loader, meta = make_loaders_classifiers(
-            objects, 
+            objects,
             labels,
-            batch_size=cfg.data.batch_size,
-            history=cfg.data.history, 
+            batch_size=cfg.train.batch_size,
+            history=cfg.data.history,
             future=cfg.data.future,
             val_split=cfg.data.val_split,
             seed= cfg.seed)
-        print(len(train_loader.dataset), len(val_loader.dataset))
+        ## taille de la fenetre temporelle pour le dataset splid (différente de la fenetre pretrain spacetrack)
+        window_size = cfg.data.history + cfg.data.future + 1
 
-        ## y est un dict contenant 'node' : n_node, 'class' : n_class 
-        w_node = compute_class_weights(train_loader.dataset, field = 3, n_classes = cfg.task.node_classes, device=device)
+        ## y est un dict contenant 'node' : n_node, 'class' : n_class
+        w_class = compute_class_weights(train_loader.dataset, field = 4, n_classes = cfg.task.node_classes, device=device)
 
         node_loss = nn.CrossEntropyLoss()
-        class_loss = nn.CrossEntropyLoss()
+        class_loss = nn.CrossEntropyLoss(weight=w_class)
         def loss_fn(pred, y):
             return node_loss(pred['node'], y['node']) + class_loss(pred['class'], y['class'])
 
-        loss_fn = loss_fn 
-
-    elif is_pretrain : 
+    elif is_pretrain :
         window_size = cfg.data.window_size
         train_loader, val_loader, meta = make_pretrain_loader(
-            objects, 
-            window_size=cfg.data.window_size, 
-            stride = cfg.data.stride, 
+            objects,
+            window_size=cfg.data.window_size,
+            stride = cfg.data.stride,
             batch_size=cfg.train.batch_size,
             val_split=cfg.data.val_split,
             seed= cfg.seed
             )
         ## le pretrain est une régression : mean-square-error loss
-        w = torch.ones(n_features)
+        w = torch.ones(len(meta["feature_cols"]))
         w[meta['feature_cols'].index("dt")] = 0.0 ## on mets le poids de dt à zero.
         loss_fn = MaskedChannelMSE(w).to(device)
 
-    else: 
+    else:
         train_loader, val_loader, meta = make_loaders(
-                    objects, 
+                    objects,
                     labels,
-                    batch_size=cfg.data.batch_size,
-                    history=cfg.data.history, 
+                    batch_size=cfg.train.batch_size,
+                    history=cfg.data.history,
                     future=cfg.data.future,
                     val_split=cfg.data.val_split,
-                    seed= cfg.seed)
-        ## taille de la fenetre temporelle pour le dataset splid (différente de la fenetre pretrain spacetrack)
+                    seed= cfg.seed,
+                    half_width=cfg.task.half_width)
         window_size  = cfg.data.history + cfg.data.future +1
         loss_fn = nn.BCEWithLogitsLoss()
 
-    ## On calcule le nombre de features considérées et la taille de la fenêtre temporelle
+    ## On calcule le nombre de features considérées
     n_features = len(meta["feature_cols"])
-    
+
 
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
     model.to(device)
@@ -352,7 +359,7 @@ def main(cfg : DictConfig):
             metrics = {"lr": scheduler.get_last_lr()[0]}
             line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | ")
         else : 
-            train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device)
+            train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch=epoch, scheduler=scheduler)
 
             if is_classifier :
                 val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_types, cfg.task.node_classes, loss_fn, device)

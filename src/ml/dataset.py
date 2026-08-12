@@ -13,11 +13,11 @@ def build_arrays(objects, labels=None, half_width=6):
     """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items():
-        df_feat, feature_cols = build_features(df)
+        df_feat, feature_cols = build_features(df, spacetrack=False)
         X = df_feat[feature_cols].to_numpy(np.float32)
         if labels is not None :
             Y = build_target(df, oid, labels, half_width=half_width)
-        else : 
+        else :
             Y = None
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
@@ -29,7 +29,7 @@ def build_classifier_arrays(objects,labels):
     """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items(): ## df est le dataframe brut de donnée
-        df_feat, feature_cols = build_features(df)
+        df_feat, feature_cols = build_features(df, spacetrack=False)
         X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_classifier_samples(oid, labels)
         per_obj[oid] = [X,Y]
@@ -44,7 +44,8 @@ def split_by_object(object_ids, val_split=0.2, seed=42):
     rng.shuffle(ids)
     n_val=int(len(ids) * val_split)
 
-    return(list(ids[n_val:]), list(ids[:n_val]))
+    ## .tolist() sur un tableau d'entiers restitue des int python (les clés des dicts d'objets)
+    return(ids[n_val:].tolist(), ids[:n_val].tolist())
 
 def fit_scaler_on_train(per_obj, train_ids): 
     """Ajuste le scaler sur le train seulement.
@@ -150,15 +151,19 @@ def make_loaders(objects, labels, batch_size=256, history=48, future=48, val_spl
     #Datasets + dataloader
     train_dataset = WindowDataset(per_obj, train_ids, history, future)
     val_dataset = WindowDataset(per_obj, val_ids,history, future)
-    
-    train_dl = DataLoader(train_dataset, 
+
+    train_dl = DataLoader(train_dataset,
                           batch_size=batch_size,
-                          shuffle=True
+                          shuffle=True,
+                          num_workers=4,
+                          persistent_workers=True
                           )
-    
-    val_dl =DataLoader(val_dataset, 
+
+    val_dl =DataLoader(val_dataset,
                         batch_size=batch_size,
-                        shuffle=False
+                        shuffle=False,
+                        num_workers=4,
+                        persistent_workers=True
                         )
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
@@ -197,7 +202,7 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
     for oid, df in objects.items() :
         df_feat, feature_cols = build_features(df, spacetrack=True)
         per_obj[oid] = [df_feat[feature_cols].to_numpy(np.float32), None]
-
+    
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
 
     scaler = fit_scaler_on_train(per_obj, train_ids)

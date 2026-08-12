@@ -1,5 +1,10 @@
 from torch import nn
 
+
+def conv1d_out_len(w, kernel_size, stride=1, dilation=1):
+    """Longueur de sortie d'une Conv1d/MaxPool1d (padding=0)."""
+    return (w - dilation * (kernel_size - 1) - 1) // stride + 1
+
 ### on a en entrée un tenseur (B,F,W) = (batch_size, features, window_size).
 ## pour un LOCALIZER on veut dim=2 en sortie : manoeuvre EW/NS ? 
 ## pour un CLASSIFIER on veut un dict en sortie : 
@@ -76,26 +81,30 @@ class cnn_lstm1(nn.Module):
         self.batchnorm3 = nn.BatchNorm1d(48) 
 
         ## Le pooling se fait toujours sur la dernière dim, avant les couches denses
-        self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1) 
+        self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1)
 
         self.activation = nn.ReLU()
 
         ## attention à permuter l'axe temporel pour lstm, attend un tenseur time-first(B,W,F).
-        self.lstm_layers = nn.LSTM(48, 64, num_layers=1, batch_first=True) 
-        
-        self.lstm_dense1 = nn.Linear(64*35, 32) 
+        self.lstm_layers = nn.LSTM(48, 64, num_layers=1, batch_first=True)
 
-        ## Couche dense de localisation 32 -> 2 
+        ## longueur temporelle après les 3 convs puis le maxpool (ex : W=97 -> 40 -> 35)
+        w = window_size
+        for k, s in ((7, 1), (7, 1), (7, 2), (6, 1)):
+            w = conv1d_out_len(w, k, s)
+        self.flat_dim = 64 * w
+
+        self.lstm_dense1 = nn.Linear(self.flat_dim, 32)
+
+        ## Couche dense de localisation 32 -> 2
         self.lstm_dense2 = nn.Linear(32,2)
 
-        
-
-        ## on modifie la tête pour la classification 
-        ## on récupère un tenseur (B, 64*35) après les couches LSTM et reshape
-        self.classifier_node_lstm_dense1 = nn.Linear(64*35, 32)
+        ## on modifie la tête pour la classification
+        ## on récupère un tenseur (B, flat_dim) après les couches LSTM et reshape
+        self.classifier_node_lstm_dense1 = nn.Linear(self.flat_dim, 32)
         self.classifier_node_lstm_dense2 = nn.Linear(32, n_node_types)
 
-        self.classifier_classes_lstm_dense1 = nn.Linear(64*35, 32)
+        self.classifier_classes_lstm_dense1 = nn.Linear(self.flat_dim, 32)
         self.classifier_classes_lstm_dense2 = nn.Linear(32, n_classes)
 
     def forward(self, x):
@@ -120,9 +129,9 @@ class cnn_lstm1(nn.Module):
         # on repermute pour le maxpool 
         
         x = x.permute(0,2,1) ## (B, F, W) = (B, 64, 40)
-        x = self.lstm_pool(x) ## (B, 64, 35) 
+        x = self.lstm_pool(x) ## (B, 64, 35)
 
-        x= x.reshape(batch_size, 64*35)
+        x= x.reshape(batch_size, self.flat_dim)
 
         if self.is_classifier : 
             x_node = self.activation(self.classifier_node_lstm_dense1(x)) ## (B, 32)
@@ -187,7 +196,11 @@ class small_cnn(nn.Module):
         self.activation = nn.ReLU()
 
         ## Couche dense. en sortie des couches de convolution : (B,F,W) = (256, 48, 40)
-        self.dense1 = nn.Linear(48*40, 32)
+        w = window_size
+        for k, s in ((7, 1), (7, 1), (7, 2)):
+            w = conv1d_out_len(w, k, s)
+        self.flat_dim = 48 * w
+        self.dense1 = nn.Linear(self.flat_dim, 32)
         self.dense2 = nn.Linear(32, 2)
 
 
@@ -206,7 +219,7 @@ class small_cnn(nn.Module):
         x= self.batchnorm3(x)
         x= self.activation(x) ## (Batch, Features, Window) = (B, 48, 40) .
 
-        x= x.reshape(batch_size, 48*40)
+        x= x.reshape(batch_size, self.flat_dim)
 
         x=self.dense1(x) ## (B,32)
         x=self.activation(x)
@@ -232,25 +245,26 @@ class small_lstm(nn.Module):
             self.is_classifier = is_classifier
     
             ## Le pooling se fait toujours sur la dernière dim, avant les couches denses
-            self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1) 
-    
+            self.lstm_pool = nn.MaxPool1d(kernel_size=6, stride=1)
+
             self.activation = nn.ReLU()
-    
+
             ## attention à permuter l'axe temporel pour lstm, attend un tenseur time-first(B,W,F).
-            self.lstm_layers = nn.LSTM(9, 32, num_layers=1, batch_first=True) 
-            
-            self.lstm_dense1 = nn.Linear(32*92, 32) 
-    
-            ## Couche dense de localisation 32 -> 2 
+            self.lstm_layers = nn.LSTM(n_features, 32, num_layers=1, batch_first=True)
+
+            self.flat_dim = 32 * conv1d_out_len(window_size, 6)
+
+            self.lstm_dense1 = nn.Linear(self.flat_dim, 32)
+
+            ## Couche dense de localisation 32 -> 2
             self.lstm_dense2 = nn.Linear(32,2)
-        
-    
-            ## on modifie la tête pour la classification 
-            ## on récupère un tenseur (B, 32*92) après les couches LSTM et reshape
-            self.classifier_node_lstm_dense1 = nn.Linear(32*92, 32)
+
+            ## on modifie la tête pour la classification
+            ## on récupère un tenseur (B, flat_dim) après les couches LSTM et reshape
+            self.classifier_node_lstm_dense1 = nn.Linear(self.flat_dim, 32)
             self.classifier_node_lstm_dense2 = nn.Linear(32, n_node_types)
 
-            self.classifier_classes_lstm_dense1 = nn.Linear(32*92, 32)
+            self.classifier_classes_lstm_dense1 = nn.Linear(self.flat_dim, 32)
             self.classifier_classes_lstm_dense2 = nn.Linear(32, n_classes)
     
     def forward(self, x):
@@ -264,9 +278,9 @@ class small_lstm(nn.Module):
         # on repermute pour le maxpool 
         
         x = x.permute(0,2,1) ## (B, F, W) = (B, 32, 97)
-        x = self.lstm_pool(x) ## (B, 32, 92)  
+        x = self.lstm_pool(x) ## (B, 32, 92)
 
-        x= x.reshape(batch_size, 32*92)
+        x= x.reshape(batch_size, self.flat_dim)
 
         if self.is_classifier : 
             x_node = self.activation(self.classifier_node_lstm_dense1(x)) ## (B, 32)

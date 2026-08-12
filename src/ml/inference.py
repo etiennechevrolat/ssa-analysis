@@ -9,7 +9,7 @@ import torch
 from omegaconf import OmegaConf
 
 from ml.model import build_model
-from ml.datahandler import load_splid_objects, build_features, load_spacetrack_objects, split_on_gaps
+from ml.datahandler import load_splid_objects, build_features, load_spacetrack_objects_to_splid, split_on_gaps
 from ml.dataset import split_by_object
 from ml.evaluate import extract_events
 
@@ -38,7 +38,7 @@ def scaler_from_checkpoint(ckpt, data_dir=None):
     X_by_obj = {}
 
     for oid, df in objects.items():
-        feats, feature_cols = build_features(df)
+        feats, feature_cols = build_features(df, spacetrack=False)
         X_by_obj[oid] = feats[feature_cols].to_numpy(np.float32)
 
     train_ids, _ = split_by_object(X_by_obj.keys(), cfg.data.val_split, cfg.seed)
@@ -69,11 +69,11 @@ def main(ckpt_path, data_dir, out_dir):
     model, cfg, mean, scale = load_checkpoint(ckpt_path, device)
     history, future = cfg.data.history, cfg.data.future 
 
-    objects= load_spacetrack_objects(data_dir, out_dir)
+    objects= load_spacetrack_objects_to_splid(data_dir, out_dir)
     segments = split_on_gaps(objects, min_length=history + future + 1)
 
     for key, seg in segments.items():
-        feats, feature_cols = build_features(seg)
+        feats, feature_cols = build_features(seg, spacetrack=False)
         X = (feats[feature_cols].to_numpy(np.float32) - mean) / scale
         
         scores = predict_scores(model, X, history, future, device)

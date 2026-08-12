@@ -48,7 +48,7 @@ def _regularize(df, cadence_hours, max_gap_hours):
     epochs = pd.to_datetime(df['epoch'])
     t= epochs.to_numpy('datetime64[ns]').astype('int64') / 1e9
 
-    equinoxal= to_equinoxal(df['Eccentricity'], df['Inclination (deg)'], df['RAAN (deg)'], df['Argument of Periapsis (deg)'], df['mean_anomaly'], anomaly_type = 'mean')
+    equinoxal= to_equinoxal(df['Eccentricity'], df['Inclination (deg)'], df['RAAN (deg)'], df['Argument of Periapsis (deg)'], df['Mean Anomaly (deg)'], anomaly_type = 'mean')
 
     freq = pd.Timedelta(hours=cadence_hours)
     grid = pd.date_range(epochs.iloc[0].ceil(freq), epochs.iloc[-1].floor(freq), freq=freq)
@@ -120,8 +120,11 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
 
 ### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour entrainement non supervisé.
 
-def load_spacetrack_objects(data_dir : Path):
-    dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
+def load_spacetrack_objects(data_dir : Path, dataset):
+    if dataset == 'leo' :
+        dataset_dir = Path(os.path.join(data_dir, "leo_unlabelled_dataset" ))
+    else : ## all objects 
+        dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes"))
     parquet_paths = sorted(dataset_dir.glob('*.parquet'))
     raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
@@ -136,11 +139,11 @@ def load_spacetrack_objects(data_dir : Path):
         objects[int(norad)] = df
     return objects
 
-## Features engineering 
+## Features engineering
 
 log_cols = ['sma']
 diff_cols_splid  =['Semimajor Axis (m)', 'q', 'p']
-diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km 
+diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km
 
 def add_continuous_angles(df : pd.DataFrame, spacetrack=True) -> pd.DataFrame:
     """transforme les paramètres angulaires discontinus : 
@@ -196,20 +199,27 @@ def add_log(df, log_cols):
         df[f"log({col})"] = np.log(v)
     return df 
 
-def build_features(df, log_features = False, diff_cols = diff_cols_spacetrack, log_cols = log_cols):
+def build_features(df, spacetrack=True, log_features=False):
     """
-    Applique les transformations et renvois le dataframe enrichi des features précédentes utilisées par le modèle
+    Applique les transformations et renvoie le dataframe enrichi des features utilisées par le modèle.
+    Deux jeux de features distincts :
+      - spacetrack (pretrain non supervisé) : cadence irrégulière -> feature dt, sma en km ;
+      - splid (localizer/classifier)        : grille régulière 2h -> pas de dt, sma en m.
     """
     df = df.copy()
-    df = add_continuous_angles(df)
+    df = add_continuous_angles(df, spacetrack=spacetrack)
 
-    if log_features : 
-        df = add_log(df, log_cols)
-        df = add_diff(df, diff_cols)
-        feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols] + [f"log({col})" for col in log_cols]
-    else : 
-        df = add_diff(df, diff_cols)
-        feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols]
+    if spacetrack:
+        if log_features:
+            df = add_log(df, log_cols)
+            df = add_diff(df, diff_cols_spacetrack)
+            feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_spacetrack] + [f"log({col})" for col in log_cols]
+        else:
+            df = add_diff(df, diff_cols_spacetrack)
+            feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_spacetrack]
+    else:
+        df = add_diff(df, diff_cols_splid)
+        feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_splid]
 
     df[feature_cols] = df[feature_cols].astype(np.float32)
 

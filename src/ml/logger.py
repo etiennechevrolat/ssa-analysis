@@ -37,8 +37,21 @@ class RunLogger:
         if self.use_wandb and self.cfg.wandb.watch:
             wandb.watch(model, log="all", log_freq=100) ## tous les 100 batchs
 
+    @staticmethod
+    def _criterion(val_loss, metrics):
+        """Quantité à minimiser pour sélectionner le meilleur checkpoint.
+        La val loss ne convient pas aux tâches supervisées ici : elle diverge par
+        surapprentissage (BCE/CE sur des classes très déséquilibrées) alors que les
+        métriques de détection/classification continuent de progresser.
+        """
+        if "f2" in metrics:  # localizer
+            return -metrics["f2"]
+        if "node_f1" in metrics:  # classifier
+            return -(metrics["node_f1"] + metrics["class_f1"]) / 2
+        return val_loss  # pretrain : reconstruction, la val loss est le bon critère
+
     def log_epoch(self, epoch, train_loss, val_loss, metrics):
-        """Enregistre une epoch, et renvoie True si c'est la meilleure val_loss"""
+        """Enregistre une epoch, et renvoie True si c'est le meilleur checkpoint."""
 
         row = {"epoch" :epoch, "train loss" : train_loss, "val loss" : val_loss}
         row.update({f"val {k}" : float(v) for k,v in metrics.items() if np.ndim(v) == 0})
@@ -49,9 +62,10 @@ class RunLogger:
         if self.use_wandb:
             wandb.log(row)
 
-        is_best = val_loss < self.best_loss 
-        if is_best : 
-            self.best_loss, self.best_epoch = val_loss, epoch
+        criterion = self._criterion(val_loss, metrics)
+        is_best = criterion < self.best_loss
+        if is_best :
+            self.best_loss, self.best_epoch = criterion, epoch
         return is_best
 
     def save_checkpoint(self, model, epoch, is_best = False, **info):
