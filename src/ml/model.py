@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 
@@ -228,6 +229,101 @@ class small_cnn(nn.Module):
         return x
 
 
+class cnn_split(nn.Module):
+    """CNN pur à backbone parallélisé par direction, d'après la solution gagnante du concours SPLID.
+
+    Le modèle retenu par le gagnant (localizer_sweeper.py : lstm_layers=[], split_cnn=True)
+    n'utilise aucune couche récurrente : deux piles de convolutions **indépendantes**
+    traitent la même fenêtre d'entrée, l'une dédiée aux noeuds EW, l'autre aux noeuds NS.
+    Les manoeuvres in-plane (signature sur a) et out-of-plane (signature sur i) ayant des
+    signatures très différentes, un backbone commun force un compromis qui pénalise la
+    direction la moins représentée — ici NS.
+
+    Chaque bloc suit l'ordre du gagnant : Conv1d -> ReLU -> BatchNorm -> Dropout
+    (la normalisation est appliquée APRÈS l'activation).
+    La pile est ici plus profonde que celle du gagnant (5 blocs contre 3), avec de la
+    dilatation pour élargir le champ réceptif sans multiplier les paramètres.
+
+    conv_layers : liste de (canaux, noyau, stride, dilatation, maxpool)
+    split_dense : si False (défaut, comme le gagnant), les deux branches sont concaténées
+                  et partagent la tête dense, chaque direction gardant sa propre sortie.
+    """
+
+    def __init__(self,
+                 n_features,
+                 window_size,
+                 conv_layers=((64, 7, 1, 1, 1),
+                              (64, 7, 1, 1, 1),
+                              (96, 7, 1, 2, 2),
+                              (96, 7, 1, 2, 2),
+                              (128, 5, 1, 1, 1)),
+                 dense_layers=(64, 32),
+                 dropout=0.05,
+                 split_dense=False,
+                ):
+        super().__init__()
+
+        self.n_features = n_features
+        self.window_size = window_size
+        self.split_dense = split_dense
+
+        def build_branch():
+            layers, in_channels, w = [], n_features, window_size
+            for out_channels, kernel, stride, dilation, maxpool in conv_layers:
+                layers += [
+                    nn.Conv1d(in_channels, out_channels, kernel,
+                              stride=stride, dilation=dilation, bias=False),
+                    nn.ReLU(),
+                    nn.BatchNorm1d(out_channels),
+                    nn.Dropout(dropout),
+                ]
+                w = conv1d_out_len(w, kernel, stride, dilation)
+                if maxpool > 1:
+                    layers.append(nn.MaxPool1d(maxpool))
+                    w = conv1d_out_len(w, maxpool, maxpool)
+                in_channels = out_channels
+            if w < 1:
+                raise ValueError(
+                    f"fenêtre trop courte ({window_size}) pour cette pile de convolutions")
+            return nn.Sequential(*layers), in_channels * w
+
+        ## un backbone par direction, sans aucun poids partagé
+        self.branch_ew, flat_dim = build_branch()
+        self.branch_ns, _ = build_branch()
+        self.flat_dim = flat_dim
+
+        def build_head(in_dim):
+            layers = []
+            for units in dense_layers:
+                layers += [nn.Linear(in_dim, units), nn.ReLU(), nn.Dropout(dropout)]
+                in_dim = units
+            return nn.Sequential(*layers), in_dim
+
+        if split_dense:
+            self.head_ew, out_dim = build_head(flat_dim)
+            self.head_ns, _ = build_head(flat_dim)
+        else:
+            ## têtes denses partagées sur la concaténation des deux branches
+            self.head, out_dim = build_head(2 * flat_dim)
+
+        ## une sortie scalaire par direction
+        self.out_ew = nn.Linear(out_dim, 1)
+        self.out_ns = nn.Linear(out_dim, 1)
+
+    def forward(self, x):
+        batch_size = x.shape[0]  ## (B, F, W)
+
+        z_ew = self.branch_ew(x).reshape(batch_size, self.flat_dim)
+        z_ns = self.branch_ns(x).reshape(batch_size, self.flat_dim)
+
+        if self.split_dense:
+            z_ew, z_ns = self.head_ew(z_ew), self.head_ns(z_ns)
+        else:
+            z_ew = z_ns = self.head(torch.cat([z_ew, z_ns], dim=1))
+
+        return torch.cat([self.out_ew(z_ew), self.out_ns(z_ns)], dim=1)  ## (B, 2)
+
+
 class small_lstm(nn.Module):
     def __init__(self, 
                      n_features,
@@ -308,9 +404,7 @@ class small_lstm(nn.Module):
 #  1.5 ° On ajoute des PosEmbedding à ces patchs
 #  2° On sample un sous ensemble aléatoire de patch pas trop faible  (40 - 50%).
 #  4° On ajoute un token qui représente la données dans sa globalité  : x_class, 
-#  5° On fait passer ces données dans un nombre L = 8 de têtes d'attention. 
-
-import torch
+#  5° On fait passer ces données dans un nombre L = 8 de têtes d'attention.
 
 class PatchEmbedding(nn.Module):
     def __init__(self, n_features, window_size, patch_size=8, embed_dim=16):
@@ -632,7 +726,7 @@ class TimeSeriesMAE(nn.Module):
         "patch_embedding." : "patch_embedding.",
         "encoder_pos_embedding." : "pos_embedding.",
         "encoder_blocks." : "blocks.",
-        "encoder_norm." : "final_norm"
+        "encoder_norm." : "final_norm."
         }
     
     def encoder_state_dict(self) : 
@@ -677,8 +771,21 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             )
     if model_cfg.name == "small_cnn": ## ne fait que du localizer
         return small_cnn(
-            n_features, 
-            window_size, 
+            n_features,
+            window_size,
+            )
+
+    if model_cfg.name == "cnn_split": ## ne fait que du localizer
+        if is_classifier:
+            raise ValueError("cnn_split est un localizer : ses deux branches sont EW/NS, "
+                             "ce qui n'a pas de sens pour la tâche de classification")
+        return cnn_split(
+            n_features,
+            window_size,
+            conv_layers=[tuple(layer) for layer in model_cfg.conv_layers],
+            dense_layers=tuple(model_cfg.dense_layers),
+            dropout=model_cfg.dropout,
+            split_dense=model_cfg.split_dense,
             )
     
     if model_cfg.name == "small_vit":

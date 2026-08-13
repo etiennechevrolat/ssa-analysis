@@ -202,7 +202,7 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
     for oid, df in objects.items() :
         df_feat, feature_cols = build_features(df, spacetrack=True)
         per_obj[oid] = [df_feat[feature_cols].to_numpy(np.float32), None]
-    
+
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
 
     scaler = fit_scaler_on_train(per_obj, train_ids)

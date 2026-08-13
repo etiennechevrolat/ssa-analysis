@@ -248,7 +248,7 @@ def main(cfg : DictConfig):
 
     ## Recup des données et creation des dataloaders
     if is_pretrain :
-        objects = load_spacetrack_objects(cfg.data.data_dir, cfg.data.dataset)
+        objects = load_spacetrack_objects(cfg.data.data_dir)
     else:
         objects, labels = load_splid_objects(
             cfg.data.data_dir, 

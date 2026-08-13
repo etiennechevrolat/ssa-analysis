@@ -43,16 +43,21 @@ def _run_centers(mask : np.ndarray)-> list[int]:
     # on renvoie le milieu de ces différents runs
     return [run[len(run)//2]  for run in runs]
 
-def extract_events(scores : np.ndarray, # tableau (L, 2) avec une colonne par direction EW/NS 
-                treshold: float= detection_treshold,
+def extract_events(scores : np.ndarray, # tableau (L, 2) avec une colonne par direction EW/NS
+                treshold: float | dict[str, float] = detection_treshold,
                 is_logits: bool=False
     )-> dict[str, list[int]] :
-    """(L,2) scores -> {"EW":[t..], "NS":[t..]} après seuillage + collapse au centre.""" 
-    if is_logits: 
+    """(L,2) scores -> {"EW":[t..], "NS":[t..]} après seuillage + collapse au centre.
+    treshold accepte un flottant unique ou un seuil par direction {"EW": .., "NS": ..} :
+    les manoeuvres in-plane et out-of-plane n'ont pas le même rapport signal/bruit, et
+    un seuil commun dégrade la direction la moins bien séparée.
+    """
+    if is_logits:
         scores = 1/ (1 + np.exp(-scores))
     events = {}
     for col,name in (0,'EW'), (1,'NS'):
-        mask = scores[:, col] > treshold
+        th = treshold[name] if isinstance(treshold, dict) else treshold
+        mask = scores[:, col] > th
         events[name] = _run_centers(mask)
     return events
  

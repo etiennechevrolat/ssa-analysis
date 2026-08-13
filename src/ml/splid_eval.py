@@ -120,13 +120,20 @@ def classify_events(model, X, times, history, future, device):
 
 
 def build_submission(per_obj, object_ids, localizer, history, future, device,
-                     classifier=None, threshold=detection_treshold):
+                     classifier=None, threshold=detection_treshold,
+                     clf_history=None, clf_future=None):
     """Chaîne complète localizer (+ classifier) -> DataFrame de soumission.
 
     per_obj : {oid : [X normalisé, .]} (cf. dataset.build_arrays + scaler)
     Chaque objet reçoit en outre ses deux noeuds SS à TimeIndex 0 (convention du
     dataset : début de période d'étude), typés par le classifier si disponible.
+
+    Les deux modèles peuvent avoir été entraînés sur des fenêtres différentes :
+    clf_history/clf_future décrivent celle du classifier (par défaut celle du localizer).
     """
+    clf_history = history if clf_history is None else clf_history
+    clf_future = future if clf_future is None else clf_future
+
     rows = []
     for oid in object_ids:
         X = per_obj[oid][0]
@@ -135,7 +142,7 @@ def build_submission(per_obj, object_ids, localizer, history, future, device,
         for direction in ('EW', 'NS'):
             times = [0] + list(events[direction])  # SS + détections
             if classifier is not None:
-                nodes, types = classify_events(classifier, X, times, history, future, device)
+                nodes, types = classify_events(classifier, X, times, clf_history, clf_future, device)
             else:
                 nodes, types = ['ID'] * len(times), ['NK'] * len(times)
             nodes[0] = 'SS'

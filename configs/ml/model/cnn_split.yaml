@@ -1,0 +1,14 @@
+name : "cnn_split"
+
+## (canaux, noyau, stride, dilatation, maxpool) — pile plus profonde que celle du
+## gagnant (3 blocs), la dilatation élargissant le champ réceptif à moindre coût.
+conv_layers :
+  - [64, 7, 1, 1, 1]
+  - [64, 7, 1, 1, 1]
+  - [96, 7, 1, 2, 2]
+  - [96, 7, 1, 2, 2]
+  - [128, 5, 1, 1, 1]
+
+dense_layers : [64, 32]
+dropout : 0.05
+split_dense : false ## comme le gagnant : backbones séparés, tête dense partagée

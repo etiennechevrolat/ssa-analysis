@@ -1,5 +1,4 @@
 data_dir : ${hydra:runtime.cwd}/data/raw/spacetrack
-dataset : leo
 
 val_split: 0.2 
 
