@@ -288,32 +288,48 @@ def main():
         print("TEST officiel chaîne complète :", results["test_full"])
 
     ## ------------------------------------------------ 4. exemples de prédictions
-    # objets val avec le plus de manoeuvres
+    # Échantillon déterministe d'objets de validation ayant au moins 3 noeuds de
+    # manoeuvre : tirage non biaisé, plutôt que les objets les plus manoeuvrants
+    # (les plus difficiles) ou les mieux détectés (vitrine non représentative).
     n_man = {oid: sum(len(v) for v in gt_events[oid].values()) for oid in val_ids}
-    examples = sorted(val_ids, key=lambda o: -n_man[o])[:3]
+    eligible = sorted(o for o in val_ids if n_man[o] >= 3)
+    rng = np.random.default_rng(0)
+    examples = sorted(rng.choice(eligible, size=min(10, len(eligible)), replace=False).tolist())
+
+    dir_color = {"EW": "tab:blue", "NS": "tab:orange"}
     for oid in examples:
         df = objects[oid]
         s = scores_val[oid]
+        events = extract_events(s, treshold=best_th)
+
+        tp = fp = fn = 0
+        for d in ("EW", "NS"):
+            r = match_events(gt_events[oid][d], events[d])
+            tp += r["tp"]; fp += r["fp"]; fn += r["fn"]
+
         fig, axes = plt.subplots(3, 1, figsize=(11, 7.5), sharex=True)
-        axes[0].plot(df["TimeIndex"], df["Semimajor Axis (m)"] / 1000, lw=0.8)
+        axes[0].plot(df["TimeIndex"], df["Semimajor Axis (m)"] / 1000, lw=0.8, color="tab:green")
         axes[0].set_ylabel("a (km)")
-        axes[1].plot(df["TimeIndex"], df["Inclination (deg)"], lw=0.8, color="tab:orange")
+        axes[1].plot(df["TimeIndex"], df["Inclination (deg)"], lw=0.8, color="tab:red")
         axes[1].set_ylabel("i (deg)")
-        axes[2].plot(df["TimeIndex"], s[:, 0], lw=0.9, label="proba EW")
-        axes[2].plot(df["TimeIndex"], s[:, 1], lw=0.9, label="proba NS")
-        for d, color in (("EW", "tab:blue"), ("NS", "tab:orange")):
-            axes[2].axhline(best_th[d], color=color, ls="--", alpha=0.6,
+
+        axes[2].plot(df["TimeIndex"], s[:, 0], lw=0.9, color=dir_color["EW"], label="proba EW")
+        axes[2].plot(df["TimeIndex"], s[:, 1], lw=0.9, color=dir_color["NS"], label="proba NS")
+        for d in ("EW", "NS"):
+            axes[2].axhline(best_th[d], color=dir_color[d], ls="--", alpha=0.55,
                             label=f"seuil {d} = {best_th[d]:.2f}")
         axes[2].set_ylabel("probabilité de noeud")
         axes[2].set_xlabel("TimeIndex (pas de 2 h)")
-        for t in gt_events[oid]["EW"]:
-            for ax in axes:
-                ax.axvline(t, color="tab:blue", alpha=0.25)
-        for t in gt_events[oid]["NS"]:
-            for ax in axes:
-                ax.axvline(t, color="tab:orange", alpha=0.25, ls=":")
-        axes[2].legend(loc="upper right")
-        fig.suptitle(f"Objet {oid} (validation) : labels (traits verticaux) vs sortie du localizer")
+
+        for d in ("EW", "NS"):
+            for t in gt_events[oid][d]:
+                for ax in axes:
+                    ax.axvline(t, color=dir_color[d], alpha=0.25,
+                               ls="-" if d == "EW" else ":")
+
+        axes[2].legend(loc="upper right", fontsize=8)
+        fig.suptitle(f"Objet {oid} (validation) : labels (traits verticaux) vs sortie "
+                     f"du localizer — TP {tp} / FP {fp} / FN {fn}")
         fig.tight_layout()
         fig.savefig(FIG_DIR / f"splid_example_{oid}.png", dpi=150)
         plt.close(fig)
