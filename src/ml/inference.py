@@ -75,14 +75,11 @@ def predict_scores(model, X, history, future, device, batch_size=256):
         out.append(torch.sigmoid(model(x.to(device))).cpu().numpy())
     return np.concatenate(out)
 
-## ---------------------------------------------------------------------------
 ## Backbone MAE préentrainé : extraction des représentations
-## ---------------------------------------------------------------------------
 
 def load_pretrained_backbone(ckpt_path, device):
     """Charge un checkpoint de pretraining (MAEv1/MAEv2/miniMAE) et transfère les
-    poids de l'encodeur dans un VanillaViT de même architecture (lue dans le cfg
-    du checkpoint, plus besoin de la recopier à la main).
+    poids de l'encodeur dans un VanillaViT de même architecture
 
     Retourne (backbone, cfg, mean, scale) : mean/scale sont ceux du scaler de pretraining.
     """
@@ -142,10 +139,7 @@ def embed_objects(backbone, per_obj, device, window_size=None, stride=24, batch_
             out[norad] = np.concatenate(cls_representations, axis=0).mean(axis=0)
     return out
 
-
-## ---------------------------------------------------------------------------
 ## Clusterisation HDBSCAN des représentations
-## ---------------------------------------------------------------------------
 
 def cluster_embeddings(embeddings, min_cluster_size=15, min_samples=15):
     """HDBSCAN sur les représentations standardisées.
@@ -205,10 +199,8 @@ def save_clusters_csv(norad_ids, labels, out_path):
     pd.DataFrame({'norad': norad_ids, 'cluster': labels}).to_csv(out_path, index=False)
     return out_path
 
-
-## ---------------------------------------------------------------------------
 ## Visualisation des clusters
-## ---------------------------------------------------------------------------
+
 
 def _clusters_title(labels, min_cluster_size, min_samples):
     return (f"HDBSCAN Clustering - {len(set(labels))} clusters, {len(labels)} objets"
