@@ -118,6 +118,8 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
     return objects
 
 
+max_dt_hours = 12.0 
+
 def load_doris_objects(data_path, labels_path):
     """
     Charge les csv du dataset doris en {object_id, df}
@@ -125,7 +127,7 @@ def load_doris_objects(data_path, labels_path):
     data_path = Path(data_path)
     labels = pd.read_csv(labels_path)
     df_labels = labels.copy()
-    df_labels['epoch'] = pd.to_datetime(df_labels['epoch'], format = 'ISO8601').to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs maneuvres en secondes
+    df_labels['epoch_sec'] = pd.to_datetime(df_labels['epoch'], format = 'ISO8601').to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs maneuvres en secondes
 
     df = pd.read_csv(data_path)
     objects= {}
@@ -134,17 +136,23 @@ def load_doris_objects(data_path, labels_path):
     for norad, sub in df.groupby('norad'):
         df_object = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last').copy() ## on retire les doublons.
         df_object["TimeIndex"]=range(len(df_object))
+
         epochs_tle = pd.to_datetime(df_object['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
-        df_object['epoch'] = epochs_tle
+        df_object['epoch_sec'] = epochs_tle
         df_object["dt"] = np.log1p(np.diff(epochs_tle, prepend=epochs_tle[0])).astype(np.float32) 
         objects[int(norad)] = df_object
 
-        mask_labels = df_labels['norad_id'] == norad
-        if mask_labels.any() : 
-            labels_epochs = df_labels.loc[mask_labels, 'epoch'].to_numpy()
-            idx_tle = np.searchsorted(epochs_tle, labels_epochs, side='left')
-            print(idx_tle)
-            df_labels.loc[mask_labels, 'TimeIndex'] = df_object['TimeIndex'].iloc[idx_tle].values
+        mask = df_labels['norad_id'] == norad
+        if not mask.any() : 
+            continue 
+        labels_epochs = df_labels.loc[mask, 'epoch_sec'].to_numpy()
+        idx_tle = np.searchsorted(epochs_tle, labels_epochs)
+        borne_inf = np.clip(idx_tle - 1, 0, len(epochs_tle) -1)
+        borne_sup = np.clip(idx_tle, 0, len(epochs_tle) -1)
+        pick = np.where(np.abs(labels_epochs - epochs_tle[borne_inf]) <= np.abs(epochs_tle[borne_sup] - labels_epochs), borne_inf, borne_sup)
+        ok = np.abs(labels_epochs - epochs_tle[pick]) <= max_dt_hours * 3600
+        df_labels.loc[mask, 'TimeIndex'] = np.where(ok, pick, np.nan)
+
     return objects, df_labels
 
 from pathlib import Path 
