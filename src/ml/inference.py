@@ -104,23 +104,22 @@ def load_pretrained_backbone(ckpt_path, device):
     return backbone.to(device).eval(), cfg, mean, scale
 
 
-def load_spacetrack_features(data_dir, mean, scale):
+def load_spacetrack_features(data_dir, dataset, mean, scale):
     """Features SpaceTrack normalisées avec le scaler du pretraining : {norad: (L,F)}"""
     per_obj = {}
-    for norad, df in load_spacetrack_objects(data_dir).items():
+    for norad, df in load_spacetrack_objects(data_dir, dataset).items():
         features, feature_cols = build_features(df, spacetrack=True)
         per_obj[norad] = (features[feature_cols].to_numpy(np.float32) - mean) / scale
     return per_obj
 
 
 @torch.no_grad()
-def embed_objects(backbone, per_obj, device, window_size=None, stride=24, batch_size=256):
+def embed_objects(backbone, per_obj, device, window_size=96, stride=13, batch_size=256):
     """Une représentation par objet : token CLS (indice 0) moyenné sur toutes les fenêtres.
 
     per_obj : {norad: (L,F)} déjà normalisé. Les objets plus courts qu'une fenêtre sont ignorés.
     Retourne {norad: (embed_dim,)}
     """
-    window_size = window_size or backbone.patch_embedding.window_size
     backbone.to(device).eval()
 
     out = {}
@@ -152,7 +151,7 @@ def cluster_embeddings(embeddings, min_cluster_size=15, min_samples=15):
 
     labels = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples).fit_predict(X_scaled)
 
-    return norad_ids, X_scaled, labels
+    return X_scaled, labels, norad_ids
 
 
 def drop_noise(X, labels, norad_ids=None):
@@ -202,12 +201,13 @@ def save_clusters_csv(norad_ids, labels, out_path):
 ## Visualisation des clusters
 
 
-def _clusters_title(labels, min_cluster_size, min_samples):
+def _clusters_title(cfg, labels, min_cluster_size, min_samples):
     return (f"HDBSCAN Clustering - {len(set(labels))} clusters, {len(labels)} objets"
-            f" - min_cluster_size = {min_cluster_size}, min_samples = {min_samples}")
+            f" - min_cluster_size = {min_cluster_size}, min_samples = {min_samples} - "
+            f"pretrain MAEv2 architecture - {cfg.model.embed_dim}D, {cfg.model.masking_ratio} mask, {cfg.data.window_size}Window size")
 
 
-def plot_clusters_2d(X, labels, min_cluster_size=15, min_samples=15, out_path=None, show=True):
+def plot_clusters_2d(cfg, X, labels, min_cluster_size=15, min_samples=15, out_path=None, show=True):
     """X (N,D) déjà standardisé : réduction à 2 composantes principales et nuage coloré par cluster.
     Chaque cluster est annoté à son barycentre.
     """
@@ -221,7 +221,7 @@ def plot_clusters_2d(X, labels, min_cluster_size=15, min_samples=15, out_path=No
         ax.annotate(str(cluster_id), (group['x'].mean(), group['y'].mean()), fontsize=8, fontweight='bold',
                     ha='center', va='center', bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='black'), alpha=0.75)
 
-    ax.set_title(_clusters_title(labels, min_cluster_size, min_samples))
+    ax.set_title(_clusters_title(cfg, labels, min_cluster_size, min_samples))
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
     fig.tight_layout()
@@ -267,32 +267,35 @@ def _finish_plot(fig, out_path, show):
 
 
 def main(ckpt_path, data_dir, out_dir):
+    ## script de chargement des encodeurs préentrainés
+    print("[1/5] Chargement du device...")
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device('cpu')
 
-    model, cfg, mean, scale = load_checkpoint(ckpt_path, device)
-    history, future = cfg.data.history, cfg.data.future 
+    print("[2/5] Chargement du backbone préentraîné...")
+    backbone, cfg, mean, scale = load_pretrained_backbone(ckpt_path, device)
+    window_size = cfg.data.window_size
+    stride = cfg.data.stride
 
-    objects= load_spacetrack_objects_to_splid(data_dir, out_dir)
-    segments = split_on_gaps(objects, min_length=history + future + 1)
+    print("[3/5] Chargement et préparation des données...")
+    per_obj = load_spacetrack_features(data_dir, 'leo', mean, scale)
+    print("[4/5] Calcul des embeddings...")
+    out = embed_objects(backbone, per_obj, device, window_size, stride)
 
-    for key, seg in segments.items():
-        feats, feature_cols = build_features(seg, spacetrack=False)
-        X = (feats[feature_cols].to_numpy(np.float32) - mean) / scale
-        
-        scores = predict_scores(model, X, history, future, device)
+    min_cluster_size, min_samples= 15,15
+    print("[5/5] Clustering et génération du graphique...")
+    x, labels, norads = cluster_embeddings(out, min_cluster_size, min_samples)
+    x, labels, norads = drop_noise(x,labels, norads)
 
-        for direction, idxs in extract_events(scores).items(): 
-            for t in idxs : 
-                print(f"{key} {direction} {seg['TimeStamp'].iloc[t]}")
+    plot_clusters_2d(cfg, x,labels, min_cluster_size, min_samples, out_path=out_dir)
 
 if __name__ == "__main__" : 
     import os 
     from pathlib import Path
 
     base = os.path.dirname(os.path.abspath(__file__))
-    ckpt_path = Path(os.path.join(base, '..' , '..', 'outputs', 'ml', 'localizer', '2026-07-29_14-24-19', 'checkpoints', 'best.pt' ))
+    ckpt_path = Path(os.path.join(base, '..' , '..', 'outputs', 'ml', 'pretrain', '2026-08-11_14-43-36', 'checkpoints', 'best.pt' ))
     data_dir = Path(os.path.join(base, '..' , '..', 'data', 'raw', 'spacetrack'))
-    out_dir = os.path.join(base, '..', '..', 'data', 'parsed', 'spacetrack')
+    out_dir = os.path.join(base, '..', '..', 'data', 'graphs', 'clustering')
 
     main(ckpt_path, data_dir, out_dir)
 

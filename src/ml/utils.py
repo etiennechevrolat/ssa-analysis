@@ -1,6 +1,23 @@
 import numpy as np 
 import torch
 from torch import nn
+import pandas as pd 
+import os 
+
+def json_to_csv(data_path):
+    json_path = os.path.join(data_path, 'labels.json')
+    df = pd.read_json(json_path)
+    df_filtered = df[df['orbit_class']=='LEO'] 
+    
+    csv_fil_path = os.path.join(data_path, 'leo_maneuvers.csv')
+    df_filtered.to_csv(csv_fil_path, index=False)
+
+def parquet_to_csv(data_path):
+    parquet_path = os.path.join(data_path, 'orbital_parameters.parquet')
+    df = pd.read_parquet(parquet_path)
+    
+    csv_fil_path = os.path.join(data_path, 'leo_doris_orbital_params_example.csv')
+    df.to_csv(csv_fil_path, index=False)
 
 
 def to_device(batch, device):
@@ -35,3 +52,12 @@ class MaskedChannelMSE(nn.Module):
         F = self.w.numel()
         d2= (pred-target).reshape(B,N,F,-1).pow(2).mean(dim=(0,1,3))
         return (d2 * self.w).sum() / self.w.sum()
+
+
+def main() : 
+    base = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base, '..', '..', 'data', 'parsed', 'labelled_leo_DORIS', 'train')
+    parquet_to_csv(data_path)
+
+if __name__=="__main__":
+    main()

@@ -58,3 +58,18 @@ def build_classifier_samples(object_id, labels, nodes=pol_nodes):
                 for c in cp_times:
                     samples.append((c, dir_idx,  type_to_index[node_type], class_to_index[class_type]))
     return samples
+
+def build_doris_samples(norad_id, labels):
+    """
+    Créer une liste de manoeuvres pour un sat sous la forme : 
+    (time_index, maneuver_type, maneuver_intensity) avec des bosses triangulaires autour de l'epoch.
+    Le time_index est fixé au time index du tle spacetrack le plus proche de l'epoch originale de manoeuvre, dans l'index créé par load_doris_object.
+    Il y a 3 types d'intensité de manoeuvres : on calcule la moyenne, variance des delta_v du satellite puis :
+    les manoeuvres faibles dans mean +- sigma, 
+    les manoeuvres moyennes dans mean +- 2sigma, 
+    les manoeuvres fortes dans mean +- 3sigma
+    """
+    object_labels = labels[labels['norad_id'] == norad_id] 
+    
+    samples = []
+    return samples

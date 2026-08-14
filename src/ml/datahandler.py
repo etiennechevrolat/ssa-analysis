@@ -23,7 +23,6 @@ def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
         raise FileNotFoundError(f"aucun csv trouvé dans {data_dir}")
     return objects, labels 
 
-
 ## Récupération des données SPACETRACK pour inférence, une fois le modèle entrainé. Les fonctions suivantes le remette au format des données SPLID
 ### Les données spacetrack sont récupérées au format parquet avec les colonnes suivantes : 
 ## ['norad', 'object_name', 'epoch', 'creation_date', 'rev_at_epoch', 'inclination', 'raan', 'arg_perigee', 'mean_anomaly', 'mean_motion', 'eccentricity', 'bstar', 'sma', 'apogee', 'period', 'velocity']
@@ -118,10 +117,56 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
         
     return objects
 
-### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour entrainement non supervisé.
 
-def load_spacetrack_objects(data_dir : Path):
-    dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
+def load_doris_objects(data_path, labels_path):
+    """
+    Charge les csv du dataset doris en {object_id, df}
+    """
+    data_path = Path(data_path)
+    labels = pd.read_csv(labels_path)
+    df_labels = labels.copy()
+    df_labels['epoch'] = pd.to_datetime(df_labels['epoch'], format = 'ISO8601').to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs maneuvres en secondes
+
+    df = pd.read_csv(data_path)
+    objects= {}
+    df_labels['TimeIndex'] = np.nan
+
+    for norad, sub in df.groupby('norad'):
+        df_object = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last').copy() ## on retire les doublons.
+        df_object["TimeIndex"]=range(len(df_object))
+        epochs_tle = pd.to_datetime(df_object['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
+        df_object['epoch'] = epochs_tle
+        df_object["dt"] = np.log1p(np.diff(epochs_tle, prepend=epochs_tle[0])).astype(np.float32) 
+        objects[int(norad)] = df_object
+
+        mask_labels = df_labels['norad_id'] == norad
+        if mask_labels.any() : 
+            labels_epochs = df_labels.loc[mask_labels, 'epoch'].to_numpy()
+            idx_tle = np.searchsorted(epochs_tle, labels_epochs, side='left')
+            print(idx_tle)
+            df_labels.loc[mask_labels, 'TimeIndex'] = df_object['TimeIndex'].iloc[idx_tle].values
+    return objects, df_labels
+
+from pathlib import Path 
+
+def main():
+    base  = Path.cwd()
+    data_dir =  os.path.join(base, 'data', 'parsed', 'labelled_leo_DORIS')
+    data_path = os.path.join(data_dir, 'train', 'leo_doris_orbital_params.csv')
+    labels_path = os.path.join(data_dir,  'leo_maneuvers_label.csv')
+    objects, labels = load_doris_objects(data_path, labels_path)
+
+    objects[20436].to_csv(os.path.join(data_dir, 'object_test.csv'), index=False)
+    labels.to_csv(os.path.join(data_dir, 'label_test.csv'), index=False)
+
+
+### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour pré entrainement non supervisé.
+
+def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
+    if dataset == 'leo':
+        dataset_dir = Path(os.path.join(data_dir, "leo_unlabelled_dataset" ))
+    else : ## tous les objets
+        dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
     parquet_paths = sorted(dataset_dir.glob('*.parquet'))
     raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
@@ -222,3 +267,5 @@ def build_features(df, spacetrack=True, log_features=False):
 
     return df, feature_cols
 
+if __name__ == '__main__' : 
+    main()

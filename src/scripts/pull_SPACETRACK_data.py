@@ -39,8 +39,8 @@ def main():
     start,end  = config.data_range.start, config.data_range.end # Durée d'acquisition (quelques mois)
 
     for constellation in config.constellations: 
-        #Parametrès de la requete : samples = nombre d'ids max différents, period = durée de l'historique
-        samples = 1000
+        #Parametrès de la requete :  period = durée de l'historique
+
         #Recup les ids
         orbit_range= config.orbit_range
         satids = recupIds(client, None, constellation, orbit_range, shuffle=False)
@@ -54,7 +54,7 @@ def main():
             #On écrit dans data/raw 
             tag = f"batch_{n}_{constellation.name_pattern or 'ALL_NAMES'}_{constellation.country or 'ALL_COUNTRIES'}"
             date = pd.Timestamp.now().strftime('%Y-%m-%d_%H_%M-%S')
-            path = f"data/raw/spacetrack/max_objects_all_regimes/{tag}_{date}.parquet"
+            path = f"data/raw/spacetrack/leo_doris/{tag}_{date}.parquet"
             df.to_parquet(path, index= False)
             print(f"{len(df)} lignes écrites dans {path}")
 
