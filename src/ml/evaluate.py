@@ -1,6 +1,8 @@
 import numpy as np
 from collections import defaultdict
 
+from ml.targets import doris_types, intensity_labels, DELTA_V_THRESHOLD
+
 ## Paramètres d'évaluation
 
 detection_treshold = 0.1 ## manoeuvre détectée pour proba_pred > treshold
@@ -43,19 +45,21 @@ def _run_centers(mask : np.ndarray)-> list[int]:
     # on renvoie le milieu de ces différents runs
     return [run[len(run)//2]  for run in runs]
 
-def extract_events(scores : np.ndarray, # tableau (L, 2) avec une colonne par direction EW/NS
+def extract_events(scores : np.ndarray, # tableau (L, n_canaux), une colonne par canal
                 treshold: float | dict[str, float] = detection_treshold,
-                is_logits: bool=False
+                is_logits: bool=False,
+                channels : tuple[str, ...] = ('EW', 'NS')
     )-> dict[str, list[int]] :
-    """(L,2) scores -> {"EW":[t..], "NS":[t..]} après seuillage + collapse au centre.
-    treshold accepte un flottant unique ou un seuil par direction {"EW": .., "NS": ..} :
+    """(L, n_canaux) scores -> {canal : [t..]} après seuillage + collapse au centre.
+    treshold accepte un flottant unique ou un seuil par canal {"EW": .., "NS": ..} :
     les manoeuvres in-plane et out-of-plane n'ont pas le même rapport signal/bruit, et
     un seuil commun dégrade la direction la moins bien séparée.
+    channels nomme les colonnes : EW/NS pour SPLID, les 4 canaux type/intensité pour DORIS.
     """
     if is_logits:
         scores = 1/ (1 + np.exp(-scores))
     events = {}
-    for col,name in (0,'EW'), (1,'NS'):
+    for col, name in enumerate(channels):
         th = treshold[name] if isinstance(treshold, dict) else treshold
         mask = scores[:, col] > th
         events[name] = _run_centers(mask)
@@ -106,25 +110,56 @@ def metrics(tp, fp, fn, distances):
             "tp": tp, "fp": fp, "fn": fn}
 
 ## On passe 
-def evaluate_predictions(gt_events: dict, 
+def evaluate_predictions(gt_events: dict,
                          pred_events : dict,
-                         tolerance=matching_tolerance
+                         tolerance=matching_tolerance,
+                         channels : tuple[str, ...] = ('EW', 'NS')
                          ):
-    """Accumule la confusion matrix pour tous les objets sur les deux direction, 
+    """Accumule la confusion matrix pour tous les objets sur tous les canaux,
     puis applique les métriques sur la confusion matrix globale"""
 
     tp = fp= fn = 0
     distances=[]
-    for oid in gt_events: 
-        for d in ('EW','NS'):
+    for oid in gt_events:
+        for d in channels:
             gt_idx = gt_events[oid][d]
             pred_idx = pred_events[oid][d]
-            r =match_events(gt_idx,pred_idx,tolerance) 
+            r =match_events(gt_idx,pred_idx,tolerance)
             tp += r['tp']
             fp += r['fp']
             fn += r['fn']
             distances += r['distances']
     return metrics(tp, fp, fn, distances)
+
+
+### EVALUATION DU FINETUNING DORIS
+## Même protocole que le localizer, mais les canaux ne sont plus EW/NS : ce sont les 4
+## combinaisons (type de manoeuvre, intensité) dans l'ordre d'aplatissement de la cible (2,2).
+
+doris_channels = tuple(f"{maneuver_type}/{intensity}"
+                       for maneuver_type in doris_types for intensity in intensity_labels)
+
+
+def gt_events_doris(labels,        # DataFrame rendu par load_doris_objects : norad_id, TimeIndex, maneuver_type, delta_v
+                    norad_ids,
+                    threshold=DELTA_V_THRESHOLD
+    ):
+    """{norad : {canal : [TimeIndex..]}}
+    Les filtres doivent être EXACTEMENT ceux de build_doris_targets (TimeIndex non NaN,
+    maneuver_type connu, delta_v renseigné) : sinon la vérité terrain compte des manoeuvres
+    que la cible n'a jamais marquées, et le rappel plafonne sans raison visible.
+    """
+    out = {}
+    for oid in norad_ids:
+        sub = labels[(labels['norad_id'] == oid) & labels['TimeIndex'].notna() & labels['delta_v'].notna()]
+        event = {}
+        for maneuver_type in doris_types:
+            for i, intensity in enumerate(intensity_labels):
+                is_strong = (sub['delta_v'] >= threshold) if i == 1 else (sub['delta_v'] < threshold)
+                t = sub[(sub['maneuver_type'] == maneuver_type) & is_strong]['TimeIndex']
+                event[f"{maneuver_type}/{intensity}"] = sorted(int(x) for x in t.to_numpy())
+        out[oid] = event
+    return out
 
 
                         

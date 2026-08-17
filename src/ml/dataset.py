@@ -64,7 +64,26 @@ def split_by_object(object_ids, val_split=0.2, seed=42):
     ## .tolist() sur un tableau d'entiers restitue des int python (les clés des dicts d'objets)
     return(ids[n_val:].tolist(), ids[:n_val].tolist())
 
-def fit_scaler_on_train(per_obj, train_ids): 
+def split_by_object_kfold(object_ids, fold, n_folds=None, seed=42):
+    """
+    Split groupé par objet : renvoie (train_ids, val_ids) du fold demandé.
+    n_folds=None -> leave-one-object-out (autant de folds que d'objets).
+    Chaque objet est en validation dans exactement un fold, donc lancer tous les folds
+    évalue le modèle sur l'ensemble du dataset sans jamais entraîner sur son val.
+    """
+    rng = np.random.default_rng(seed)
+    ids = np.array(sorted(object_ids))
+    rng.shuffle(ids)
+    if n_folds is None:
+        n_folds = len(ids)
+    if not 0 <= fold < n_folds:
+        raise ValueError(f"fold {fold} hors de [0, {n_folds})")
+
+    val_ids = np.array_split(ids, n_folds)[fold]
+    train_ids = np.setdiff1d(ids, val_ids)
+    return train_ids.tolist(), val_ids.tolist()
+
+def fit_scaler_on_train(per_obj, train_ids):
     """Ajuste le scaler sur le train seulement.
     """
     ## fitter le scaler = trouver nu et sigma correspondant aux valeurs des features dans train_ids
@@ -218,16 +237,20 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
 
 def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=47,
                             val_split=0.2, seed=42, half_width=6, flatten_target=True,
-                            thresholds=DELTA_V_THRESHOLD):
+                            thresholds=DELTA_V_THRESHOLD, fold=None, n_folds=None):
     """
     Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut.
-    Attention : peu d'objets (15 norads au plus), donc val_ids est très petit et non stratifié
-    par type de manoeuvre -> possible de tirer un val sans aucune cross-track.
+    fold=None -> split simple par val_split. Sinon k-fold groupé par objet : avec seulement
+    13 objets exploitables un split unique donne 2 objets en validation, non stratifiés par
+    type de manoeuvre, donc un chiffre que le tirage suffit à faire bouger.
     """
     per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width=half_width,
                                                     thresholds=thresholds)
 
-    train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
+    if fold is None:
+        train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
+    else:
+        train_ids, val_ids = split_by_object_kfold(per_obj.keys(), fold, n_folds, seed)
 
     scaler = fit_scaler_on_train(per_obj, train_ids)
 
@@ -243,6 +266,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj,
             "delta_v_thresholds" : thresholds, "half_width" : half_width,
+            "fold" : fold, "n_folds" : n_folds,
             "target_shape" : target_shape,
             "n_outputs" : int(np.prod(target_shape)) if flatten_target else target_shape}
     return train_dl, val_dl, meta

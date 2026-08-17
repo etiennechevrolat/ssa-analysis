@@ -1,6 +1,11 @@
 data_dir : ${hydra:runtime.cwd}/data/parsed/labelled_leo_DORIS
 
-val_split: 0.2 
+val_split: 0.2 ## utilisé seulement si fold est null
+
+## k-fold groupé par objet. fold null -> split simple par val_split.
+## n_folds null -> leave-one-object-out (13 folds sur les objets exploitables).
+fold : null
+n_folds : null
 
 history: 96
 future : 95

@@ -7,7 +7,7 @@ import numpy as np
 import hydra 
 import math 
 from omegaconf import DictConfig
-from sklearn.metrics import accuracy_score, f1_score, average_precision_score
+from sklearn.metrics import accuracy_score, f1_score
 from tqdm import tqdm
 from hydra.core.hydra_config import HydraConfig
 
@@ -15,7 +15,6 @@ from hydra.core.hydra_config import HydraConfig
 from ml.datahandler import load_splid_objects, load_spacetrack_objects, load_doris_objects
 from ml.dataset import make_loaders, make_loaders_classifiers, make_pretrain_loader, make_loaders_finetuning
 from ml.model import build_model
-from ml.targets import doris_types, intensity_labels
 
 from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
 
@@ -104,7 +103,8 @@ def pretrain_one_epoch(
  
     return avg_loss 
 
-from ml.evaluate import matching_tolerance, extract_events, gt_events_from_labels, evaluate_predictions
+from ml.evaluate import (matching_tolerance, extract_events, gt_events_from_labels,
+                         evaluate_predictions, gt_events_doris, doris_channels)
 
 @torch.no_grad() ## décorateur, applique torch.no_grad(evaluate_epoch(...)) et coupe le suivi des gradients.
 def evaluate_epoch(
@@ -157,52 +157,44 @@ def evaluate_epoch(
 def evaluate_epoch_finetuning(
     model,
     data_loader,
+    meta,
+    labels,
     loss_fn,
     device
     ):
     """
-    Validation du finetuning DORIS.
-    Métrique PONCTUELLE (par pas de temps), et non le protocole d'appariement d'évènements
-    utilisé pour le localizer SPLID : extract_events itère sur des colonnes EW/NS et
-    gt_events_from_labels attend un dataframe SPLID (ObjectID/Direction/Node), ni l'un ni
-    l'autre ne s'applique à une cible (L, 2, 2) et à des labels norad_id/maneuver_type.
-    On utilise l'average precision, sans seuil, pour ne pas figer un seuil de détection
-    avant d'avoir regardé les courbes.
+    Validation du finetuning DORIS : même protocole d'appariement d'évènements que le
+    localizer SPLID (seuillage -> centre des runs -> matching à +-tolerance), mais sur les
+    4 canaux type/intensité au lieu des 2 directions EW/NS.
     """
     model.eval()
     running_loss = 0.0
     total = 0
-    all_scores, all_targets = [], []
+    all_probs = []
 
     for time_series_batch, labels_batch in tqdm(data_loader, desc="val", leave=False):
         x = time_series_batch.to(device)
         y = labels_batch.to(device)
 
-        pred = model(x) ## (B, 2*C) logits
+        pred = model(x) ## (B, 4) logits
         loss = loss_fn(pred, y)
         running_loss += float(loss.item()) * labels_batch.size(0)
         total += labels_batch.size(0)
 
-        all_scores.append(torch.sigmoid(pred).cpu().numpy())
-        all_targets.append(labels_batch.numpy())
+        all_probs.append(torch.sigmoid(pred).cpu().numpy())
 
-    scores = np.concatenate(all_scores, axis=0)
-    targets = np.concatenate(all_targets, axis=0)
+    ## le val loader ne mélange pas : on peut redécouper la concaténation objet par objet
+    all_probs = np.concatenate(all_probs, axis=0) ## (N, 4)
+    val_ids = meta['val_ids']
+    objects_lengths = [len(meta['per_obj'][oid][0]) for oid in val_ids]
+    assert np.sum(objects_lengths) == len(all_probs)
+    seq_per_obj = np.split(all_probs, np.cumsum(objects_lengths)[:-1], axis=0)
 
-    ## les cibles sont des bosses triangulaires continues : est positif tout point sous une bosse
-    positives = targets > 0
-    channel_names = [f"{maneuver_type}/{intensity}"
-                     for maneuver_type in doris_types for intensity in intensity_labels]
+    pred_events = {oid : extract_events(seq, channels=doris_channels)
+                   for oid, seq in zip(val_ids, seq_per_obj)}
+    gt_events = gt_events_doris(labels, val_ids)
 
-    metrics, aps = {}, []
-    for col, name in enumerate(channel_names[:scores.shape[1]]):
-        if positives[:, col].any():
-            ap = float(average_precision_score(positives[:, col], scores[:, col]))
-            aps.append(ap)
-        else:
-            ap = float('nan') ## canal absent de la validation : aucune manoeuvre de ce type/intensité
-        metrics[f"ap {name}"] = ap
-    metrics["mAP"] = float(np.mean(aps)) if aps else float('nan')
+    metrics = evaluate_predictions(gt_events, pred_events, channels=doris_channels)
 
     return running_loss / total, metrics
 
@@ -384,8 +376,10 @@ def main(cfg : DictConfig):
                     future=cfg.data.future,
                     val_split=cfg.data.val_split,
                     seed=cfg.seed,
-                    half_width=cfg.task.half_width, 
-                    flatten_target=True, 
+                    half_width=cfg.task.half_width,
+                    flatten_target=True,
+                    fold=cfg.data.fold,
+                    n_folds=cfg.data.n_folds,
         )
         window_size = cfg.data.history + cfg.data.future + 1
         loss_fn = nn.BCEWithLogitsLoss() 
@@ -488,11 +482,11 @@ def main(cfg : DictConfig):
                     f"node class acc : {metrics['class_acc']:.3f}, f1 : {metrics['class_f1']:.3f} ")
 
             elif is_finetuning :
-                val_loss, metrics = evaluate_epoch_finetuning(model, val_loader, loss_fn, device)
-                per_channel = " | ".join(f"{key} : {value:.3f}"
-                                         for key, value in metrics.items() if key.startswith('ap '))
-                line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | "
-                        f"mAP : {metrics['mAP']:.4f} | {per_channel}")
+                val_loss, metrics = evaluate_epoch_finetuning(model, val_loader, meta, labels, loss_fn, device)
+                line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, "
+                        f"precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, "
+                        f"f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, "
+                        f"tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
 
             else :
                 val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
