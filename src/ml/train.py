@@ -7,7 +7,7 @@ import numpy as np
 import hydra 
 import math 
 from omegaconf import DictConfig
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, average_precision_score
 from tqdm import tqdm
 from hydra.core.hydra_config import HydraConfig
 
@@ -15,6 +15,7 @@ from hydra.core.hydra_config import HydraConfig
 from ml.datahandler import load_splid_objects, load_spacetrack_objects, load_doris_objects
 from ml.dataset import make_loaders, make_loaders_classifiers, make_pretrain_loader, make_loaders_finetuning
 from ml.model import build_model
+from ml.targets import doris_types, intensity_labels
 
 from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
 
@@ -150,6 +151,88 @@ def evaluate_epoch(
     avg_loss = running_loss / total
     return avg_loss, metrics
 
+
+
+@torch.no_grad()
+def evaluate_epoch_finetuning(
+    model,
+    data_loader,
+    loss_fn,
+    device
+    ):
+    """
+    Validation du finetuning DORIS.
+    Métrique PONCTUELLE (par pas de temps), et non le protocole d'appariement d'évènements
+    utilisé pour le localizer SPLID : extract_events itère sur des colonnes EW/NS et
+    gt_events_from_labels attend un dataframe SPLID (ObjectID/Direction/Node), ni l'un ni
+    l'autre ne s'applique à une cible (L, 2, 2) et à des labels norad_id/maneuver_type.
+    On utilise l'average precision, sans seuil, pour ne pas figer un seuil de détection
+    avant d'avoir regardé les courbes.
+    """
+    model.eval()
+    running_loss = 0.0
+    total = 0
+    all_scores, all_targets = [], []
+
+    for time_series_batch, labels_batch in tqdm(data_loader, desc="val", leave=False):
+        x = time_series_batch.to(device)
+        y = labels_batch.to(device)
+
+        pred = model(x) ## (B, 2*C) logits
+        loss = loss_fn(pred, y)
+        running_loss += float(loss.item()) * labels_batch.size(0)
+        total += labels_batch.size(0)
+
+        all_scores.append(torch.sigmoid(pred).cpu().numpy())
+        all_targets.append(labels_batch.numpy())
+
+    scores = np.concatenate(all_scores, axis=0)
+    targets = np.concatenate(all_targets, axis=0)
+
+    ## les cibles sont des bosses triangulaires continues : est positif tout point sous une bosse
+    positives = targets > 0
+    channel_names = [f"{maneuver_type}/{intensity}"
+                     for maneuver_type in doris_types for intensity in intensity_labels]
+
+    metrics, aps = {}, []
+    for col, name in enumerate(channel_names[:scores.shape[1]]):
+        if positives[:, col].any():
+            ap = float(average_precision_score(positives[:, col], scores[:, col]))
+            aps.append(ap)
+        else:
+            ap = float('nan') ## canal absent de la validation : aucune manoeuvre de ce type/intensité
+        metrics[f"ap {name}"] = ap
+    metrics["mAP"] = float(np.mean(aps)) if aps else float('nan')
+
+    return running_loss / total, metrics
+
+
+def check_backbone_compatibility(ckpt, cfg, window_size):
+    """
+    Vérifie que le backbone pré-entraîné a la même géométrie que le modèle de finetuning.
+    Sans ça, load_state_dict échoue sur un mur de shape mismatch dont la cause réelle
+    (taille de fenêtre, patch_size, embed_dim) n'apparaît nulle part.
+    """
+    pretrain_cfg = ckpt.get('config')
+    if pretrain_cfg is None:
+        print("[finetuning] checkpoint sans config : compatibilité du backbone non vérifiée")
+        return
+    try:
+        compared = {
+            'window_size'  : (pretrain_cfg['data']['window_size'], window_size),
+            'patch_size'   : (pretrain_cfg['model']['patch_size'], cfg.model.patch_size),
+            'embed_dim'    : (pretrain_cfg['model']['encoder_embed_dim'], cfg.model.embed_dim),
+            'n_blocks'     : (pretrain_cfg['model']['encoder_n_blocks'], cfg.model.n_blocks),
+            'n_attn_heads' : (pretrain_cfg['model']['encoder_n_attn_heads'], cfg.model.n_attn_heads),
+            }
+    except KeyError as e:
+        print(f"[finetuning] clé {e} absente de la config du checkpoint : vérification partielle impossible")
+        return
+
+    mismatch = {key : values for key, values in compared.items() if values[0] != values[1]}
+    if mismatch:
+        detail = ", ".join(f"{key} : pretrain={a} vs finetuning={b}" for key, (a, b) in mismatch.items())
+        raise ValueError(f"backbone incompatible avec le modèle de finetuning ({detail})")
 
 
 @torch.no_grad()
@@ -325,13 +408,28 @@ def main(cfg : DictConfig):
 
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
     model.to(device)
-    if is_finetuning and cfg.task.ckpt_path : 
+    if is_finetuning :
+        ## le gel ne doit PAS dépendre du chargement : sinon un ckpt_path absent donne
+        ## un encodeur aléatoire entraîné de bout en bout, sans le moindre message.
+        if not cfg.task.ckpt_path:
+            raise ValueError(
+                "finetuning sans task.ckpt_path : l'encodeur resterait aléatoire. "
+                "Passe le chemin d'un checkpoint de pretrain (outputs/ml/pretrain/<date>/checkpoints/best.pt)"
+                )
         ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu')
+        check_backbone_compatibility(ckpt, cfg, window_size)
         model.encoder.load_state_dict(ckpt['encoder_state'], strict=True)
+
         if cfg.task.freeze_encoder:
             for p in model.encoder.parameters():
                 p.requires_grad = False
-    
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        n_total = sum(p.numel() for p in model.parameters())
+        print(f"[finetuning] backbone {cfg.task.ckpt_path} chargé | "
+              f"encodeur {'gelé' if cfg.task.freeze_encoder else 'entraîné'} | "
+              f"paramètres entraînables : {n_trainable} / {n_total}")
+
+
     def build_param_groups(model, weight_decay):
         no_decay_exact={"cls_token", "mask_token"}
         decay, no_decay = [], []
@@ -390,7 +488,14 @@ def main(cfg : DictConfig):
                     f"node type acc : {metrics['node_acc']:.3f}, f1 : {metrics['node_f1']:.3f} |"
                     f"node class acc : {metrics['class_acc']:.3f}, f1 : {metrics['class_f1']:.3f} ")
 
-            else : 
+            elif is_finetuning :
+                val_loss, metrics = evaluate_epoch_finetuning(model, val_loader, loss_fn, device)
+                per_channel = " | ".join(f"{key} : {value:.3f}"
+                                         for key, value in metrics.items() if key.startswith('ap '))
+                line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | "
+                        f"mAP : {metrics['mAP']:.4f} | {per_channel}")
+
+            else :
                 val_loss, metrics = evaluate_epoch(model, val_loader, meta, labels, loss_fn, device)
                 line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, rmse : {metrics['rmse']:.4f}, tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
         

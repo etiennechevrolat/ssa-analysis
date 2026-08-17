@@ -1,5 +1,5 @@
 epochs : 10
 lr : 1e-3
 weight_decay : 0.0
-warmup_epochs: 5
-
+warmup_epochs: 1 ## ~10% du run : au-dela le cosine n'a plus la place de decroitre
+batch_size : 64 ## dataset DORIS petit (13 objets), on garde des batchs modestes

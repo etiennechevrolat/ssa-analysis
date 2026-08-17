@@ -44,6 +44,8 @@ class RunLogger:
         surapprentissage (BCE/CE sur des classes très déséquilibrées) alors que les
         métriques de détection/classification continuent de progresser.
         """
+        if "mAP" in metrics:  # finetuning DORIS
+            return -metrics["mAP"]
         if "f2" in metrics:  # localizer
             return -metrics["f2"]
         if "node_f1" in metrics:  # classifier
