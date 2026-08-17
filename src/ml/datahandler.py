@@ -165,6 +165,7 @@ def main():
     objects, labels = load_doris_objects(data_path, labels_path)
 
     objects[20436].to_csv(os.path.join(data_dir, 'object_test.csv'), index=False)
+    
     labels.to_csv(os.path.join(data_dir, 'label_test.csv'), index=False)
 
 

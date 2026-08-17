@@ -1,4 +1,4 @@
-from ml.targets import build_target, build_classifier_samples, build_doris_samples
+from ml.targets import build_target, build_classifier_samples, build_doris_targets
 from ml.datahandler import build_features
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
@@ -40,7 +40,7 @@ def build_finetuning_arrays(objects, labels):
     for oid, df in objects.items():
         df_feat, feature_cols = build_features(df, spacetrack=True)
         X = df_feat[feature_cols].to_numpy(np.float32)
-        Y = build_doris_samples(oid, labels)
+        Y = build_doris_targets(oid, labels)
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
