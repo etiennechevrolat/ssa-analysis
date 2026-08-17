@@ -58,39 +58,61 @@ def build_classifier_samples(object_id, labels, nodes=pol_nodes):
                     samples.append((c, dir_idx,  type_to_index[node_type], class_to_index[class_type]))
     return samples
 
-def build_doris_targets(norad_id, labels, half_width=6):
+doris_types = ('in-track', 'cross-track') ## 'radial' (2 occurrences) et les types manquants sont ignorés
+doris_type_to_index = {maneuver_type : i for i, maneuver_type in enumerate(doris_types)}
+
+INTENSITY_QUANTILES = (0.5, 0.95)
+
+
+def build_doris_targets(df, norad_id, labels, half_width=6, quantiles=INTENSITY_QUANTILES):
     """
-    Créer une liste de manoeuvres pour un sat sous la forme : 
-    (time_index, maneuver_type, maneuver_intensity) avec des bosses triangulaires autour de l'epoch.
-    Le time_index est fixé au time index du tle spacetrack le plus proche de l'epoch originale de manoeuvre, dans l'index créé par load_doris_object.
-    Il y a 3 types d'intensité de manoeuvres : on calcule la moyenne, variance des delta_v du satellite puis :
-    les manoeuvres faibles jusqu'au quantile d'ordre 0.5 (ie dure à différencier du bruit pour modèle) 
-    les manoeuvres moyennes entre quantiles d'ordre 0.5 et 0.95
-    les manoeuvres fortes au delà du quantile d'ordre 0.95
+    Cible (L, 2, 3) : bosses triangulaires autour des manoeuvres, avec
+    axe 1 = type de manoeuvre  (0 = in-track, 1 = cross-track)
+    axe 2 = intensité du delta_v (0 = faible, 1 = moyenne, 2 = forte)
+
+    L = longueur de la série de l'objet (df), pas le nombre de manoeuvres.
+    Le time_index d'une manoeuvre est celui du TLE spacetrack le plus proche de son epoch,
+    dans l'index créé par load_doris_objects (les labels hors fenêtre TLE y ont TimeIndex = NaN).
+
+    Les 3 classes d'intensité sont découpées sur les quantiles des delta_v du satellite :
+    faibles jusqu'au quantile 0.5 (ie dures à différencier du bruit pour le modèle),
+    moyennes entre les quantiles 0.5 et 0.95,
+    fortes au delà du quantile 0.95.
     """
-    object_labels = labels[labels['norad_id'] == norad_id]
-    
-    delta_v = object_labels['delta_v']
-    q50, q95 = np.quantile(delta_v, [0.5, 0.95])
+    L = len(df)
+    Y = np.zeros((L, 2, 3), dtype=np.float32)
+    w = half_width
 
+    ## les labels sans TimeIndex (hors fenêtre TLE de l'objet) ne sont pas projetables sur la série
+    object_labels = labels[(labels['norad_id'] == norad_id) & labels['TimeIndex'].notna()].copy()
+    if object_labels.empty:
+        return Y
+    object_labels['TimeIndex'] = object_labels['TimeIndex'].astype(int)
 
-    L = len(object_labels)
-    Y = np.zeros((L, 2, 3), dtype=np.float32) 
-    w=half_width
-    for type_idx, type in enumerate(('in-track', 'cross-track')):
-        maneuver_time_indexs = object_labels[(object_labels['maneuver-type' == type])]
+    delta_v = object_labels['delta_v'].to_numpy(float)
+    if np.isnan(delta_v).all(): ## ex. norads 22076 et 22823 : aucun delta_v renseigné
+        return Y
+    q_lo, q_hi = np.nanquantile(delta_v, quantiles)
 
-        for c in maneuver_time_indexs:
-            lo = max(0, c - w)
-            hi = min(L, c + w +1)
-            idx = np.arange(lo,hi)
-            bump = 1. - np.abs(idx -c)/w
-            if object_labels['delta_v'] < q50: # noise maneuver
-                Y[idx, type_idx, 0] = np.maximum(Y[idx, type_idx, 0], bump)
-            elif (object_labels['delta_v'] >= q50) & (object_labels['delta_v'] < q95): # classic maneuver
-                            Y[idx, type_idx, 1] = np.maximum(Y[idx, type_idx, 1], bump)
-            elif (object_labels['delta_v'] >= q95) : # strong maneuver
-                                        Y[idx, type_idx, 2] = np.maximum(Y[idx, type_idx, 2], bump)
+    for row in object_labels.itertuples(index=False):
+        type_idx = doris_type_to_index.get(row.maneuver_type)
+        if type_idx is None or np.isnan(row.delta_v): ## maneuver_type absent/radial, ou delta_v manquant
+            continue
+
+        if row.delta_v < q_lo:      # noise maneuver
+            intensity_idx = 0
+        elif row.delta_v < q_hi:    # classic maneuver
+            intensity_idx = 1
+        else:                       # strong maneuver
+            intensity_idx = 2
+
+        c = row.TimeIndex
+        lo = max(0, c - w)
+        hi = min(L, c + w + 1)
+        idx = np.arange(lo, hi)
+        bump = 1. - np.abs(idx - c) / w
+
+        Y[idx, type_idx, intensity_idx] = np.maximum(Y[idx, type_idx, intensity_idx], bump)
 
     return Y
 
@@ -104,7 +126,8 @@ def main():
     data_path = os.path.join(data_dir, 'train', 'leo_doris_orbital_params.csv')
     labels_path = os.path.join(data_dir,  'leo_maneuvers_label.csv')
     objects, labels = load_doris_objects(data_path, labels_path)
-    build_doris_samples(norad_id=20436, labels= labels)
+    Y = build_doris_targets(objects[20436], norad_id=20436, labels=labels)
+    print(Y.shape, Y.sum(axis=0))
 
 if __name__ == "__main__" : 
     main()

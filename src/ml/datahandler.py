@@ -153,6 +153,13 @@ def load_doris_objects(data_path, labels_path):
         ok = np.abs(labels_epochs - epochs_tle[pick]) <= max_dt_hours * 3600
         df_labels.loc[mask, 'TimeIndex'] = np.where(ok, pick, np.nan)
 
+        ## diagnostics : labels hors fenêtre TLE, et collisions (2 manoeuvres -> 1 seul TLE)
+        n_dropped = int((~ok).sum())
+        n_collisions = len(pick[ok]) - len(np.unique(pick[ok]))
+        if n_dropped or n_collisions:
+            print(f"[load_doris_objects] norad {norad}: {n_dropped}/{len(ok)} labels hors fenêtre TLE "
+                  f"(> {max_dt_hours}h du TLE le plus proche), {n_collisions} collisions de TimeIndex")
+
     return objects, df_labels
 
 from pathlib import Path 

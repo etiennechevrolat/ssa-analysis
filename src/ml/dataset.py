@@ -35,12 +35,19 @@ def build_classifier_arrays(objects,labels):
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
-def build_finetuning_arrays(objects, labels): 
+def build_finetuning_arrays(objects, labels, half_width=6):
+    """
+    chaque objet -> (X: (L,F), Y: (L,2,3)) pour le finetuning sur les manoeuvres DORIS.
+    features spacetrack (cadence irrégulière -> dt, sma en km) pour rester aligné sur le pretrain MAE.
+    """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items():
         df_feat, feature_cols = build_features(df, spacetrack=True)
         X = df_feat[feature_cols].to_numpy(np.float32)
-        Y = build_doris_targets(oid, labels)
+        Y = build_doris_targets(df, oid, labels, half_width=half_width)
+        if not Y.any(): ## série sans aucune manoeuvre projetable : negatives potentiellement fausses
+            print(f"[build_finetuning_arrays] norad {oid}: cible entièrement nulle, objet écarté")
+            continue
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
@@ -73,8 +80,9 @@ def fit_scaler_on_train(per_obj, train_ids):
 
 class WindowDataset(Dataset):
     """Séries (X, Y) par objet -> échantillons (fenêtre (F,W), cible Y[t])"""
-    def __init__(self, per_obj, objects_ids, history=48, future=48):
-        self.windowsize = history + future + 1 
+    def __init__(self, per_obj, objects_ids, history=48, future=48, flatten_target=False):
+        self.windowsize = history + future + 1
+        self.flatten_target = flatten_target # cible DORIS (L,2,3) -> (6,) pour une tête linéaire
         self.padded = {} # oid -> (Xpad, Y) pour bien gérer la fenètre glissante aux bords. Xpad est la matrice paddée des features .
         self.index = [] # index plat
         for oid in objects_ids:
@@ -84,13 +92,14 @@ class WindowDataset(Dataset):
             self.index += [(oid, t) for t in range(len(X))] ### len(X) = nombre de pas de temps
     def __len__(self):
         return len(self.index)
-    
+
     def __getitem__(self, index):
-        oid, t = self.index[index] ## on récupére le bon objet sachant qu'on a une indexation absolue et que l'objet oid possède t features ? 
+        oid, t = self.index[index] ## on récupére le bon objet sachant qu'on a une indexation absolue et que l'objet oid possède t features ?
         Xpad, Y = self.padded[oid]
-        window = Xpad[t:t+ self.windowsize] # (W, Features) 
-        x = torch.from_numpy(window.T).float() # (Features, Window)  + transformation en tenseurs pytorch 
-        y = torch.from_numpy(Y[t]).float() # (2, )
+        window = Xpad[t:t+ self.windowsize] # (W, Features)
+        x = torch.from_numpy(window.T).float() # (Features, Window)  + transformation en tenseurs pytorch
+        target = Y[t].reshape(-1) if self.flatten_target else Y[t]
+        y = torch.from_numpy(np.ascontiguousarray(target)).float() # (2, ) ou (6, ) pour DORIS
         return x,y
 
 
@@ -205,6 +214,32 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
     
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
+    return train_dl, val_dl, meta
+
+def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=48,
+                            val_split=0.2, seed=42, half_width=6, flatten_target=True):
+    """
+    Loaders pour le finetuning DORIS. Cible (L,2,3) -> (6,) par défaut.
+    Attention : peu d'objets (15 norads au plus), donc val_ids est très petit et non stratifié
+    par type de manoeuvre -> possible de tirer un val sans aucune cross-track.
+    """
+    per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width=half_width)
+
+    train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
+
+    scaler = fit_scaler_on_train(per_obj, train_ids)
+
+    train_dataset = WindowDataset(per_obj, train_ids, history, future, flatten_target=flatten_target)
+    val_dataset = WindowDataset(per_obj, val_ids, history, future, flatten_target=flatten_target)
+
+    train_dl = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                          num_workers=4, persistent_workers=True)
+    val_dl = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                        num_workers=4, persistent_workers=True)
+
+    meta = {"feature_cols" : feature_cols, "scaler" : scaler,
+            "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj,
+            "target_shape" : (2, 3), "n_outputs" : 6 if flatten_target else (2, 3)}
     return train_dl, val_dl, meta
 
 def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42):
