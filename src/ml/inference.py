@@ -104,6 +104,71 @@ def load_pretrained_backbone(ckpt_path, device):
     return backbone.to(device).eval(), cfg, mean, scale
 
 
+## Diagnostic du pretraining : le MAE reconstruit-il les manoeuvres, ou les lisse-t-il ?
+
+@torch.no_grad()
+def reconstruct_window(mae, x, masked_patches=None, device='cpu', seed=0):
+    """Reconstruction COMPLETE d'une fenêtre par le MAE, avec contrôle du masque.
+
+    x : (F, W) normalisé.
+    masked_patches : indices des patchs à masquer. None -> tirage aléatoire au taux de
+        masquage du pretraining. Passer explicitement le patch qui contient une manoeuvre
+        permet de voir si le décodeur restitue le saut ou le remplace par une interpolation.
+
+    Retourne (reconstruction (F,W) normalisée, masked_patches (array)).
+
+    Reproduit TimeSeriesMAE.forward, mais renvoie TOUS les patchs reconstruits : le forward
+    ne renvoie que les patchs masqués, ce qui suffit à la loss mais pas à tracer une série.
+    """
+    mae = mae.to(device).eval()
+    n_features, window_size = x.shape
+    patch_size = mae.patch_embedding.patch_size
+    N = mae.num_patches
+
+    if masked_patches is None:
+        rng = np.random.default_rng(seed)
+        n_mask = round(N * mae.masking_ratio)
+        masked_patches = np.sort(rng.choice(N, size=n_mask, replace=False))
+    masked_patches = np.atleast_1d(np.asarray(masked_patches, dtype=int))
+    kept_patches = np.setdiff1d(np.arange(N), masked_patches)
+
+    ## ids_shuffle = [gardés, masqués] : même convention que le forward, où l'encodeur ne
+    ## voit que le début de la permutation et ids_restore remet l'ordre chronologique.
+    ids_shuffle = torch.tensor(np.concatenate([kept_patches, masked_patches]), device=device)[None]
+    ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+    xb = torch.from_numpy(np.ascontiguousarray(x)).float()[None].to(device) # (1,F,W)
+    tokens = mae.encoder_pos_embedding(mae.patch_embedding(xb))             # (1,N,D_enc)
+    embed_dim = tokens.shape[-1]
+
+    visible = torch.gather(tokens, 1, ids_shuffle[:, :len(kept_patches), None].expand(-1, -1, embed_dim))
+    h = torch.cat([mae.cls_token.expand(1, -1, -1), visible], dim=1)
+    for bloc in mae.encoder_blocks:
+        h = bloc(h)
+    h = mae.encoder_norm(h)
+
+    y = mae.encoder_to_decoder_embedding(h)
+    decoder_dim = y.shape[-1]
+    y_ = torch.cat([y[:, 1:], mae.mask_token.expand(1, len(masked_patches), -1)], dim=1)
+    y_ = torch.gather(y_, 1, ids_restore[..., None].expand(-1, -1, decoder_dim))
+
+    y = mae.decoder_pos_embedding(torch.cat([y[:, :1], y_], dim=1))
+    for bloc in mae.decoder_blocks:
+        y = bloc(y)
+    y = mae.decoder_norm(y)
+
+    pred = mae.pred_space_proj(y[:, 1:])                        # (1,N,F*P)
+    ## inverse exact du target_all du forward : (1,N,F*P) -> (1,N,F,P) -> (1,F,N,P) -> (1,F,W)
+    pred = pred.reshape(1, N, n_features, patch_size).permute(0, 2, 1, 3).reshape(1, n_features, window_size)
+
+    return pred[0].cpu().numpy(), masked_patches
+
+
+def patch_of_index(time_index, window_start, patch_size):
+    """Indice du patch contenant time_index, dans une fenêtre commençant à window_start."""
+    return (time_index - window_start) // patch_size
+
+
 def load_spacetrack_features(data_dir, dataset, mean, scale):
     """Features SpaceTrack normalisées avec le scaler du pretraining : {norad: (L,F)}"""
     per_obj = {}
