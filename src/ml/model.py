@@ -743,20 +743,12 @@ class TimeSeriesMAE(nn.Module):
         return out 
 
 
-class ManeuverFineTune64D(nn.Module):
+class ManeuverFineTune(nn.Module):
     """
-    On recopie l'architecture MAE-64D : 
+    On recopie l'architecture MAEv1 ou MAEv2 pour finetune sur des manoeuvres : 
     """
-    def __init__(self, n_features, window_size,
-        patch_size = 8,
-        embed_dim = 64, 
-        n_attn_heads=4,
-        n_blocks = 4,
-        expansion_factor = 4,
-        dropout_rate=0.1
-        ):
+    def __init__(self, n_features, window_size, patch_size, embed_dim, n_attn_heads, n_blocks, expansion_factor, dropout_rate, freeze_encoder):
         super().__init__()
-
         self.encoder = VanillaViT(n_features, 
                                   window_size, 
                                   patch_size,
@@ -769,13 +761,19 @@ class ManeuverFineTune64D(nn.Module):
         self.dense1 = nn.Linear(embed_dim, 32)
         self.dense2 = nn.Linear(32, 4)
         self.activation = nn.GELU()
-
+        self.freeze_encoder = freeze_encoder
     def forward(self, x):
         # x: (B, n_features, n_epochs) en entrée
         out = self.encoder.forward(x) # (B, N + 1, embed_dim)
         z = out[:,0] # (B, embed_dim)
         z = self.dense2(self.activation(self.dense1(z))) # (B, 4)
         return z 
+    def train(self, mode=True):
+        super().train(mode)
+        if self.freeze_encoder:
+            self.encoder.eval()
+        return self
+    
 
 def build_model(model_cfg, task_cfg, *, n_features, window_size):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
@@ -833,6 +831,18 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             expansion_factor=model_cfg.expansion_factor,
             dropout_rate=model_cfg.dropout_rate
             ) 
+    if model_cfg.name == "maneuver_finetune_MAEv1" :
+        return ManeuverFineTune(
+            n_features=n_features,
+            window_size=window_size,
+            patch_size=model_cfg.patch_size,
+            embed_dim=model_cfg.embed_dim,
+            n_attn_heads=model_cfg.n_attn_heads,
+            n_blocks=model_cfg.n_blocks,
+            expansion_factor=model_cfg.expansion_factor, 
+            dropout_rate=model_cfg.dropout_rate, 
+            freeze_encoder=task_cfg.freeze_encoder
+        )
     ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de VideoMAE
     
     if model_cfg.name in ("miniMAE", "MAEv1", "MAEv2"): 

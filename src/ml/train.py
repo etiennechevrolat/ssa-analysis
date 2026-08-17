@@ -325,7 +325,13 @@ def main(cfg : DictConfig):
 
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
     model.to(device)
-
+    if is_finetuning and cfg.task.ckpt_path : 
+        ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu')
+        model.encoder.load_state_dict(ckpt['encoder_state'], strict=True)
+        if cfg.task.freeze_encoder:
+            for p in model.encoder.parameters():
+                p.requires_grad = False
+    
     def build_param_groups(model, weight_decay):
         no_decay_exact={"cls_token", "mask_token"}
         decay, no_decay = [], []
@@ -354,7 +360,7 @@ def main(cfg : DictConfig):
 
         def lr_lambda(step):
             if step < warmup_steps :
-                return step / warmup_steps
+                return (step  + 1)/ warmup_steps
             progress = (step - warmup_steps) / (max(1, total_steps - warmup_steps))
             cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
             return min_lr_ratio + (1.0 - min_lr_ratio) * cosine
@@ -362,7 +368,7 @@ def main(cfg : DictConfig):
     
     ## SCHEDULER 
     total_steps = cfg.train.epochs * len(train_loader)
-    scheduler = build_lr_scheduler(optimizer, total_steps, warmup_ratio=cfg.train.warmup_ratio)
+    scheduler = build_lr_scheduler(optimizer, total_steps, warmup_ratio=cfg.train.warmup_epochs / cfg.train.epochs)
 
     logger = RunLogger(cfg, HydraConfig.get().runtime.output_dir, )
     logger.watch(model)

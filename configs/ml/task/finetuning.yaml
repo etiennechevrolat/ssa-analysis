@@ -1,5 +1,8 @@
 name : finetuning
 
 half_width: 6
-history : 48
+history : 48 ## history + future + 1 doit correspondre à la taille de fenetre du pretraining
 future : 47
+
+ckpt_path : null
+freeze_encoder : True
