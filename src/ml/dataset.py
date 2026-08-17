@@ -1,4 +1,6 @@
-from ml.targets import build_target, build_classifier_samples, build_doris_targets, DELTA_V_THRESHOLD
+from ml.targets import (build_target, build_classifier_samples, build_doris_targets,
+                        DELTA_V_THRESHOLD, half_width_in_indices)
+from ml.evaluate import doris_channels
 from ml.datahandler import build_features
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
@@ -35,16 +37,23 @@ def build_classifier_arrays(objects,labels):
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
-def build_finetuning_arrays(objects, labels, half_width=6, thresholds=DELTA_V_THRESHOLD):
+def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=DELTA_V_THRESHOLD,
+                            detection_only=False):
     """
     chaque objet -> (X: (L,F), Y: (L,2,2)) pour le finetuning sur les manoeuvres DORIS.
     features spacetrack (cadence irrégulière -> dt, sma en km) pour rester aligné sur le pretrain MAE.
+
+    detection_only=True fusionne les 4 canaux type/intensité en un seul (L,1,1) : toute la
+    supervision (~1300 manoeuvres) se concentre sur la tâche difficile, détecter un évènement,
+    au lieu d'être éclatée sur 4 canaux dont le plus rare n'a que 44 exemples.
     """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items():
         df_feat, feature_cols = build_features(df, spacetrack=True)
         X = df_feat[feature_cols].to_numpy(np.float32)
-        Y = build_doris_targets(df, oid, labels, half_width=half_width, thresholds=thresholds)
+        Y = build_doris_targets(df, oid, labels, half_width_hours=half_width_hours, thresholds=thresholds)
+        if detection_only:
+            Y = Y.max(axis=(1, 2), keepdims=True) ## (L,1,1) : manoeuvre, tout type et toute intensité
         if not Y.any(): ## série sans aucune manoeuvre utilisable :
             print(f"[build_finetuning_arrays] norad {oid}: cible entièrement nulle, objet écarté")
             continue
@@ -83,14 +92,36 @@ def split_by_object_kfold(object_ids, fold, n_folds=None, seed=42):
     train_ids = np.setdiff1d(ids, val_ids)
     return train_ids.tolist(), val_ids.tolist()
 
-def fit_scaler_on_train(per_obj, train_ids):
-    """Ajuste le scaler sur le train seulement.
+def fit_scaler_on_train(per_obj, train_ids, scaler=None):
+    """Ajuste le scaler sur le train seulement, ou applique un scaler déjà ajusté.
+
+    scaler non None : on ne refit PAS. Indispensable pour un finetuning à encodeur gelé —
+    l'encodeur a appris sur des entrées normalisées par le scaler du pretrain, et gelé il ne
+    peut pas se réadapter à une autre normalisation. Lui envoyer des entrées normalisées
+    autrement, c'est le faire travailler hors distribution.
     """
-    ## fitter le scaler = trouver nu et sigma correspondant aux valeurs des features dans train_ids
-    scaler=StandardScaler().fit(np.concatenate([per_obj[o][0] for o in train_ids])) 
+    if scaler is None:
+        ## fitter le scaler = trouver nu et sigma correspondant aux valeurs des features dans train_ids
+        scaler=StandardScaler().fit(np.concatenate([per_obj[o][0] for o in train_ids]))
     for oid in per_obj:
-        ## applique x = (x-nu)/sigma aux différentes features x stockées dans X 
+        ## applique x = (x-nu)/sigma aux différentes features x stockées dans X
         per_obj[oid][0] = scaler.transform(per_obj[oid][0]).astype(np.float32)
+    return scaler
+
+
+def scaler_from_checkpoint(ckpt, n_features):
+    """Reconstruit le StandardScaler du pretrain depuis les champs sauvés par save_checkpoint."""
+    mean, scale = ckpt.get('scaler_mean'), ckpt.get('scaler_scale')
+    if mean is None or scale is None:
+        raise ValueError("checkpoint sans scaler_mean/scaler_scale : impossible de réutiliser "
+                         "la normalisation du pretrain, et un encodeur gelé l'exige")
+    mean, scale = np.asarray(mean, dtype=np.float64), np.asarray(scale, dtype=np.float64)
+    if mean.shape != (n_features,):
+        raise ValueError(f"scaler du pretrain sur {mean.shape[0]} features, "
+                         f"finetuning sur {n_features} : les jeux de features diffèrent")
+    scaler = StandardScaler()
+    scaler.mean_, scaler.scale_, scaler.var_ = mean, scale, scale ** 2
+    scaler.n_features_in_ = n_features
     return scaler
 
 ## Dataset est une classe de base quasi-vide
@@ -236,23 +267,26 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
     return train_dl, val_dl, meta
 
 def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=47,
-                            val_split=0.2, seed=42, half_width=6, flatten_target=True,
-                            thresholds=DELTA_V_THRESHOLD, fold=None, n_folds=None):
+                            val_split=0.2, seed=42, half_width_hours=48.0, flatten_target=True,
+                            thresholds=DELTA_V_THRESHOLD, fold=None, n_folds=None,
+                            detection_only=False, scaler=None, tolerance_hours=48.0):
     """
-    Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut.
+    Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut, (1,) si
+    detection_only.
     fold=None -> split simple par val_split. Sinon k-fold groupé par objet : avec seulement
     13 objets exploitables un split unique donne 2 objets en validation, non stratifiés par
     type de manoeuvre, donc un chiffre que le tirage suffit à faire bouger.
+    scaler non None -> on réutilise celui du pretrain au lieu d'en ajuster un nouveau.
     """
-    per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width=half_width,
-                                                    thresholds=thresholds)
+    per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width_hours=half_width_hours,
+                                                    thresholds=thresholds, detection_only=detection_only)
 
     if fold is None:
         train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
     else:
         train_ids, val_ids = split_by_object_kfold(per_obj.keys(), fold, n_folds, seed)
 
-    scaler = fit_scaler_on_train(per_obj, train_ids)
+    scaler = fit_scaler_on_train(per_obj, train_ids, scaler=scaler)
 
     train_dataset = WindowDataset(per_obj, train_ids, history, future, flatten_target=flatten_target)
     val_dataset = WindowDataset(per_obj, val_ids, history, future, flatten_target=flatten_target)
@@ -262,11 +296,18 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     val_dl = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
                         num_workers=4, persistent_workers=True)
 
-    target_shape = next(iter(per_obj.values()))[1].shape[1:] ## (2, C)
+    target_shape = next(iter(per_obj.values()))[1].shape[1:] ## (2, C) ou (1, 1)
+
+    ## tolérance d'appariement en HEURES -> indices, par objet (cf. half_width_hours)
+    tolerance = {oid : half_width_in_indices(objects[oid], tolerance_hours) for oid in per_obj}
+
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj,
-            "delta_v_thresholds" : thresholds, "half_width" : half_width,
+            "delta_v_thresholds" : thresholds, "half_width_hours" : half_width_hours,
             "fold" : fold, "n_folds" : n_folds,
+            "detection_only" : detection_only,
+            "channels" : ('maneuver',) if detection_only else doris_channels,
+            "tolerance" : tolerance, "tolerance_hours" : tolerance_hours,
             "target_shape" : target_shape,
             "n_outputs" : int(np.prod(target_shape)) if flatten_target else target_shape}
     return train_dl, val_dl, meta

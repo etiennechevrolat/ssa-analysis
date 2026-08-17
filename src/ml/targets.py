@@ -67,7 +67,19 @@ DELTA_V_THRESHOLD = 0.1 ## pour un satellite GEO, cela correspond à une manoeuv
 intensity_labels = ('faible', 'forte')
 
 
-def build_doris_targets(df, norad_id, labels, half_width=6, thresholds=DELTA_V_THRESHOLD):
+def half_width_in_indices(df, half_width_hours):
+    """
+    Convertit une demi-largeur en HEURES en nombre d'indices TLE pour cet objet.
+    La cadence des TLE DORIS varie d'un facteur ~4 entre satellites (dt médian de 6,8h pour
+    25260 à 24,4h pour 22076) : une demi-largeur fixée en indices ne représente donc pas la
+    même durée d'un objet à l'autre. On passe par le dt médian de l'objet.
+    """
+    epochs = df['epoch_sec'].to_numpy(float)
+    median_dt_hours = float(np.median(np.diff(epochs))) / 3600.0
+    return max(1, int(round(half_width_hours / median_dt_hours)))
+
+
+def build_doris_targets(df, norad_id, labels, half_width_hours=48.0, thresholds=DELTA_V_THRESHOLD):
     """
     Cible (L, 2, 2) : bosses triangulaires autour des manoeuvres, avec
     axe 1 = type de manoeuvre    (0 = in-track, 1 = cross-track)
@@ -80,11 +92,14 @@ def build_doris_targets(df, norad_id, labels, half_width=6, thresholds=DELTA_V_T
     Les classes d'intensité sont découpées sur des seuils absolus en delta_v (DELTA_V_THRESHOLD),
     identiques pour les deux types de manoeuvre : 'forte' désigne donc le même effet physique
     en in-track et en cross-track, et les seuils ne dépendent pas du split train/val.
+
+    half_width_hours est en HEURES, converti en indices selon la cadence propre à l'objet.
     """
     L = len(df)
     Y = np.zeros((L, 2, 2), dtype=np.float32)
-    w = half_width
-    
+    w = half_width_in_indices(df, half_width_hours)
+
+
     ## les labels sans TimeIndex (hors fenêtre TLE de l'objet) ne sont pas projetables sur la série
     object_labels = labels[(labels['norad_id'] == norad_id) & labels['TimeIndex'].notna()].copy()
     if object_labels.empty:

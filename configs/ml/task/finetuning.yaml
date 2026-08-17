@@ -1,6 +1,16 @@
 name : finetuning
 
-half_width: 6
+## demi-largeur des bosses de la cible, et tolérance d'appariement, en HEURES.
+## Converties en indices TLE objet par objet : la cadence varie d'un facteur ~4 entre
+## satellites (dt médian 6,8h pour 25260, 24,4h pour 22076), donc une valeur en indices
+## ne représente pas la même durée d'un objet à l'autre.
+half_width_hours : 48.0
+tolerance_hours : 48.0
+
+## true -> cible unique 'manoeuvre' (les 4 canaux type/intensité fusionnés).
+## Concentre les ~1300 manoeuvres sur la détection au lieu de les éclater sur 4 canaux
+## dont le plus rare n'a que 44 exemples.
+detection_only : False
 
 ckpt_path : null
 freeze_encoder : True

@@ -121,10 +121,13 @@ def evaluate_predictions(gt_events: dict,
     tp = fp= fn = 0
     distances=[]
     for oid in gt_events:
+        ## tolerance peut être un dict {oid : tol} : la cadence TLE varie d'un facteur ~4
+        ## entre satellites, donc une tolérance en indices ne vaut pas la même durée partout.
+        tol = tolerance[oid] if isinstance(tolerance, dict) else tolerance
         for d in channels:
             gt_idx = gt_events[oid][d]
             pred_idx = pred_events[oid][d]
-            r =match_events(gt_idx,pred_idx,tolerance)
+            r =match_events(gt_idx,pred_idx,tol)
             tp += r['tp']
             fp += r['fp']
             fn += r['fn']
@@ -142,16 +145,22 @@ doris_channels = tuple(f"{maneuver_type}/{intensity}"
 
 def gt_events_doris(labels,        # DataFrame rendu par load_doris_objects : norad_id, TimeIndex, maneuver_type, delta_v
                     norad_ids,
-                    threshold=DELTA_V_THRESHOLD
+                    threshold=DELTA_V_THRESHOLD,
+                    detection_only=False
     ):
     """{norad : {canal : [TimeIndex..]}}
     Les filtres doivent être EXACTEMENT ceux de build_doris_targets (TimeIndex non NaN,
     maneuver_type connu, delta_v renseigné) : sinon la vérité terrain compte des manoeuvres
     que la cible n'a jamais marquées, et le rappel plafonne sans raison visible.
+    detection_only=True fusionne tout dans un canal unique 'maneuver'.
     """
     out = {}
     for oid in norad_ids:
-        sub = labels[(labels['norad_id'] == oid) & labels['TimeIndex'].notna() & labels['delta_v'].notna()]
+        sub = labels[(labels['norad_id'] == oid) & labels['TimeIndex'].notna()
+                     & labels['delta_v'].notna() & labels['maneuver_type'].isin(doris_types)]
+        if detection_only:
+            out[oid] = {'maneuver' : sorted(int(x) for x in sub['TimeIndex'].to_numpy())}
+            continue
         event = {}
         for maneuver_type in doris_types:
             for i, intensity in enumerate(intensity_labels):

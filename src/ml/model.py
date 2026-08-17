@@ -747,7 +747,7 @@ class ManeuverFineTune(nn.Module):
     """
     On recopie l'architecture MAEv1 ou MAEv2 pour finetune sur des manoeuvres : 
     """
-    def __init__(self, n_features, window_size, patch_size, embed_dim, n_attn_heads, n_blocks, expansion_factor, dropout_rate, freeze_encoder):
+    def __init__(self, n_features, window_size, patch_size, embed_dim, n_attn_heads, n_blocks, expansion_factor, dropout_rate, freeze_encoder, n_outputs=4):
         super().__init__()
         self.encoder = VanillaViT(n_features, 
                                   window_size, 
@@ -758,16 +758,21 @@ class ManeuverFineTune(nn.Module):
                                   expansion_factor, 
                                   dropout_rate)
         
-        self.dense1 = nn.Linear(embed_dim, 32)
-        self.dense2 = nn.Linear(32, 4)
+        ## Le CLS résume TOUTE la fenêtre (192 TLE, soit 50 à 190 jours selon la cadence de
+        ## l'objet) alors que la cible porte sur son point central : il n'a aucune spécificité
+        ## positionnelle. On lui concatène le token du patch central, qui contient le centre
+        ## de la fenêtre, d'où l'entrée de dense1 en 2*embed_dim.
+        self.center_patch = 1 + self.encoder.num_patches // 2 ## +1 : le CLS occupe l'indice 0
+        self.dense1 = nn.Linear(2 * embed_dim, 32)
+        self.dense2 = nn.Linear(32, n_outputs)
         self.activation = nn.GELU()
         self.freeze_encoder = freeze_encoder
     def forward(self, x):
         # x: (B, n_features, n_epochs) en entrée
         out = self.encoder.forward(x) # (B, N + 1, embed_dim)
-        z = out[:,0] # (B, embed_dim)
-        z = self.dense2(self.activation(self.dense1(z))) # (B, 4)
-        return z 
+        z = torch.cat([out[:, 0], out[:, self.center_patch]], dim=-1) # (B, 2*embed_dim)
+        z = self.dense2(self.activation(self.dense1(z))) # (B, n_outputs)
+        return z
     def train(self, mode=True):
         super().train(mode)
         if self.freeze_encoder:
@@ -775,7 +780,7 @@ class ManeuverFineTune(nn.Module):
         return self
     
 
-def build_model(model_cfg, task_cfg, *, n_features, window_size):
+def build_model(model_cfg, task_cfg, *, n_features, window_size, n_outputs=4):
     """cfg.model. aiguille vers le bon modèle selon cfg.name"""
     is_classifier = (task_cfg.name == 'classifier')
 
@@ -839,9 +844,10 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             embed_dim=model_cfg.embed_dim,
             n_attn_heads=model_cfg.n_attn_heads,
             n_blocks=model_cfg.n_blocks,
-            expansion_factor=model_cfg.expansion_factor, 
-            dropout_rate=model_cfg.dropout_rate, 
-            freeze_encoder=task_cfg.freeze_encoder
+            expansion_factor=model_cfg.expansion_factor,
+            dropout_rate=model_cfg.dropout_rate,
+            freeze_encoder=task_cfg.freeze_encoder,
+            n_outputs=n_outputs
         )
     ### MODÈLES NON SUPERVISÉS : is_pretrain = True, on pretrain un backbone ViT sur données spacetrack avec masking inspiré de VideoMAE
     

@@ -149,19 +149,24 @@ def load_doris_objects(data_dir):
         if not mask.any() : 
             continue 
         labels_epochs = df_labels.loc[mask, 'epoch_sec'].to_numpy()
-        idx_tle = np.searchsorted(epochs_tle, labels_epochs)
-        borne_inf = np.clip(idx_tle - 1, 0, len(epochs_tle) -1)
-        borne_sup = np.clip(idx_tle, 0, len(epochs_tle) -1)
-        pick = np.where(np.abs(labels_epochs - epochs_tle[borne_inf]) <= np.abs(epochs_tle[borne_sup] - labels_epochs), borne_inf, borne_sup)
-        ok = np.abs(labels_epochs - epochs_tle[pick]) <= max_dt_hours * 3600
+
+        ## On prend le premier TLE POSTERIEUR à la manoeuvre, et non le plus proche :
+        ## la signature d'une manoeuvre est dans sma_diff[i] = sma[i] - sma[i-1], donc elle
+        ## n'apparaît qu'au premier TLE qui suit. Centrer la cible sur un TLE antérieur
+        ## la place sur un point où le saut n'a pas encore eu lieu.
+        idx_tle = np.searchsorted(epochs_tle, labels_epochs, side='left')
+        posterieur_existe = idx_tle < len(epochs_tle) ## sinon la manoeuvre est après le dernier TLE
+        pick = np.clip(idx_tle, 0, len(epochs_tle) - 1)
+        ok = posterieur_existe & (epochs_tle[pick] - labels_epochs <= max_dt_hours * 3600)
         df_labels.loc[mask, 'TimeIndex'] = np.where(ok, pick, np.nan)
 
         ## diagnostics : labels hors fenêtre TLE, et collisions (2 manoeuvres -> 1 seul TLE)
         n_dropped = int((~ok).sum())
         n_collisions = len(pick[ok]) - len(np.unique(pick[ok]))
         if n_dropped or n_collisions:
-            print(f"[load_doris_objects] norad {norad}: {n_dropped}/{len(ok)} labels hors fenêtre TLE "
-                  f"(> {max_dt_hours}h du TLE le plus proche), {n_collisions} collisions de TimeIndex")
+            print(f"[load_doris_objects] norad {norad}: {n_dropped}/{len(ok)} labels écartés "
+                  f"(aucun TLE dans les {max_dt_hours}h suivant la manoeuvre), "
+                  f"{n_collisions} collisions de TimeIndex")
 
     return objects, df_labels
 

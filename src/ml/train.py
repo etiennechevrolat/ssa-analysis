@@ -13,7 +13,8 @@ from hydra.core.hydra_config import HydraConfig
 
 
 from ml.datahandler import load_splid_objects, load_spacetrack_objects, load_doris_objects
-from ml.dataset import make_loaders, make_loaders_classifiers, make_pretrain_loader, make_loaders_finetuning
+from ml.dataset import (make_loaders, make_loaders_classifiers, make_pretrain_loader,
+                        make_loaders_finetuning, scaler_from_checkpoint)
 from ml.model import build_model
 
 from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
@@ -160,12 +161,20 @@ def evaluate_epoch_finetuning(
     meta,
     labels,
     loss_fn,
-    device
+    device,
+    thresholds=(0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9)
     ):
     """
     Validation du finetuning DORIS : même protocole d'appariement d'évènements que le
     localizer SPLID (seuillage -> centre des runs -> matching à +-tolerance), mais sur les
-    4 canaux type/intensité au lieu des 2 directions EW/NS.
+    canaux type/intensité (ou le canal unique 'maneuver') au lieu des directions EW/NS.
+
+    Le seuil de détection est balayé et on renvoie le meilleur F2, avec le seuil retenu dans
+    les métriques : 0.1 était réglé pour le localizer SPLID et une tête sous-confiante peut
+    passer entièrement en dessous, ce qui donnerait tp=0 sans qu'on puisse distinguer
+    « le modèle n'apprend rien » de « le seuil est mal placé ».
+    ATTENTION : le seuil est donc choisi SUR la validation, ces F1/F2 sont optimistes.
+    Pour un chiffre publiable, fixe le seuil sur le train et réévalue.
     """
     model.eval()
     running_loss = 0.0
@@ -190,13 +199,19 @@ def evaluate_epoch_finetuning(
     assert np.sum(objects_lengths) == len(all_probs)
     seq_per_obj = np.split(all_probs, np.cumsum(objects_lengths)[:-1], axis=0)
 
-    pred_events = {oid : extract_events(seq, channels=doris_channels)
-                   for oid, seq in zip(val_ids, seq_per_obj)}
-    gt_events = gt_events_doris(labels, val_ids)
+    channels = meta['channels']
+    gt_events = gt_events_doris(labels, val_ids, detection_only=meta['detection_only'])
 
-    metrics = evaluate_predictions(gt_events, pred_events, channels=doris_channels)
+    best = None
+    for th in thresholds:
+        pred_events = {oid : extract_events(seq, treshold=th, channels=channels)
+                       for oid, seq in zip(val_ids, seq_per_obj)}
+        m = evaluate_predictions(gt_events, pred_events, tolerance=meta['tolerance'], channels=channels)
+        m['treshold'] = th
+        if best is None or m['f2'] > best['f2']:
+            best = m
 
-    return running_loss / total, metrics
+    return running_loss / total, best
 
 
 def check_backbone_compatibility(ckpt, cfg, window_size):
@@ -367,7 +382,18 @@ def main(cfg : DictConfig):
         w[meta['feature_cols'].index("dt")] = 0.0 ## on mets le poids de dt à zero.
         loss_fn = MaskedChannelMSE(w).to(device)
 
-    elif is_finetuning : 
+    elif is_finetuning :
+        ## Le checkpoint est lu AVANT les loaders : son scaler doit servir à normaliser les
+        ## données de finetuning (cf. fit_scaler_on_train), sinon l'encodeur gelé reçoit des
+        ## entrées hors de la distribution sur laquelle il a été pré-entraîné.
+        if not cfg.task.ckpt_path:
+            raise ValueError(
+                "finetuning sans task.ckpt_path : l'encodeur resterait aléatoire. "
+                "Passe le chemin d'un checkpoint de pretrain (outputs/ml/pretrain/<date>/checkpoints/best.pt)"
+                )
+        ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu', weights_only=False)
+        pretrain_scaler = scaler_from_checkpoint(ckpt, n_features=len(ckpt['scaler_mean']))
+
         train_loader, val_loader, meta = make_loaders_finetuning(
                     objects,
                     labels,
@@ -376,13 +402,29 @@ def main(cfg : DictConfig):
                     future=cfg.data.future,
                     val_split=cfg.data.val_split,
                     seed=cfg.seed,
-                    half_width=cfg.task.half_width,
+                    half_width_hours=cfg.task.half_width_hours,
                     flatten_target=True,
                     fold=cfg.data.fold,
                     n_folds=cfg.data.n_folds,
+                    detection_only=cfg.task.detection_only,
+                    scaler=pretrain_scaler,
+                    tolerance_hours=cfg.task.tolerance_hours,
         )
         window_size = cfg.data.history + cfg.data.future + 1
-        loss_fn = nn.BCEWithLogitsLoss() 
+
+        ## ~1% de positifs par canal : sans pondération, prédire 0 partout est la stratégie
+        ## optimale au démarrage et le modèle n'a aucune raison d'en sortir.
+        train_Y = np.concatenate([meta['per_obj'][oid][1].reshape(-1, meta['n_outputs'])
+                                  for oid in meta['train_ids']])
+        positive_rate = (train_Y > 0).mean(axis=0)
+        ## un canal sans aucun positif dans ce fold (possible en LOO, ex. cross-track/faible
+        ## n'a que 44 exemples) donnerait un poids infini : on le laisse à 1, il n'y a rien
+        ## à y apprendre et l'amplifier ne ferait que déstabiliser la loss des autres canaux.
+        pos_weight = np.where(positive_rate > 0, (1.0 - positive_rate) / np.maximum(positive_rate, 1e-12), 1.0)
+        pos_weight = torch.tensor(pos_weight, dtype=torch.float32)
+        print(f"[finetuning] canaux {meta['channels']} | taux de positifs {np.round(positive_rate, 4).tolist()} "
+              f"| pos_weight {np.round(pos_weight.numpy(), 1).tolist()}")
+        loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight.to(device))
     else:
         train_loader, val_loader, meta = make_loaders(
                     objects,
@@ -400,18 +442,20 @@ def main(cfg : DictConfig):
     n_features = len(meta["feature_cols"])
 
 
-    model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
+    model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size,
+                        n_outputs=meta['n_outputs'] if is_finetuning else 4)
     model.to(device)
     if is_finetuning :
-        if not cfg.task.ckpt_path:
-            raise ValueError(
-                "finetuning sans task.ckpt_path : l'encodeur resterait aléatoire. "
-                "Passe le chemin d'un checkpoint de pretrain (outputs/ml/pretrain/<date>/checkpoints/best.pt)"
-                )
-
-        ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu', weights_only=False)
         check_backbone_compatibility(ckpt, cfg, window_size)
-        model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
+
+        ## strict=False laisse passer un encodeur resté aléatoire sans un mot : on vérifie
+        ## explicitement qu'aucun paramètre de l'encodeur n'a été laissé à son initialisation.
+        missing, unexpected = model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
+        if missing:
+            raise ValueError(f"{len(missing)} paramètres de l'encodeur absents du checkpoint, "
+                             f"donc restés aléatoires : {missing[:5]}{'...' if len(missing) > 5 else ''}")
+        if unexpected:
+            print(f"[finetuning] {len(unexpected)} clés du checkpoint ignorées : {unexpected[:5]}")
 
         if cfg.task.freeze_encoder:
             for p in model.encoder.parameters():
@@ -484,6 +528,7 @@ def main(cfg : DictConfig):
             elif is_finetuning :
                 val_loss, metrics = evaluate_epoch_finetuning(model, val_loader, meta, labels, loss_fn, device)
                 line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f}, "
+                        f"seuil : {metrics['treshold']}, "
                         f"precision : {metrics['precision']:.4f}, recall : {metrics['recall']:.4f}, "
                         f"f1 : {metrics['f1']:.4f}, f2 : {metrics['f2']:.4f}, "
                         f"tp : {metrics['tp']}, fp : {metrics['fp']}, fn : {metrics['fn']}")
