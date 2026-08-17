@@ -1,10 +1,10 @@
-name : maneuver_finetune_MAEv1
+name : maneuver_finetune_MAEv2
 
-# les params correspondent à MAEv1 
+# les params correspondent à MAEv2
 patch_size : 12 
-embed_dim : 64
+embed_dim : 128
 n_attn_heads : 4
-n_blocks : 4
+n_blocks : 12
 expansion_factor : 4
-dropout_rate : 0.1
+dropout_rate : 0.0
 

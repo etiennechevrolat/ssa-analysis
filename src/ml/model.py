@@ -831,7 +831,7 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size):
             expansion_factor=model_cfg.expansion_factor,
             dropout_rate=model_cfg.dropout_rate
             ) 
-    if model_cfg.name == "maneuver_finetune_MAEv1" :
+    if model_cfg.name == "maneuver_finetune_MAEv2" :
         return ManeuverFineTune(
             n_features=n_features,
             window_size=window_size,

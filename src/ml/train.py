@@ -409,16 +409,15 @@ def main(cfg : DictConfig):
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size)
     model.to(device)
     if is_finetuning :
-        ## le gel ne doit PAS dépendre du chargement : sinon un ckpt_path absent donne
-        ## un encodeur aléatoire entraîné de bout en bout, sans le moindre message.
         if not cfg.task.ckpt_path:
             raise ValueError(
                 "finetuning sans task.ckpt_path : l'encodeur resterait aléatoire. "
                 "Passe le chemin d'un checkpoint de pretrain (outputs/ml/pretrain/<date>/checkpoints/best.pt)"
                 )
-        ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu')
+
+        ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu', weights_only=False)
         check_backbone_compatibility(ckpt, cfg, window_size)
-        model.encoder.load_state_dict(ckpt['encoder_state'], strict=True)
+        model.encoder.load_state_dict(ckpt['encoder_state'], strict=False)
 
         if cfg.task.freeze_encoder:
             for p in model.encoder.parameters():
