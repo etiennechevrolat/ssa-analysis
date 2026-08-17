@@ -1,0 +1,7 @@
+data_dir : ${hydra:runtime.cwd}/data/parsed/labelled_leo_DORIS
+dataset : 'leo'
+
+val_split: 0.2 
+
+window_size : 192
+stride : 13 # intentionnellement premier avec window_size pour obtenir des vues décalées.

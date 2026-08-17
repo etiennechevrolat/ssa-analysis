@@ -1,4 +1,4 @@
-from ml.targets import build_target, build_classifier_samples, build_doris_targets, DELTA_V_THRESHOLDS
+from ml.targets import build_target, build_classifier_samples, build_doris_targets, DELTA_V_THRESHOLD
 from ml.datahandler import build_features
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
@@ -35,10 +35,9 @@ def build_classifier_arrays(objects,labels):
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
-def build_finetuning_arrays(objects, labels, half_width=6, thresholds=DELTA_V_THRESHOLDS):
+def build_finetuning_arrays(objects, labels, half_width=6, thresholds=DELTA_V_THRESHOLD):
     """
-    chaque objet -> (X: (L,F), Y: (L,2,C)) pour le finetuning sur les manoeuvres DORIS.
-    C = len(thresholds) + 1 classes d'intensité de delta_v.
+    chaque objet -> (X: (L,F), Y: (L,2,2)) pour le finetuning sur les manoeuvres DORIS.
     features spacetrack (cadence irrégulière -> dt, sma en km) pour rester aligné sur le pretrain MAE.
     """
     per_obj, feature_cols = {}, None
@@ -46,7 +45,7 @@ def build_finetuning_arrays(objects, labels, half_width=6, thresholds=DELTA_V_TH
         df_feat, feature_cols = build_features(df, spacetrack=True)
         X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_doris_targets(df, oid, labels, half_width=half_width, thresholds=thresholds)
-        if not Y.any(): ## série sans aucune manoeuvre projetable : negatives potentiellement fausses
+        if not Y.any(): ## série sans aucune manoeuvre utilisable :
             print(f"[build_finetuning_arrays] norad {oid}: cible entièrement nulle, objet écarté")
             continue
         per_obj[oid] = [X,Y]
@@ -83,7 +82,7 @@ class WindowDataset(Dataset):
     """Séries (X, Y) par objet -> échantillons (fenêtre (F,W), cible Y[t])"""
     def __init__(self, per_obj, objects_ids, history=48, future=48, flatten_target=False):
         self.windowsize = history + future + 1
-        self.flatten_target = flatten_target # cible DORIS (L,2,3) -> (6,) pour une tête linéaire
+        self.flatten_target = flatten_target # cible DORIS (L,2,2) -> (4,) pour une tête linéaire
         self.padded = {} # oid -> (Xpad, Y) pour bien gérer la fenètre glissante aux bords. Xpad est la matrice paddée des features .
         self.index = [] # index plat
         for oid in objects_ids:
@@ -100,7 +99,7 @@ class WindowDataset(Dataset):
         window = Xpad[t:t+ self.windowsize] # (W, Features)
         x = torch.from_numpy(window.T).float() # (Features, Window)  + transformation en tenseurs pytorch
         target = Y[t].reshape(-1) if self.flatten_target else Y[t]
-        y = torch.from_numpy(np.ascontiguousarray(target)).float() # (2, ) ou (6, ) pour DORIS
+        y = torch.from_numpy(np.ascontiguousarray(target)).float() # (2, ) ou (4, ) pour DORIS (qui prend en compte l'intensité de la manoeuvre)
         return x,y
 
 
@@ -217,11 +216,11 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
     return train_dl, val_dl, meta
 
-def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=48,
+def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=47,
                             val_split=0.2, seed=42, half_width=6, flatten_target=True,
-                            thresholds=DELTA_V_THRESHOLDS):
+                            thresholds=DELTA_V_THRESHOLD):
     """
-    Loaders pour le finetuning DORIS. Cible (L,2,C) aplatie en (2*C,) par défaut.
+    Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut.
     Attention : peu d'objets (15 norads au plus), donc val_ids est très petit et non stratifié
     par type de manoeuvre -> possible de tirer un val sans aucune cross-track.
     """

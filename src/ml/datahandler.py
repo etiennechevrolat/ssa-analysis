@@ -120,16 +120,19 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
 
 max_dt_hours = 12.0 
 
-def load_doris_objects(data_path, labels_path):
+def load_doris_objects(data_dir):
     """
     Charge les csv du dataset doris en {object_id, df}
     """
-    data_path = Path(data_path)
-    labels = pd.read_csv(labels_path)
+
+    labels_dir = Path(os.path.join(data_dir,'leo_maneuvers_label.csv'))
+    train_dir = Path(os.path.join(data_dir, 'train', 'leo_doris_orbital_params.csv'))
+
+    labels = pd.read_csv(labels_dir)
     df_labels = labels.copy()
     df_labels['epoch_sec'] = pd.to_datetime(df_labels['epoch'], format = 'ISO8601').to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs maneuvres en secondes
 
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(train_dir)
     objects= {}
     df_labels['TimeIndex'] = np.nan
 
@@ -161,19 +164,6 @@ def load_doris_objects(data_path, labels_path):
                   f"(> {max_dt_hours}h du TLE le plus proche), {n_collisions} collisions de TimeIndex")
 
     return objects, df_labels
-
-from pathlib import Path 
-
-def main():
-    base  = Path.cwd()
-    data_dir =  os.path.join(base, 'data', 'parsed', 'labelled_leo_DORIS')
-    data_path = os.path.join(data_dir, 'train', 'leo_doris_orbital_params.csv')
-    labels_path = os.path.join(data_dir,  'leo_maneuvers_label.csv')
-    objects, labels = load_doris_objects(data_path, labels_path)
-
-    objects[20436].to_csv(os.path.join(data_dir, 'object_test.csv'), index=False)
-    
-    labels.to_csv(os.path.join(data_dir, 'label_test.csv'), index=False)
 
 
 ### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour pré entrainement non supervisé.

@@ -1,0 +1,5 @@
+name : finetuning
+
+half_width: 6
+history : 48
+future : 47

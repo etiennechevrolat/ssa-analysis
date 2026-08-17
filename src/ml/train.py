@@ -12,12 +12,11 @@ from tqdm import tqdm
 from hydra.core.hydra_config import HydraConfig
 
 
-from ml.datahandler import load_splid_objects, load_spacetrack_objects
-from ml.dataset import make_loaders, make_loaders_classifiers, make_pretrain_loader
+from ml.datahandler import load_splid_objects, load_spacetrack_objects, load_doris_objects
+from ml.dataset import make_loaders, make_loaders_classifiers, make_pretrain_loader, make_loaders_finetuning
 from ml.model import build_model
 
 from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
-
 
 from ml.logger import RunLogger
 
@@ -39,7 +38,7 @@ def train_one_epoch(
 
     for time_series_batch, labels in bar:
         # Localizer :
-        ## time_series_batch: (B,F,W), labels (B,2)
+        ## time_series_batch: (B,F,W), labels (B,2) ou (B,4) pour DORIS finetuning
 
         # Classifier :
         ## time_series_batch (B,F,W), labels (B, dict = {'node' : , 'class':  })
@@ -123,7 +122,7 @@ def evaluate_epoch(
         x = time_series_batch.to(device)
         y = labels_batch.to(device)
 
-        pred = model(x) ## format (Batch_size, 2)
+        pred = model(x) ## format (Batch_size, 2) ou (B,4) pour DORIS 
 
         loss = loss_fn(pred, y)
         running_loss+= float(loss.item()) * labels_batch.size(0)
@@ -244,11 +243,14 @@ def main(cfg : DictConfig):
     task = cfg.task.name
     is_classifier = (task == 'classifier')
     is_pretrain = (task == 'pretrain')
+    is_finetuning = (task == 'finetuning')
 
 
     ## Recup des données et creation des dataloaders
     if is_pretrain :
         objects = load_spacetrack_objects(cfg.data.data_dir)
+    elif is_finetuning : 
+        objects, labels = load_doris_objects(cfg.data.data_dir)
     else:
         objects, labels = load_splid_objects(
             cfg.data.data_dir, 
@@ -290,6 +292,20 @@ def main(cfg : DictConfig):
         w[meta['feature_cols'].index("dt")] = 0.0 ## on mets le poids de dt à zero.
         loss_fn = MaskedChannelMSE(w).to(device)
 
+    elif is_finetuning : 
+        train_loader, val_loader, meta = make_loaders_finetuning(
+                    objects,
+                    labels,
+                    batch_size=cfg.train.batch_size,
+                    history=cfg.data.history,
+                    future=cfg.data.future,
+                    val_split=cfg.data.val_split,
+                    seed=cfg.seed,
+                    half_width=cfg.task.half_width, 
+                    flatten_target=True, 
+        )
+        window_size = cfg.data.history + cfg.data.future + 1
+        loss_fn = nn.BCEWithLogitsLoss() 
     else:
         train_loader, val_loader, meta = make_loaders(
                     objects,
