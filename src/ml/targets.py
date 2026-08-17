@@ -61,26 +61,42 @@ def build_classifier_samples(object_id, labels, nodes=pol_nodes):
 doris_types = ('in-track', 'cross-track') ## 'radial' (2 occurrences) et les types manquants sont ignorés
 doris_type_to_index = {maneuver_type : i for i, maneuver_type in enumerate(doris_types)}
 
-INTENSITY_QUANTILES = (0.5, 0.95)
+## Seuils absolus en m/s sur le delta_v, partagés par les deux types de manoeuvre.
+## Choix de seuils fixes plutôt que de quantiles : les quantiles refittés par split de train
+## variaient d'un facteur 190 sur le q50 cross-track (distribution bimodale, population basse
+## concentrée sur quelques satellites), et ~40% des labels tombaient à +-25% du seuil.
+## Ici 0.1 m/s marque la fin de la population in-track de routine (son décile 9 est à 0.1117)
+## et se situe dans le creux de la distribution : ~2% des labels seulement sont proches du seuil.
+## Un tuple plus long rajoute des classes d'intensité sans autre changement.
+DELTA_V_THRESHOLDS = (0.1,)
+intensity_labels = ('faible', 'forte')
 
 
-def build_doris_targets(df, norad_id, labels, half_width=6, quantiles=INTENSITY_QUANTILES):
+def delta_v_to_intensity(delta_v, thresholds=DELTA_V_THRESHOLDS):
     """
-    Cible (L, 2, 3) : bosses triangulaires autour des manoeuvres, avec
-    axe 1 = type de manoeuvre  (0 = in-track, 1 = cross-track)
-    axe 2 = intensité du delta_v (0 = faible, 1 = moyenne, 2 = forte)
+    Classe d'intensité d'une manoeuvre à partir de son delta_v (m/s).
+    Avec DELTA_V_THRESHOLDS = (0.1,) : 0 = faible (< 0.1 m/s), 1 = forte (>= 0.1 m/s).
+    La borne appartient à la classe supérieure.
+    """
+    return np.searchsorted(thresholds, delta_v, side='right')
+
+
+def build_doris_targets(df, norad_id, labels, half_width=6, thresholds=DELTA_V_THRESHOLDS):
+    """
+    Cible (L, 2, C) : bosses triangulaires autour des manoeuvres, avec
+    axe 1 = type de manoeuvre    (0 = in-track, 1 = cross-track)
+    axe 2 = intensité du delta_v (C = len(thresholds) + 1 classes, cf. intensity_labels)
 
     L = longueur de la série de l'objet (df), pas le nombre de manoeuvres.
     Le time_index d'une manoeuvre est celui du TLE spacetrack le plus proche de son epoch,
     dans l'index créé par load_doris_objects (les labels hors fenêtre TLE y ont TimeIndex = NaN).
 
-    Les 3 classes d'intensité sont découpées sur les quantiles des delta_v du satellite :
-    faibles jusqu'au quantile 0.5 (ie dures à différencier du bruit pour le modèle),
-    moyennes entre les quantiles 0.5 et 0.95,
-    fortes au delà du quantile 0.95.
+    Les classes d'intensité sont découpées sur des seuils absolus en delta_v (DELTA_V_THRESHOLDS),
+    identiques pour les deux types de manoeuvre : 'forte' désigne donc le même effet physique
+    en in-track et en cross-track, et les seuils ne dépendent pas du split train/val.
     """
     L = len(df)
-    Y = np.zeros((L, 2, 3), dtype=np.float32)
+    Y = np.zeros((L, len(doris_types), len(thresholds) + 1), dtype=np.float32)
     w = half_width
 
     ## les labels sans TimeIndex (hors fenêtre TLE de l'objet) ne sont pas projetables sur la série
@@ -89,22 +105,12 @@ def build_doris_targets(df, norad_id, labels, half_width=6, quantiles=INTENSITY_
         return Y
     object_labels['TimeIndex'] = object_labels['TimeIndex'].astype(int)
 
-    delta_v = object_labels['delta_v'].to_numpy(float)
-    if np.isnan(delta_v).all(): ## ex. norads 22076 et 22823 : aucun delta_v renseigné
-        return Y
-    q_lo, q_hi = np.nanquantile(delta_v, quantiles)
-
     for row in object_labels.itertuples(index=False):
         type_idx = doris_type_to_index.get(row.maneuver_type)
         if type_idx is None or np.isnan(row.delta_v): ## maneuver_type absent/radial, ou delta_v manquant
             continue
 
-        if row.delta_v < q_lo:      # noise maneuver
-            intensity_idx = 0
-        elif row.delta_v < q_hi:    # classic maneuver
-            intensity_idx = 1
-        else:                       # strong maneuver
-            intensity_idx = 2
+        intensity_idx = delta_v_to_intensity(row.delta_v, thresholds)
 
         c = row.TimeIndex
         lo = max(0, c - w)
