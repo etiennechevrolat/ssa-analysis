@@ -252,6 +252,16 @@ def add_log(df, log_cols):
         df[f"log({col})"] = np.log(v)
     return df 
 
+level_cols = ['sma']
+
+def add_level_and_local_variations(df, level_cols):
+    df = df.copy()
+    for col in level_cols:
+        v = df[col].to_numpy(dtype=np.float64)
+        df[f"{col}_level"] = v.mean()
+        df[f"{col}_local"] = v - v.mean()
+    return df 
+
 def build_features(df, spacetrack=True, log_features=False):
     """
     Applique les transformations et renvoie le dataframe enrichi des features utilisées par le modèle.
@@ -261,15 +271,23 @@ def build_features(df, spacetrack=True, log_features=False):
     """
     df = df.copy()
     df = add_continuous_angles(df, spacetrack=spacetrack)
+    df = add_level_and_local_variations(df, level_cols)
 
     if spacetrack:
         if log_features:
             df = add_log(df, log_cols)
             df = add_diff(df, diff_cols_spacetrack)
-            feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_spacetrack] + [f"log({col})" for col in log_cols]
+            feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
+            + [f"{c}_diff" for c in diff_cols_spacetrack] 
+            + [f"log({col})" for col in log_cols] 
+            + [f"{col}_level" for col in level_cols] 
+            + [f"{col}_local" for col in level_cols]
         else:
             df = add_diff(df, diff_cols_spacetrack)
-            feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_spacetrack]
+            feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
+            + [f"{c}_diff" for c in diff_cols_spacetrack]
+            + [f"{col}_level" for col in level_cols] 
+            + [f"{col}_local" for col in level_cols]
     else:
         df = add_diff(df, diff_cols_splid)
         feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_splid]
@@ -277,6 +295,3 @@ def build_features(df, spacetrack=True, log_features=False):
     df[feature_cols] = df[feature_cols].astype(np.float32)
 
     return df, feature_cols
-
-if __name__ == '__main__' : 
-    main()
