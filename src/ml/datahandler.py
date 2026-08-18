@@ -277,17 +277,17 @@ def build_features(df, spacetrack=True, log_features=False):
         if log_features:
             df = add_log(df, log_cols)
             df = add_diff(df, diff_cols_spacetrack)
-            feature_cols = ['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
+            feature_cols = (['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
             + [f"{c}_diff" for c in diff_cols_spacetrack] 
             + [f"log({col})" for col in log_cols] 
             + [f"{col}_level" for col in level_cols] 
-            + [f"{col}_local" for col in level_cols]
+            + [f"{col}_local" for col in level_cols])
         else:
             df = add_diff(df, diff_cols_spacetrack)
-            feature_cols = ['dt', 'sma', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
+            feature_cols =(['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
             + [f"{c}_diff" for c in diff_cols_spacetrack]
             + [f"{col}_level" for col in level_cols] 
-            + [f"{col}_local" for col in level_cols]
+            + [f"{col}_local" for col in level_cols])
     else:
         df = add_diff(df, diff_cols_splid)
         feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_splid]

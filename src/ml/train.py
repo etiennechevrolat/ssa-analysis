@@ -382,6 +382,7 @@ def main(cfg : DictConfig):
         w[meta['feature_cols'].index("dt")] = 0.0 ## on mets le poids de dt à zero.
         w[meta['feature_cols'].index('cosM')] = 0.0
         w[meta['feature_cols'].index('sinM')] = 0.0
+        w[meta['feature_cols'].index('sma_level')] = 0.0
         print(meta['feature_cols'])
         loss_fn = MaskedChannelMSE(w).to(device)
 
