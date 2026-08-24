@@ -12,7 +12,7 @@ from optimisation_seuil.metrics import (
     lissage_noyau_gaussien_metriques,
     confusion_matrix,
     precision_recall_f1,
-    minimize,
+    minimize_DE,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,7 +81,7 @@ def optimise_seuil_kalman(norad, sigma_lissage=1.0, beta_lissage=0.5, tol_days=1
               (np.log10(1.0), np.log10(1e5)),        # p0 > 0
             ] 
     
-    res = minimize(loss, x0=x0, bounds=bounds)
+    res = minimize_DE(loss, x0=x0, bounds=bounds)
     log_var_Q, log_r, log_p0 = res.x
     var_Q, r, p0 = 10**log_var_Q, 10**log_r, 10**log_p0   # retour en espace linéaire
 
@@ -97,10 +97,27 @@ def optimise_seuil_kalman(norad, sigma_lissage=1.0, beta_lissage=0.5, tol_days=1
           f"P={prf['precision']:.3f} R={prf['recall']:.3f}  {conf}")
     return {"var_Q": var_Q, "r": r, "p0": p0, **prf, **conf}
 
+
+import os 
+import pandas as pd
+base = Path.cwd()
+
+CLUSTER_DIR = os.path.join(base, 'outputs', 'clustering' , 'cluster_leo_15000_spacetrack_128D_MCS15_MS15_OPTIM.csv')
+
+def learned_clusters_params(cluster_dir) : 
+
+    df = pd.read_csv(cluster_dir)
+    
+    valid = df[df['cluster'] != -1]
+
+    norads = valid['norad']
+    for norad in norads : 
+        optimise_seuil_kalman(norad, sigma_lissage=1, beta_lissage=0.5)    
+
+
+
 def main():
-    ## on teste l'optimisation des hyperparamètres du filtre sur CryoSat-2. 
-    ## on applique un lissage de F1 plus ou moins fort via sigma_lissage et beta_lissage.
-    optimise_seuil_kalman(norad, sigma_lissage = 0.1, beta_lissage = 0.1, tol_days = 1/24)   # CryoSat-2
+    learned_clusters_params(CLUSTER_DIR)
 
 if __name__ == "__main__":
     main()

@@ -232,7 +232,7 @@ def plot_compare(path, norads, params, start=None, end=None, time_col="epoch", n
 
 
 def plot_cluster(
-    path,
+    df_tle,
     norads,
     params,
     cluster_label=None,
@@ -264,7 +264,7 @@ def plot_cluster(
     fig, axes = plt.subplots(
         nrows, ncols,
         figsize=(6 * ncols, 4 * nrows),
-        squeeze=False,
+        squeeze=False
     )
     # axes plats dans l'ordre des params
     flat_axes = [axes[i // ncols][i % ncols] for i in range(len(params))]
@@ -277,12 +277,7 @@ def plot_cluster(
     all_series: dict[str, list] = {p: [] for p in params}
 
     for norad in norads:
-        try:
-            hist = load_history(path, norad, params, start, end, time_col)
-        except Exception:
-            continue
-        if hist.is_empty():
-            continue
+        hist = df_tle[df_tle['norad'] == norad]
         t = hist[time_col].to_list()
         for p in params:
             all_series[p].append((t, hist[p].to_list()))
@@ -295,6 +290,7 @@ def plot_cluster(
         ax.grid(True, linestyle="--", linewidth=0.3, alpha=0.5)
 
         if not all_series[p]:
+            print(0)
             continue
 
         # Traces individuelles
@@ -335,8 +331,7 @@ def plot_cluster(
             valid = ~np.isnan(mean_y)
             ax.plot(
                 np.array(mean_t)[valid], mean_y[valid],
-                color="green", lw=1.5, zorder=3,
-                label=f"{cluster_label} Mean",
+                color="green", lw=1.5, zorder=3
             )
 
         # Autoscale serré sur les données réelles
@@ -346,7 +341,7 @@ def plot_cluster(
         ax.margins(y=0.05)
 
         ax.legend(fontsize=7, loc="upper right", framealpha=0.7)
-
+    fig.suptitle(cluster_label, fontsize=12)
     fig.autofmt_xdate(rotation=30, ha="right")
     fig.tight_layout()
     return fig
