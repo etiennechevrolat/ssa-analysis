@@ -1,10 +1,10 @@
 data_dir : ${hydra:runtime.cwd}/data/raw/spacetrack
-dataset : 'leo'
+dataset : 'starlink'
 
 val_split: 0.2 
 
 window_size : 192
 stride : 13 # intentionnellement premier avec window_size pour obtenir des vues décalées.
 
-revin_per_obj_norm : True
-revin_per_window_norm : True
+revin_norm : True
+

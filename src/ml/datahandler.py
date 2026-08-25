@@ -176,6 +176,8 @@ def load_doris_objects(data_dir):
 def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     if dataset == 'leo':
         dataset_dir = Path(os.path.join(data_dir, "leo_unlabelled_dataset" ))
+    elif dataset== 'starlink' : 
+        dataset_dir = Path(os.path.join(data_dir, "starlink" ))
     else : ## tous les objets
         dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
     parquet_paths = sorted(dataset_dir.glob('*.parquet'))

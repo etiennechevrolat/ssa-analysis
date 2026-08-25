@@ -31,17 +31,29 @@ def load_checkpoint(path, device):
     cfg = OmegaConf.create(ckpt['config'])
     model = build_model(cfg.model, cfg.task, n_features=ckpt['n_features'], window_size=ckpt['window_size'])
 
-    model.load_state_dict(ckpt['model_state'])
+    ## inorm_mask / sigma_floor ont ete ajoutes au modele apres coup : un checkpoint
+    ## anterieur ne les contient pas, et __init__ les a deja initialises. On reste strict
+    ## sur tout le reste, un poids reellement manquant doit toujours lever.
+    missing, unexpected = model.load_state_dict(ckpt['model_state'], strict=False)
+    missing = [k for k in missing if k not in ('inorm_mask', 'sigma_floor')]
+    if missing or unexpected:
+        raise RuntimeError(f"state_dict incompatible : manquants {missing}, inattendus {unexpected}")
     model.to(device).eval()
 
-    if 'scaler_mean' in ckpt : 
+    ## scaler_kind='per_obj' : pas de (mean, scale) global, la normalisation est refaite
+    ## objet par objet dans load_spacetrack_features. Le test porte sur la VALEUR et non
+    ## sur la presence de la cle : save_checkpoint ecrit scaler_mean=None dans ce cas, et
+    ## np.asarray(None, np.float32) vaut nan -- il contaminerait toutes les features sans
+    ## que rien ne le signale.
+    if ckpt.get('scaler_mean') is not None:
         mean, scale = np.asarray(ckpt['scaler_mean'], np.float32), np.asarray(ckpt['scaler_scale'], np.float32)
-
-    else: 
+    elif ckpt.get('scaler_kind') == 'per_obj':
+        mean, scale = None, None
+    else:
         mean, scale = scaler_from_checkpoint(ckpt)
 
     return model, cfg, mean, scale
-    
+
 
 def scaler_from_checkpoint(ckpt, data_dir=None):
     cfg = OmegaConf.create(ckpt['config'])
@@ -169,13 +181,31 @@ def patch_of_index(time_index, window_start, patch_size):
     return (time_index - window_start) // patch_size
 
 
-def load_spacetrack_features(data_dir, dataset, mean, scale):
-    """Features SpaceTrack normalisées avec le scaler du pretraining : {norad: (L,F)}"""
-    per_obj = {}
+def load_spacetrack_features(data_dir, dataset, mean=None, scale=None, return_stats=False):
+    """Features SpaceTrack normalisées comme au pretraining : {norad: (L,F)}
+
+    mean/scale None -> normalisation par objet : chaque objet est centré-réduit par ses
+    propres statistiques, comme fit_scaler_on_train_RevIn au pretraining (checkpoints
+    sauvés avec scaler_kind='per_obj').
+
+    return_stats=True -> renvoie aussi ({norad: (mean, scale)}, feature_cols). Les stats
+    sont indispensables pour repasser en unités physiques : en normalisation par objet
+    elles diffèrent d'un objet à l'autre. feature_cols est renvoyé plutôt que laissé à
+    l'appelant : c'est build_features qui fixe l'ordre des colonnes, et une liste recopiée
+    à la main ailleurs finit par en diverger sans que rien ne le signale.
+    """
+    per_obj, stats, feature_cols = {}, {}, None
     for norad, df in load_spacetrack_objects(data_dir, dataset).items():
         features, feature_cols = build_features(df, spacetrack=True)
-        per_obj[norad] = (features[feature_cols].to_numpy(np.float32) - mean) / scale
-    return per_obj
+        X = features[feature_cols].to_numpy(np.float32)
+        if mean is None:
+            sc = StandardScaler().fit(X)
+            mu, sigma = sc.mean_.astype(np.float32), sc.scale_.astype(np.float32)
+        else:
+            mu, sigma = mean, scale
+        per_obj[norad] = (X - mu) / sigma
+        stats[norad] = (mu, sigma)
+    return (per_obj, stats, feature_cols) if return_stats else per_obj
 
 
 @torch.no_grad()
