@@ -653,7 +653,7 @@ class TimeSeriesMAE(nn.Module):
     def forward(self, x):
         # raw x: (B, n_features, window_size)
         x_id = x 
-        B, n_features,window_size = x.shape
+        B, n_features, _ = x.shape
 
         x = self.patch_embedding(x) # (B,N,embed_dim)
         x = self.encoder_pos_embedding(x) 
@@ -713,7 +713,7 @@ class TimeSeriesMAE(nn.Module):
                 .permute(0,2,1,3)
                 .reshape(B,self.num_patches, -1)
                 )
-
+        
         ## on ne regarde que la loss sur les patchs maskés
         ids_mask = ids_mask.unsqueeze(-1).expand(-1,-1, n_features * self.patch_embedding.patch_size)
         pred = torch.gather(pred_all, 1, ids_mask) # (B, N_mask, F*P)

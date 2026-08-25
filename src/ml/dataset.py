@@ -108,6 +108,13 @@ def fit_scaler_on_train(per_obj, train_ids, scaler=None):
         per_obj[oid][0] = scaler.transform(per_obj[oid][0]).astype(np.float32)
     return scaler
 
+def fit_scaler_on_train_RevIn(per_obj, train_ids):
+    """Ajuste un scaler standard sur chaque objet : scaler est un dict {norads : mean, std}"""
+    scaler = {oid : None for oid in train_ids}
+    for oid in train_ids : 
+        scaler[oid] = StandardScaler().fit(per_obj[oid][0])
+        per_obj[oid][0] = scaler[oid].transform(per_obj[oid][0]).astype(np.float32)
+    return scaler
 
 def scaler_from_checkpoint(ckpt, n_features):
     """Reconstruit le StandardScaler du pretrain depuis les champs sauvés par save_checkpoint."""
@@ -312,7 +319,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
             "n_outputs" : int(np.prod(target_shape)) if flatten_target else target_shape}
     return train_dl, val_dl, meta
 
-def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42):
+def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42, revin= False):
     per_obj =  {}
     for oid, df in objects.items() :
         df_feat, feature_cols = build_features(df, spacetrack=True)
@@ -320,7 +327,11 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
 
-    scaler = fit_scaler_on_train(per_obj, train_ids)
+    if not revin : 
+        scaler = fit_scaler_on_train(per_obj, train_ids)
+    else : 
+        ## les données sont normalisées par objet 
+        scaler = fit_scaler_on_train_RevIn(per_obj, train_ids)
 
     train_dataset = UnlabeledWindowDataset(per_obj, train_ids, window_size, stride)
     val_dataset = UnlabeledWindowDataset(per_obj, val_ids, window_size, stride)

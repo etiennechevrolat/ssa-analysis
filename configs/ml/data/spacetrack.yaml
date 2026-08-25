@@ -5,3 +5,5 @@ val_split: 0.2
 
 window_size : 192
 stride : 13 # intentionnellement premier avec window_size pour obtenir des vues décalées.
+
+revin_norm : True

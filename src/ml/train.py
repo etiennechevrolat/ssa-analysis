@@ -72,7 +72,7 @@ def pretrain_one_epoch(
         optimizer : torch.optim.Optimizer,
         device : torch.device,
         epoch=0,
-        scheduler=None
+        scheduler=None,
     ):
     ## dataloader renvoie des batchs de times series sans label de type UnlabelledWindowDataset() cf dataset.py
     model.train()
@@ -86,7 +86,7 @@ def pretrain_one_epoch(
         x = time_series_batch.to(device, non_blocking=True)
 
         optimizer.zero_grad()
-
+    
         pred, target = model(x) 
 
         ## on évalue donc l'image initiale vs la reconstruction 
@@ -375,14 +375,20 @@ def main(cfg : DictConfig):
             stride = cfg.data.stride,
             batch_size=cfg.train.batch_size,
             val_split=cfg.data.val_split,
-            seed= cfg.seed
+            seed= cfg.seed,
+            revin=cfg.data.revin_norm
             )
         ## le pretrain est une régression : mean-square-error loss
+        ### on ajuste les poids de chaque feature dans le calcul de la loss
         w = torch.ones(len(meta["feature_cols"]))
-        w[meta['feature_cols'].index("dt")] = 0.0 ## on mets le poids de dt à zero.
-        w[meta['feature_cols'].index('cosM')] = 0.0
-        w[meta['feature_cols'].index('sinM')] = 0.0
-        w[meta['feature_cols'].index('sma_level')] = 0.0
+        w[meta['feature_cols'].index("dt")] = cfg.task.dt_weight
+        w[meta['feature_cols'].index('cosM')] = cfg.task.M_weight
+        w[meta['feature_cols'].index('sinM')] = cfg.task.M_weight
+        w[meta['feature_cols'].index('sma_level')] = cfg.task.sma_level_weight
+        w[meta['feature_cols'].index('sma_diff')] = cfg.task.sma_diff_weight
+        w[meta['feature_cols'].index('p_diff')] = cfg.task.p_q_diff_weight
+        w[meta['feature_cols'].index('q_diff')] = cfg.task.p_q_diff_weight
+       
         print(meta['feature_cols'])
         loss_fn = MaskedChannelMSE(w).to(device)
 
