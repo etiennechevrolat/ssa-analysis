@@ -111,7 +111,7 @@ def fit_scaler_on_train(per_obj, train_ids, scaler=None):
 def fit_scaler_on_train_RevIn(per_obj, train_ids):
     """Ajuste un scaler standard sur chaque objet : scaler est un dict {norads : mean, std}"""
     scaler = {oid : None for oid in train_ids}
-    for oid in train_ids : 
+    for oid in per_obj : 
         scaler[oid] = StandardScaler().fit(per_obj[oid][0])
         per_obj[oid][0] = scaler[oid].transform(per_obj[oid][0]).astype(np.float32)
     return scaler
@@ -327,11 +327,12 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
 
-    if not revin : 
-        scaler = fit_scaler_on_train(per_obj, train_ids)
-    else : 
+    
+    if revin : 
         ## les données sont normalisées par objet 
         scaler = fit_scaler_on_train_RevIn(per_obj, train_ids)
+    else : 
+        scaler = fit_scaler_on_train(per_obj, train_ids)
 
     train_dataset = UnlabeledWindowDataset(per_obj, train_ids, window_size, stride)
     val_dataset = UnlabeledWindowDataset(per_obj, val_ids, window_size, stride)

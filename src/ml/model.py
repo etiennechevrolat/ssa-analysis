@@ -649,6 +649,12 @@ class TimeSeriesMAE(nn.Module):
             self.decoder_norm = nn.LayerNorm(decoder_embed_dim)
             
             self.pred_space_proj = nn.Linear(decoder_embed_dim, n_features * patch_size)
+            self.register_buffer('inorm_mask', torch.zeros(n_features)) ## 1.0 sur les features normalisées par fenetre 
+            self.register_buffer('sigma_floor', torch.zeros(n_features))
+
+    def _instance_stats(self, x_id, ids_keep) : 
+        """ mean, std for each (window, feature) sur les patchs visibles seulement"""
+        B, n_features ,  _ = x_id.shape
 
     def forward(self, x):
         # raw x: (B, n_features, window_size)
@@ -713,7 +719,7 @@ class TimeSeriesMAE(nn.Module):
                 .permute(0,2,1,3)
                 .reshape(B,self.num_patches, -1)
                 )
-        
+
         ## on ne regarde que la loss sur les patchs maskés
         ids_mask = ids_mask.unsqueeze(-1).expand(-1,-1, n_features * self.patch_embedding.patch_size)
         pred = torch.gather(pred_all, 1, ids_mask) # (B, N_mask, F*P)

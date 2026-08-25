@@ -549,9 +549,13 @@ def main(cfg : DictConfig):
         
         tqdm.write(line) 
         is_best = logger.log_epoch(epoch, train_loss, val_loss, metrics)
+        scaler = meta['scaler']
+        per_obj = isinstance(scaler, dict)
+
         logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size,
-            scaler_mean = meta['scaler'].mean_,
-            scaler_scale = meta['scaler'].scale_
+            scaler_mean = None if per_obj else meta['scaler'].mean_,
+            scaler_scale = None if per_obj else meta['scaler'].scale_,
+            scaler_kind = 'per_obj' if per_obj else 'global'
             )
 
     logger.finish()
