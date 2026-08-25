@@ -1,0 +1,72 @@
+
+
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+% Better font encoding for French and scalable fonts
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb, amsfonts, amsthm, stmaryrd}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage[french]{babel}
+\usepackage{amsopn}
+
+\title{Etat de l'art des méthodes d'analyse des RSO par apprentissage supervisé et non supervisé}
+\author{Etienne Chevrolat}
+\date{}
+
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+    Dans ce document on cherche à documenter et résumer l'ensemble des méthodes de Deep learning sur Time-Series explorées lors de mon stage chez Aldoria.
+    Mon but principal était de détecter des manoeuvres à partir de séries temporelles de TLEs. 
+    Après une analyse des méthodes statistiques existantes, 
+    la question de trouver une méthode plus générale/plus fiable/ne necéssitant pas d'analyse au cas par cas/ne nécessitant pas de choix d'un seuil de bruit/anomalies fait naturellement s'intéresser à des méthodes d'apprentissage statistique.  
+    On s'est alors plus généralement intéressé à l'analyse globale du catalogue RSO : détection d'anomalies, caractérisation de patterns-of-life, embedding des objets, clusterisation des objets en orbite basse, reconstruction et forecasting des séries temporelles d'éléments orbitaux.
+\end{abstract}
+
+\section{Apprentissage supervisé}
+
+\subsection{La difficulté de trouver des données annotées pour notre usage}
+    Le principal défi lorsqu'on veut faire de la détection de manoeuvres sur des séries temporelles de paramètres orbitaux par apprentissage, c'est le manque de données suffisantes des manoeuvres de satellites.
+    La principale source de données publiques pour les manoeuvres de satellites en orbite basse sont celles des satellites équipés de sondes DORIS : problème, il s'agit d'une poignée de satellites scientifiques européens aux comportements uniques et non généralisables à la plupart des satellites.
+    J'ai par ailleurs conçu un dataset personnalisé de maneouvres labellisées à la main de 75 objets d'orbites diverses. D'autres sources de données privées précises pour quelques satellites ont été trouvées.
+    Dans tous les cas, la quantité et/ou la qualité des données était problématique. 
+
+\subsection{La performance de petits modèles sur données synthétiques}
+    Une étude approfondie de la performance sur des données synthétiques SPLID (osculatrices, non-moyennées) d'objets en orbite GEO à été menée.
+    On a ainsi réussi à atteindre les perfs du gagnant du concours SPLID sur les taches de localisation des points de changement de pattern of life + classification des noeuds (début de drift, début de station keeping, ajustement de drift, station keeping electrique/chimique/hybride).
+    Les architectures qui fonctionnent sont basiques : fenêtrage des données (128 pas passés, 48 pas futur), un réseau de neurones convolutif (CNN) pour localisation et un réseau récurrent type long-short-term-memory (LSTM) pour la classification.
+    
+
+    Une étude avait déjà été réalisée chez Aldoria sur des données synthétiques LEO et des très bon résultat avait aussi été obtenu.
+    La pertinence de faire du machine learning sur les données orbitales est donc confirmée : que ce soit sur TLEs ou sur SP Vectors, les modèles d'apprentissage/deep learning peuvent apprendre les patterns des satellites (d'autant plus qu'avec le nombre croissant d'objets déployés, les manoeuvres seront prochainement massivement automatisées et donc prédictibles)
+
+    Le problème est toujours le passage de données synthétiques vers les données réelles, notamment à des méthodes qui fonctionnent sur les données SpaceTrack : des TLEs fiables, réelles et disponible librement en grande quantité.
+
+\section{Apprentissage non supervisé}
+    On s'est grandement interessé à cause du manque de données annotées à des méthodes d'apprentissage non-supervisé.
+    La source de données est les TLES SpaceTrack de l'ensemble des objets en orbite basse de 2024 à aujourd'hui.
+    \subsection{Une phase de pretraining sur les données SpaceTrack}
+    (cf article Guimareaes)
+
+    L'idée est d'entrainer un encodeur de type VisionTransformer (basé sur le mécanisme d'attention temporelle cf attention is all you need, cf ViT) par la technique de masquage : 
+    On s'est inspiré de ce qui se faisait en préentrainement non-supervision en Vision : cf videoMAE, videoMAEv2 
+
+    On divise la série temporelle en fenêtres (de 2 semaines à 3 mois) et les fenêtres en patchs (de quelques jours).
+    
+
+    Un certain nombre des patchs (> 50 \% )de chaque fenetre sont masqués, et l'encodeur applique un embedding (transformers sur un espace latent de dimension 64,128) sur les patchs visibles uniquement.
+    Un décodeur reconstruit les patchs masqués et la loss MSE est calculée entre les données masquées et les données réelles uniquement (objectif reconstruction).
+    Ces méthodes ont initialement été inventées pour diminuer la taille des données à traiter, car les encodeurs ont un temps de calcul en $O(n^ 2)$ avec $n$ la taille de l'entrée
+    Il s'avère que cette technique de masking permet à l'encodeur d'apprendre les patterns généraux sous-jacents aux données.
+
+    L'encodeur ainsi préentrainé (un ViT classique) est ainsi utilisable pour un grand nombre de tache : l'idée est qu'il à appris les mécanismes des données orbitales LEO de manière générale : différencier les types d'orbites, différencier les comportements débris/payload, les fréquence des manoeuvres de station keeping, etc
+
+    On réutilise ensuite cet encodeur pour des tâches spé
+
+\end{document}
