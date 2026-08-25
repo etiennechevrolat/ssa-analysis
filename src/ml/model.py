@@ -690,7 +690,7 @@ class TimeSeriesMAE(nn.Module):
         visible = torch.gather(patches, 2, idx)                    # (B, F, N_keep, P)
 
         mu = visible.mean(dim=(2, 3))                              # (B, F)
-        sigma = visible.std(dim=(2, 3), unbiased=False)
+        sigma = x_id.std(dim=2, unbiased=False)
         sigma = torch.clamp(torch.maximum(sigma, self.sigma_floor[None, :]), min=1e-6)
 
         m = self.inorm_mask[None, :]

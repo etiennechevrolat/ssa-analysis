@@ -67,7 +67,6 @@ def plot_reconstruction(
     """
     Trace la reconstruction du MAE pour un objet donné, en comparant
     les séries originales et reconstruites. Les patchs masqués sont grisés.
-
     """
     from ml.inference import reconstruct_window
 

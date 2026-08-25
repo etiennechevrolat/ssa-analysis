@@ -371,6 +371,7 @@ def _finish_plot(fig, out_path, show):
     return out_path
 
 
+
 def main(ckpt_path, data_dir, out_dir):
     ## script de chargement des encodeurs préentrainés
     print("[1/5] Chargement du device...")
@@ -393,6 +394,7 @@ def main(ckpt_path, data_dir, out_dir):
 
     plot_clusters_2d(cfg, x,labels, min_cluster_size, min_samples, out_path=out_dir)
 
+
 if __name__ == "__main__" : 
     import os 
     from pathlib import Path
@@ -401,6 +403,7 @@ if __name__ == "__main__" :
     ckpt_path = Path(os.path.join(base, '..' , '..', 'outputs', 'ml', 'pretrain', '2026-08-11_14-43-36', 'checkpoints', 'best.pt' ))
     data_dir = Path(os.path.join(base, '..' , '..', 'data', 'raw', 'spacetrack'))
     out_dir = os.path.join(base, '..', '..', 'data', 'graphs', 'clustering')
+
 
     main(ckpt_path, data_dir, out_dir)
 
