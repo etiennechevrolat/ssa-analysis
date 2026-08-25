@@ -652,21 +652,59 @@ class TimeSeriesMAE(nn.Module):
             self.register_buffer('inorm_mask', torch.zeros(n_features)) ## 1.0 sur les features normalisées par fenetre 
             self.register_buffer('sigma_floor', torch.zeros(n_features))
 
-    def _instance_stats(self, x_id, ids_keep) : 
-        """ mean, std for each (window, feature) sur les patchs visibles seulement"""
+    def configure_instance_norm(self, feature_cols, cols=(), sigma_floor=0.0):
+        """Active le RevIN par fenetre sur les canaux `cols`.
+
+        sigma_floor est exprime dans les unites du scaler amont (celui du dataset, global
+        ou par objet) : c'est lui qui empeche de ramener a variance 1 une fenetre dont la
+        variation est au niveau du bruit. Scalaire, ou dict {canal: valeur}.
+        """
+        mask = torch.zeros(len(feature_cols))
+        floor = torch.zeros(len(feature_cols))
+        for c in cols:
+            if c not in feature_cols:
+                raise ValueError(f"canal inconnu pour le RevIN par fenetre : {c!r} "
+                                 f"(disponibles : {list(feature_cols)})")
+            i = feature_cols.index(c)
+            mask[i] = 1.0
+            floor[i] = float(sigma_floor[c] if hasattr(sigma_floor, 'get') else sigma_floor)
+        self.inorm_mask.copy_(mask.to(self.inorm_mask.device))
+        self.sigma_floor.copy_(floor.to(self.sigma_floor.device))
+        return self
+
+    def _instance_stats(self, x_id, ids_keep) :
+        """ mean, std for each (window, feature) sur les patchs visibles seulement
+
+        Les statistiques sont calculees sur les patchs VISIBLES et non sur toute la fenetre :
+        sinon on donnerait au decodeur la moyenne et l'echelle des patchs masques, qui
+        retrouverait leur niveau sans rien avoir appris.
+
+        Les canaux hors inorm_mask ressortent avec mu=0 et sigma=1 : ils sont inchanges, et
+        le chemin de code reste unique que le RevIN par fenetre soit actif ou non.
+        """
         B, n_features ,  _ = x_id.shape
+        patch_size = self.patch_embedding.patch_size
+
+        patches = x_id.reshape(B, n_features, self.num_patches, patch_size)
+        idx = ids_keep[:, None, :, None].expand(B, n_features, ids_keep.shape[1], patch_size)
+        visible = torch.gather(patches, 2, idx)                    # (B, F, N_keep, P)
+
+        mu = visible.mean(dim=(2, 3))                              # (B, F)
+        sigma = visible.std(dim=(2, 3), unbiased=False)
+        sigma = torch.clamp(torch.maximum(sigma, self.sigma_floor[None, :]), min=1e-6)
+
+        m = self.inorm_mask[None, :]
+        return mu * m, sigma * m + (1.0 - m)
 
     def forward(self, x):
         # raw x: (B, n_features, window_size)
-        x_id = x 
+        x_id = x
         B, n_features, _ = x.shape
+        N = self.num_patches
 
-        x = self.patch_embedding(x) # (B,N,embed_dim)
-        x = self.encoder_pos_embedding(x) 
-    
-        ## Masking 
-        _, N, embed_dim = x.shape
-
+        ## Masking. Tire AVANT le patch embedding : la normalisation par fenetre ne doit voir
+        ## que les patchs visibles, donc elle a besoin de ids_keep. Le tirage ne depend que de
+        ## (B, N), pas du contenu de x, donc le deplacer ne change rien au masquage.
         n_mask = round(N * self.masking_ratio)
         n_keep = N - n_mask
         ## rand crée un tenseur aléatoire de shape (B,N), et argsort donne les indices pour trier la liste :  i.e. une permu aléatoire de (1,..,N)*
@@ -677,6 +715,19 @@ class TimeSeriesMAE(nn.Module):
  
         ids_keep = ids_shuffle[:, : n_keep] # (B, N_keep)
         ids_mask = ids_shuffle[:, n_keep:]
+
+        ## RevIN par fenetre : chaque (fenetre, canal) selectionne par inorm_mask est centre
+        ## reduit par ses propres statistiques. L'entree ET la cible en heritent (target_all
+        ## est construit depuis x_id), donc la loss devient sans echelle : une fenetre calme
+        ## et un objet en decroissance pesent le meme poids.
+        mu, sigma = self._instance_stats(x_id, ids_keep)
+        x_id = (x_id - mu[..., None]) / sigma[..., None]
+        ## conserves pour l'evaluation : ils permettent de repasser en unites physiques.
+        self.last_mu, self.last_sigma = mu.detach(), sigma.detach()
+
+        x = self.patch_embedding(x_id) # (B,N,embed_dim)
+        x = self.encoder_pos_embedding(x)
+        embed_dim = x.shape[-1]
 
         ids_keep = ids_keep.unsqueeze(-1).expand(-1,-1, embed_dim) #(B, N_keep, embed_dim)
         x_vis = torch.gather(x, dim=1, index=ids_keep) # (B, N_keep, embed_dim)

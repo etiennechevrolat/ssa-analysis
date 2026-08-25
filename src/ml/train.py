@@ -454,6 +454,17 @@ def main(cfg : DictConfig):
 
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size,
                         n_outputs=meta['n_outputs'] if is_finetuning else 4)
+
+    ## RevIN par fenetre : orthogonal a la normalisation par objet du dataset (data.revin_norm).
+    ## Les deux se cumulent — par objet on retire l'echelle propre a l'objet, par fenetre celle
+    ## de la fenetre courante — et chacun se desactive independamment.
+    if is_pretrain and cfg.data.get('revin_per_window_norm', False):
+        cols = list(cfg.data.get('revin_window_cols', []) or [])
+        floor = cfg.data.get('revin_sigma_floor', 0.0)
+        model.configure_instance_norm(meta['feature_cols'], cols, floor)
+        print(f"[pretrain] RevIN par fenetre sur {cols} (plancher sigma {floor}) "
+              f"| normalisation dataset : {'par objet' if cfg.data.get('revin_norm') else 'globale'}")
+
     model.to(device)
     if is_finetuning :
         check_backbone_compatibility(ckpt, cfg, window_size)

@@ -8,3 +8,10 @@ stride : 13 # intentionnellement premier avec window_size pour obtenir des vues 
 
 revin_norm : True
 
+## RevIN par FENETRE, applique dans le modele. Cumulable avec revin_norm ci-dessus :
+## revin_norm retire l'echelle propre a l'objet, celui-ci l'echelle de la fenetre courante.
+revin_per_window_norm : True
+revin_window_cols : ['sma_local']  ## canaux concernes ; les autres passent inchanges
+## Plancher sur sigma, dans les unites du scaler amont. Sans lui, une fenetre dont la
+## variation est au niveau du bruit TLE serait ramenee a variance 1.
+revin_sigma_floor : 0.05

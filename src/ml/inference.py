@@ -150,6 +150,12 @@ def reconstruct_window(mae, x, masked_patches=None, device='cpu', seed=0):
     ids_restore = torch.argsort(ids_shuffle, dim=1)
 
     xb = torch.from_numpy(np.ascontiguousarray(x)).float()[None].to(device) # (1,F,W)
+
+    ## meme normalisation par fenetre que dans forward, sur les memes patchs visibles.
+    ## Sans RevIN (inorm_mask a zero) mu=0 et sigma=1 : xb est inchange.
+    mu, sigma = mae._instance_stats(xb, torch.as_tensor(kept_patches, device=device)[None])
+    xb = (xb - mu[..., None]) / sigma[..., None]
+
     tokens = mae.encoder_pos_embedding(mae.patch_embedding(xb))             # (1,N,D_enc)
     embed_dim = tokens.shape[-1]
 
@@ -172,6 +178,10 @@ def reconstruct_window(mae, x, masked_patches=None, device='cpu', seed=0):
     pred = mae.pred_space_proj(y[:, 1:])                        # (1,N,F*P)
     ## inverse exact du target_all du forward : (1,N,F*P) -> (1,N,F,P) -> (1,F,N,P) -> (1,F,W)
     pred = pred.reshape(1, N, n_features, patch_size).permute(0, 2, 1, 3).reshape(1, n_features, window_size)
+
+    ## on annule le RevIN par fenetre : l'appelant retrouve la reconstruction dans l'espace
+    ## d'entree (celui du scaler du dataset), donc traçable avec les stats de l'objet.
+    pred = pred * sigma[..., None] + mu[..., None]
 
     return pred[0].cpu().numpy(), masked_patches
 
