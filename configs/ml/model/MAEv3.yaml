@@ -1,0 +1,16 @@
+name : MAEv3
+## Modèle plus gros :2,6M de paramètres. Dimension de l'encodeur/décodeur x2 par rapport à la v1
+## Le décodeur est plus profond par rapport à la v2 : 8 couches de blocs d'attention vs 4 avant
+## Le patch size de base passe à 4, le masking_ratio à 0.50
+
+patch_size : 4
+masking_ratio : 0.5
+encoder_embed_dim : 128
+encoder_n_attn_heads : 4 ## sous-espaces de dimension 64 
+encoder_n_blocks : 12
+decoder_embed_dim : 64
+decoder_n_attn_heads : 4 ## sous-espaces de dimension 16 
+decoder_n_blocks : 8
+expansion_factor : 4 ## projection MLP de dimension 512
+dropout_rate : 0.0
+
