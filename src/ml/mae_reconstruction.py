@@ -64,4 +64,5 @@ def plot_object_windows(norad, n_windows=3, to_plot=["sma_local"]):
         plt.show()
 
 if __name__ == "__main__":
-    plot_object_windows(norad=49217, n_windows=4, to_plot=["sma_local"])
+    plot_object_windows(norad=52648, n_windows=4, to_plot=["sma_local"])
+

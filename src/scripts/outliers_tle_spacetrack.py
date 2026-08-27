@@ -38,5 +38,4 @@ def plot_sma_local(norad, df, start, end):
         plt.show()
 
 if __name__ == "__main__" : 
-    plot_sma_local(49217, df, 0, 1024)
-    
+    plot_sma_local(56126, df, 0, 256)
