@@ -14,4 +14,4 @@ revin_per_window_norm : True
 revin_window_cols : ['sma_local']  ## canaux concernes ; les autres passent inchanges
 ## Plancher sur sigma, dans les unites du scaler amont. Sans lui, une fenetre dont la
 ## variation est au niveau du bruit TLE serait ramenee a variance 1.
-revin_sigma_floor : 0.05
+revin_sigma_floor : 0.0021

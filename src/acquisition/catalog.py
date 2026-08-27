@@ -16,7 +16,7 @@ def recupIds(client,samples, constellation, orbit_range=None, shuffle=True):
     print(f"Récupération des IDs {cstl_name or 'ALL_NAMES'}/{cstl_country or 'ALL_COUNTRIES'}.../{cstl_norads or 'ALL_NORADS'}")
 
     query = dict(
-        object_type='PAYLOAD',
+        object_type='PAYLOAD' or 'DEBRIS',
         format='json',
         orderby='norad_cat_id',
     )
