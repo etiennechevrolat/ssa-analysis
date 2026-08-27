@@ -8,7 +8,7 @@ wheels/
 *.ini
 /data
 *.xlsx
-outputs
+/outputs
 *.wandb
 # Virtual environments
 .venv
