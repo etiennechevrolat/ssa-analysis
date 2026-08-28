@@ -21,7 +21,7 @@ df = load_data(data_dir)
 
 ## les outliers_problématiques sont surtout ceux du semi grand axe. 
 ## on va faire une passe de nettoyage : 
-# détection sur une fenetre de 256 TLE des outliers des points qui sont loin de mean +- 3 sigma ET isolés.
+# détection sur une fenetre de TLE des outliers des points qui sont loin de mean +- 3 sigma ET isolés.
 def plot_sma(norad, df, start, end):
     """
     Start/end sont des entiers correspondant au numéro des TLE depuis le premier TLE du dataframe de ce norad
@@ -77,7 +77,7 @@ def outliers_detection(norad, df, start, end, n_from_mad = 3, plot = False):
             ylabel= "sma")
         ax.legend()
         plt.show()
-
+    return start, time_index_outliers
 
 if __name__ == "__main__" : 
     norads = df['norad'].values

@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
-
+from statsmodels.robust import scale
 
 ## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
 def load_splid_objects(data_dir: Path, labels_path : Path | None = None):
@@ -180,6 +180,7 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         dataset_dir = Path(os.path.join(data_dir, "starlink" ))
     else : ## tous les objets
         dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
+
     parquet_paths = sorted(dataset_dir.glob('*.parquet'))
     raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
@@ -193,6 +194,29 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         ## sauvegarde dans objects
         objects[int(norad)] = df
     return objects
+
+def outliers_detection(norad, df, start, end, n_from_mad = 3):
+    df_norad = df[df['norad'] == norad].iloc[start:end]
+    sma= df_norad['sma'].values
+    median = np.median(sma)
+    median_abs_deviation = scale.mad(sma)
+
+    is_potential_outlier = np.abs(sma - median) > n_from_mad*median_abs_deviation 
+
+    is_outlier = [False for _ in range(len(is_potential_outlier))]
+
+    for t in range(2, len(is_potential_outlier) -2) :
+        if is_potential_outlier[t] :
+            if ((is_potential_outlier[t + 1] & is_potential_outlier[t+2]) 
+                or (is_potential_outlier[t - 1] & is_potential_outlier[t-2])
+                or (is_potential_outlier[t-1] & is_potential_outlier[t+1])
+                ): 
+                continue   ## le point n'est pas isolé : il fait partie d'une série d'au moins 3 TLE = signifiant 
+            else : 
+                is_outlier[t] = True
+    
+    time_index_outliers = np.where(is_outlier)[0]
+    return start, end, time_index_outliers
 
 ## Features engineering
 
