@@ -338,7 +338,7 @@ def main(cfg : DictConfig):
 
     ## Recup des données et creation des dataloaders
     if is_pretrain :
-        objects = load_spacetrack_objects(cfg.data.data_dir)
+        objects = load_spacetrack_objects(cfg.data.data_dir, cfg.data.dataset)
     elif is_finetuning : 
         objects, labels = load_doris_objects(cfg.data.data_dir)
     else:
