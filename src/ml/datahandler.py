@@ -171,7 +171,7 @@ def load_doris_objects(data_dir):
     return objects, df_labels
 
 
-### Ici on load les objets spacetrack, mais sans revenir au format SPLID, pour pré entrainement non supervisé.
+### Ici on load les objets spacetrack pour pré entrainement non supervisé.
 
 def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     if dataset == 'leo':
@@ -222,7 +222,6 @@ def sma_outliers_detection(norad, df, start, end, n_from_mad = 3):
     median_abs_deviation = scale.mad(sma)
 
     is_potential_outlier = np.abs(sma - median) > n_from_mad*median_abs_deviation 
-
     is_outlier = [False for _ in range(len(is_potential_outlier))]
 
     for t in range(2, len(is_potential_outlier) -2) :
@@ -234,21 +233,19 @@ def sma_outliers_detection(norad, df, start, end, n_from_mad = 3):
                 continue   ## le point n'est pas isolé : il fait partie d'une série d'au moins 3 TLE = signifiant 
             else : 
                 is_outlier[t] = True
-    
     return is_outlier
 
 ## Features engineering
 
 log_cols = ['sma']
 diff_cols_splid  =['Semimajor Axis (m)', 'q', 'p']
-diff_cols_spacetrack = ['sma', 'q', 'p'] ## attention : le sma spacetrack est en km
+diff_cols_spacetrack = ['sma'] ## attention : le sma spacetrack est en km
 
-def add_continuous_angles(df : pd.DataFrame, spacetrack=True) -> pd.DataFrame:
+def add_continuous_angles(df : pd.DataFrame, spacetrack=True):
     """transforme les paramètres angulaires discontinus : 
     (e, i, RAAN, arg_perigee, M) en paramètres equinoxaux continus :
     (k, h , q , p, cos(lamda), sin(lamda))
     et les ajoutent au dataframe
-    df : pd.DataFrame contenant les paramètres d'un objet du dataset
     """
     if spacetrack : 
         e = df['eccentricity']
@@ -257,6 +254,7 @@ def add_continuous_angles(df : pd.DataFrame, spacetrack=True) -> pd.DataFrame:
         arg_perigee = df['arg_perigee']
         anomaly = df['mean_anomaly']
         anomaly_type = 'mean'
+
     else: ## SPLID data nomenclature
         if 'True Anomaly (deg)' in df.columns:
             anomaly, anomaly_type = df['True Anomaly (deg)'], 'true'
@@ -276,8 +274,6 @@ def add_continuous_angles(df : pd.DataFrame, spacetrack=True) -> pd.DataFrame:
     df['sinM'] = sinM
     return df
 
-
-
 def add_diff(df, diff_cols = diff_cols_spacetrack):
     """ajoute les derivées discrètes = résidus des colonnes de diff_cols au dataframe.
     suppose d'avoir déjà transformée les coordonnées angulaires kepleriennes en coordonnées equinoxales pour éviter les sauts brutaux liés au passage 360° -> 1°.
@@ -287,8 +283,6 @@ def add_diff(df, diff_cols = diff_cols_spacetrack):
         v = df[col].to_numpy(dtype=np.float64)
         df[f"{col}_diff"]= np.diff(v, prepend=v[0])
     return df
-
-
 
 def add_log(df, log_cols):
     df = df.copy()
@@ -336,7 +330,5 @@ def build_features(df, spacetrack=True, log_features=False):
     else:
         df = add_diff(df, diff_cols_splid)
         feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_splid]
-
     df[feature_cols] = df[feature_cols].astype(np.float32)
-
     return df, feature_cols
