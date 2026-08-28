@@ -184,11 +184,11 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
 
     parquet_paths = sorted(dataset_dir.glob('*.parquet'))
-    print("Début du chargement des données")
+    print("Début du chargement des données...")
     raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
 
-    print("Début du traitement des données")
+    print("Début du traitement des données...")
     outliers_total = 0
     total_tles = 0
     bstar_factor = np.abs(np.median(raw['bstar']))
@@ -200,10 +200,10 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         total_tles += len(times)
 
         ## retire les TLEs spacetrack outliers détectés sur le sma 
-        is_outlier = sma_outliers_detection(norad, df, 0, len(times), n_from_mad=4) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
+        is_outlier = np.array(sma_outliers_detection(norad, df, 0, len(times), n_from_mad=4)) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
         outliers_total += len(is_outlier)
         df = df[~is_outlier]
-
+        
         ## Ajout de la feature temporelle avec passage en log
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) # distribution à queue lourde. on ajoute une feature temporelle
 
