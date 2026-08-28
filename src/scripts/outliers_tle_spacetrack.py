@@ -15,7 +15,10 @@ from statsmodels.robust import scale
 data_dir  = Path.cwd() / 'data' / 'raw' / 'spacetrack' / 'leo_unlabelled_dataset'
 
 def load_data(data_dir) :
-    df = pd.concat([pd.read_parquet(p) for p in data_dir.glob("*.parquet")], ignore_index=True)
+    parquet_files = sorted(data_dir.glob("*.parquet"))
+    frames = [pd.read_parquet(p) for p in parquet_files]
+    df = pd.concat(frames, ignore_index=True)
+    df = df.sort_values(['norad', 'epoch', 'creation_date']).drop_duplicates(['norad', 'epoch'], keep='last').reset_index(drop=True)
     return df
 df = load_data(data_dir)
 
@@ -84,4 +87,4 @@ if __name__ == "__main__" :
 
     for norad in random.sample(list(norads), 20) : 
         length_serie = len(df[df['norad'] == norad])
-        outliers_detection(norad, df, 0, min(1024,length_serie) , n_from_mad=4 , plot=True)
+        outliers_detection(norad, df, 0, min(1024,length_serie) , n_from_mad=4, plot=True)
