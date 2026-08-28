@@ -43,7 +43,7 @@ def main():
 
         #Recup les ids
         orbit_range= config.orbit_range
-        satids = recupIds(client, None, constellation, orbit_range, shuffle=False)
+        satids = recupIds(client, None, constellation, orbit_range, epoch_min=start, shuffle=False)
         
         #Fetching, on récupère un dico avec les données rangées par ids, epochs
         ## on itère le yield 
