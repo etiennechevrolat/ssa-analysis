@@ -386,8 +386,6 @@ def main(cfg : DictConfig):
         w[meta['feature_cols'].index('sinM')] = cfg.task.M_weight
         w[meta['feature_cols'].index('sma_level')] = cfg.task.sma_level_weight
         w[meta['feature_cols'].index('sma_diff')] = cfg.task.sma_diff_weight
-        w[meta['feature_cols'].index('p_diff')] = cfg.task.p_q_diff_weight
-        w[meta['feature_cols'].index('q_diff')] = cfg.task.p_q_diff_weight
        
         print(meta['feature_cols'])
         loss_fn = MaskedChannelMSE(w).to(device)

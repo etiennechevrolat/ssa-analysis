@@ -4,7 +4,7 @@ dataset : 'leo_with_debris'
 val_split: 0.2 
 
 window_size : 512
-stride : 13 # intentionnellement premier avec window_size pour obtenir des vues décalées.
+stride : 31 # intentionnellement premier avec window_size pour obtenir des vues décalées.
 
 revin_norm : True ## applique une normalisation par objet ? 
 

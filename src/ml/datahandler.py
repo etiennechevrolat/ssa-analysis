@@ -184,7 +184,7 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
 
     parquet_paths = sorted(dataset_dir.glob('*.parquet'))
-    print("Début du chargement des données...")
+    print("Chargement des données...")
     raw = pd.concat([pd.read_parquet(p) for p in parquet_paths], ignore_index=True)
     objects={}
 
@@ -196,15 +196,16 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     for norad,sub in raw.groupby('norad'):
         ## traitement du dataframe spécifique aux données spacetrack : epochs non régulières
         df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last') ## on retire les doublons.
-        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
-        total_tles += len(times)
 
         ## retire les TLEs spacetrack outliers détectés sur le sma 
+        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
         is_outlier = np.array(sma_outliers_detection(norad, df, 0, len(times), n_from_mad=4)) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
         outliers_total += len(is_outlier)
         df = df[~is_outlier]
-        
-        ## Ajout de la feature temporelle avec passage en log
+
+        # Ajout de la feature temporelle avec passage en log
+        times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
+        total_tles += len(times)
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) # distribution à queue lourde. on ajoute une feature temporelle
 
         ## transformation de bstar 

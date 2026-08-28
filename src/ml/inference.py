@@ -200,9 +200,7 @@ def load_spacetrack_features(data_dir, dataset, mean=None, scale=None, return_st
 
     return_stats=True -> renvoie aussi ({norad: (mean, scale)}, feature_cols). Les stats
     sont indispensables pour repasser en unités physiques : en normalisation par objet
-    elles diffèrent d'un objet à l'autre. feature_cols est renvoyé plutôt que laissé à
-    l'appelant : c'est build_features qui fixe l'ordre des colonnes, et une liste recopiée
-    à la main ailleurs finit par en diverger sans que rien ne le signale.
+    elles diffèrent d'un objet à l'autre.
     """
     per_obj, stats, feature_cols = {}, {}, None
     for norad, df in load_spacetrack_objects(data_dir, dataset).items():

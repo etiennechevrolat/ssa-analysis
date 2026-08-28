@@ -3,5 +3,4 @@ name : pretrain
 dt_weight : 0.0
 M_weight : 0.0
 sma_level_weight : 0.0
-sma_diff_weight : 0.0
-p_q_diff_weight : 0.0
+sma_diff_weight : 1.0
