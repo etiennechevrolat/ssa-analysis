@@ -1,5 +1,5 @@
 name : MAEv3
-## Modèle plus gros :2,6M de paramètres. Dimension de l'encodeur/décodeur x2 par rapport à la v1
+## Modèle plus gros :4,66M de paramètres. Dimension de l'encodeur/décodeur x2 par rapport à la v1
 
 ## Chengements : 
 ## Le décodeur est plus profond par rapport à la v2 : 8 couches de blocs d'attention vs 4 avant

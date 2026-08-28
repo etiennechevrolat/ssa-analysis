@@ -176,6 +176,8 @@ def load_doris_objects(data_dir):
 def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     if dataset == 'leo':
         dataset_dir = Path(os.path.join(data_dir, "leo_unlabelled_dataset" ))
+    elif dataset == 'leo_with_debris':
+        dataset_dir = Path(os.path.join(data_dir, "leo_payloads_and_debris" ))
     elif dataset== 'starlink' : 
         dataset_dir = Path(os.path.join(data_dir, "starlink" ))
     else : ## tous les objets
@@ -189,6 +191,8 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     print("Début du traitement des données")
     outliers_total = 0
     total_tles = 0
+    bstar_factor = np.abs(np.median(raw['bstar']))
+
     for norad,sub in raw.groupby('norad'):
         ## traitement du dataframe spécifique aux données spacetrack : epochs non régulières
         df = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last') ## on retire les doublons.
@@ -196,17 +200,16 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         total_tles += len(times)
 
         ## retire les TLEs spacetrack outliers détectés sur le sma 
-        time_index_outliers = sma_outliers_detection(norad, df, 0, len(times), n_from_mad=4) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
-        outliers_total += time_index_outliers
-        df = df[~time_index_outliers]
+        is_outlier = sma_outliers_detection(norad, df, 0, len(times), n_from_mad=4) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
+        outliers_total += len(is_outlier)
+        df = df[~is_outlier]
 
         ## Ajout de la feature temporelle avec passage en log
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) # distribution à queue lourde. on ajoute une feature temporelle
 
         ## transformation de bstar 
-        median = np.median(df['bstar'])
-        df['bstar'] = np.asinh(df['bstar'] / median)
-        
+        df['bstar'] = np.asinh(df['bstar'] / bstar_factor)
+
         ## sauvegarde dans objects
         objects[int(norad)] = df
     print(f"Fin du traitement des données,{len(objects)} objets, {outliers_total / total_tles}% outliers detectés")
@@ -232,8 +235,7 @@ def sma_outliers_detection(norad, df, start, end, n_from_mad = 3):
             else : 
                 is_outlier[t] = True
     
-    time_index_outliers = np.where(is_outlier)[0]
-    return time_index_outliers
+    return is_outlier
 
 ## Features engineering
 
