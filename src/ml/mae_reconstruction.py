@@ -22,7 +22,7 @@ def load_mae_and_data(ckpt_id, base_path=None):
     return mae, cfg, mean, scale, per_obj, feature_cols
 
 # Chargement du modèle et des données une bonne fois pour toutes
-mae, cfg, mean, scale, per_obj, feature_cols = load_mae_and_data(ckpt_id="2026-08-26_17-57-08")
+mae, cfg, mean, scale, per_obj, feature_cols = load_mae_and_data(ckpt_id="2026-08-27_11-42-43")
 window_size = cfg.data.window_size
 patch_size = cfg.model.patch_size
 stats = {norad: (mean, scale) for norad in per_obj}
@@ -64,5 +64,5 @@ def plot_object_windows(norad, n_windows=3, to_plot=["sma_local"]):
         plt.show()
 
 if __name__ == "__main__":
-    plot_object_windows(norad=52648, n_windows=4, to_plot=["sma_local"])
+    plot_object_windows(norad=49217, n_windows=4, to_plot=["sma_local"])
 
