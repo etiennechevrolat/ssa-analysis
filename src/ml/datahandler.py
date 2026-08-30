@@ -200,12 +200,15 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         ## retire les TLEs spacetrack outliers détectés sur le sma 
         times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
         is_outlier = np.array(sma_outliers_detection(norad, df, 0, len(times), n_from_mad=4)) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
-        outliers_total += len(is_outlier)
+        ## is_outlier est un MASQUE booleen de la longueur de la serie : c'est sa somme qui
+        ## compte les outliers, pas sa longueur. Et le denominateur doit etre le nombre de
+        ## TLE AVANT suppression, sinon le taux est calcule sur une base amputee.
+        outliers_total += int(is_outlier.sum())
+        total_tles += len(is_outlier)
         df = df[~is_outlier]
 
         # Ajout de la feature temporelle avec passage en log
         times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
-        total_tles += len(times)
         df["dt"] = np.log1p(np.diff(times, prepend=times[0])).astype(np.float32) # distribution à queue lourde. on ajoute une feature temporelle
 
         ## transformation de bstar 
@@ -213,7 +216,8 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
 
         ## sauvegarde dans objects
         objects[int(norad)] = df
-    print(f"Fin du traitement des données,{len(objects)} objets, {outliers_total / total_tles}% outliers detectés")
+    print(f"Fin du traitement des données, {len(objects)} objets, "
+          f"{outliers_total}/{total_tles} TLE retirés ({100 * outliers_total / max(total_tles, 1):.3f}% outliers)")
     return objects
 
 def sma_outliers_detection(norad, df, start, end, n_from_mad = 3):
@@ -241,6 +245,7 @@ def sma_outliers_detection(norad, df, start, end, n_from_mad = 3):
 log_cols = ['sma']
 diff_cols_splid  =['Semimajor Axis (m)', 'q', 'p']
 diff_cols_spacetrack = ['sma'] ## attention : le sma spacetrack est en km
+heavy_tail_cols_spacetrack = ['sma_diff'] ## residus a queue lourde : cf add_robust_asinh
 
 def add_continuous_angles(df : pd.DataFrame, spacetrack=True):
     """transforme les paramètres angulaires discontinus : 
@@ -285,6 +290,27 @@ def add_diff(df, diff_cols = diff_cols_spacetrack):
         df[f"{col}_diff"]= np.diff(v, prepend=v[0])
     return df
 
+def add_robust_asinh(df, cols, k=5.0):
+    """Normalise des colonnes a queue lourde : echelle robuste par objet, puis compression.
+    """
+    df = df.copy()
+    for col in cols:
+        v = df[col].to_numpy(dtype=np.float64)
+        s = float(scale.mad(v))
+        if not np.isfinite(s) or s <= 1e-12:
+            ## objet trop court, ou residus tous identiques : le MAD degenere a 0 et la
+            ## division exploserait. On retombe sur l'ecart-type, puis sur 1.0.
+            s = float(v.std())
+            if not np.isfinite(s) or s <= 1e-12:
+                s = 1.0
+        ## v / (k*s) et NON v / k * s : Python evalue / puis * de gauche a droite,
+        ## la seconde forme MULTIPLIE par le MAD au lieu de diviser.
+        ## k elargit la zone lineaire d'asinh : les pics jusqu'a ~k sigma gardent leur
+        ## amplitude, seule la queue au-dela est comprimee. k=1 comprime tot, k grand
+        ## tend vers le brut (et vers des gradients domines par quelques echantillons).
+        df[col] = np.arcsinh(v / (k * s))
+    return df
+
 def add_log(df, log_cols):
     df = df.copy()
     for col in log_cols : 
@@ -303,33 +329,50 @@ def add_level_and_local_variations(df, level_cols):
     return df 
 
 def build_features(df, spacetrack=True, log_features=False):
-    """
-    Applique les transformations et renvoie le dataframe enrichi des features utilisées par le modèle.
-    Deux jeux de features distincts :
-      - spacetrack (pretrain non supervisé) : cadence irrégulière -> feature dt, sma en km ;
-      - splid (localizer/classifier)        : grille régulière 2h -> pas de dt, sma en m.
+    if not spacetrack:
+        return _build_features_splid(df)
+    if log_features:
+        return _build_features_spacetrack_log(df)
+
+    df = df.copy()
+    df = add_continuous_angles(df, spacetrack=True)
+    df = add_diff(df, diff_cols_spacetrack)
+    df = add_robust_asinh(df, heavy_tail_cols_spacetrack, k=5)
+
+    feature_cols = (['dt', 'bstar', 'sma', 'k', 'h', 'p', 'q', 'cosM', 'sinM']
+                    + [f"{c}_diff" for c in diff_cols_spacetrack])
+    df[feature_cols] = df[feature_cols].astype(np.float32)
+    return df, feature_cols
+
+
+def _build_features_splid(df):
+    """Variante SPLID (localizer / classifier) : grille reguliere 2h, sma en metres.
+
+    Pas de feature dt, la cadence etant reguliere, et nomenclature de colonnes differente
+    (cf. add_continuous_angles). Conservee pour dataset.py et inference.py.
     """
     df = df.copy()
-    df = add_continuous_angles(df, spacetrack=spacetrack)
-    df = add_level_and_local_variations(df, level_cols)
+    df = add_continuous_angles(df, spacetrack=False)
+    df = add_diff(df, diff_cols_splid)
 
-    if spacetrack:
-        if log_features:
-            df = add_log(df, log_cols)
-            df = add_diff(df, diff_cols_spacetrack)
-            feature_cols = (['dt', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
-            + [f"{c}_diff" for c in diff_cols_spacetrack] 
-            + [f"log({col})" for col in log_cols] 
-            + [f"{col}_level" for col in level_cols] 
-            + [f"{col}_local" for col in level_cols])
-        else:
-            df = add_diff(df, diff_cols_spacetrack)
-            feature_cols =(['dt', 'bstar', 'k','h', 'p', 'q', 'cosM', 'sinM' ] 
-            + [f"{c}_diff" for c in diff_cols_spacetrack]
-            + [f"{col}_level" for col in level_cols] 
-            + [f"{col}_local" for col in level_cols])
-    else:
-        df = add_diff(df, diff_cols_splid)
-        feature_cols = ['k','h', 'p', 'q', 'cosM', 'sinM' ] + [f"{c}_diff" for c in diff_cols_splid]
+    feature_cols = ['k', 'h', 'p', 'q', 'cosM', 'sinM'] + [f"{c}_diff" for c in diff_cols_splid]
+    df[feature_cols] = df[feature_cols].astype(np.float32)
+    return df, feature_cols
+
+
+def _build_features_spacetrack_log(df):
+    """Variante spacetrack avec log(sma) et sans bstar. Conservee pour comparaison.
+
+    Non utilisee par le pretrain courant : build_features(..., log_features=True).
+    """
+    df = df.copy()
+    df = add_continuous_angles(df, spacetrack=True)
+    df = add_log(df, log_cols)
+    df = add_diff(df, diff_cols_spacetrack)
+    df = add_robust_asinh(df, heavy_tail_cols_spacetrack)
+
+    feature_cols = (['dt', 'sma', 'k', 'h', 'p', 'q', 'cosM', 'sinM']
+                    + [f"{c}_diff" for c in diff_cols_spacetrack]
+                    + [f"log({col})" for col in log_cols])
     df[feature_cols] = df[feature_cols].astype(np.float32)
     return df, feature_cols

@@ -1,5 +1,7 @@
 from pathlib import Path
 import numpy as np
+import pandas as pd
+import torch
 import matplotlib.pyplot as plt
 from ml.inference import load_checkpoint, load_spacetrack_features, reconstruct_window
 
@@ -85,3 +87,78 @@ def plot_object_windows(mae, cfg, stats, per_obj, feature_cols, norad, n_windows
 if __name__ == "__main__":
     mae, cfg, stats, per_obj, feature_cols = load_mae_and_data(ckpt_id="2026-08-28_21-27-33")
     plot_object_windows(mae, cfg, stats, per_obj, feature_cols, norad=49217, n_windows=1, to_plot=["sma_local"])
+
+
+## Repartition de la loss par canal
+
+## Doit rester le miroir exact de la construction de w dans train.py (bloc is_pretrain) :
+## w part de 1.0 partout, et seules les entrees listees ici sont ecrasees par la config.
+## Un canal absent de la config garde donc 1.0, comme a l'entrainement.
+def loss_weights(cfg, feature_cols):
+    """Vecteur de ponderation par canal effectivement utilise par MaskedChannelMSE.
+
+    Doit rester le miroir exact du bloc is_pretrain de train.py : w part de 1.0 partout,
+    et seules les entrees de cfg.task.channel_weights sont ecrasees. Un canal absent de la
+    config garde donc 1.0, comme a l'entrainement.
+    """
+    w = np.ones(len(feature_cols), dtype=np.float32)
+    for canal, val in (cfg.task.get("channel_weights") or {}).items():
+        if canal in feature_cols:
+            w[list(feature_cols).index(canal)] = float(val)
+    return w
+
+
+@torch.no_grad()
+def channel_loss_breakdown(mae, cfg, per_obj, feature_cols, n_windows=2048,
+                           batch_size=256, seed=0, device='cpu'):
+    """Part de la loss attribuable a chaque canal, sur un echantillon de fenetres.
+
+    Reproduit MaskedChannelMSE : d2[f] est la MSE du canal f sur les patchs MASQUES
+    uniquement, et loss = sum(d2 * w) / sum(w). D'ou :
+      - 'contribution' = d2*w / sum(w) : les lignes somment exactement a la loss ;
+      - 'part_%'       = d2*w / sum(d2*w) : poids relatif du canal dans ce que le
+        modele optimise reellement. Un canal a poids 0 ressort a 0 % meme si sa MSE
+        est enorme -- c'est precisement ce qu'on cherche a voir.
+
+    La colonne 'mse' est elle NON ponderee : elle dit a quel point le canal est mal
+    reconstruit, independamment du fait qu'on le penalise ou non.
+    """
+    rng = np.random.default_rng(seed)
+    torch.manual_seed(seed)
+
+    W = cfg.data.window_size
+    F = len(feature_cols)
+
+    eligibles = [n for n, X in per_obj.items() if len(X) >= W]
+    if not eligibles:
+        raise ValueError(f"aucun objet d'au moins {W} pas de temps")
+
+    fenetres = []
+    for _ in range(n_windows):
+        X = per_obj[eligibles[rng.integers(len(eligibles))]]
+        start = rng.integers(0, len(X) - W + 1)
+        fenetres.append(X[start:start + W].T)          # (F, W)
+
+    mae = mae.to(device).eval()
+    somme_carres = torch.zeros(F, dtype=torch.float64)
+    n_termes = 0
+    for i in range(0, len(fenetres), batch_size):
+        xb = torch.from_numpy(np.stack(fenetres[i:i + batch_size])).float().to(device)
+        pred, target = mae(xb)
+        B, N, _ = pred.shape
+        d = (pred - target).reshape(B, N, F, -1)       # (B, N_masques, F, patch_size)
+        somme_carres += d.pow(2).sum(dim=(0, 1, 3)).double().cpu()
+        n_termes += B * N * d.shape[-1]
+
+    d2 = (somme_carres / n_termes).numpy()
+    w = loss_weights(cfg, feature_cols)
+    contrib = d2 * w
+    total = contrib.sum()
+
+    return pd.DataFrame({
+        'canal': list(feature_cols),
+        'poids': w,
+        'mse': d2,
+        'contribution': contrib / w.sum(),
+        'part_%': (contrib / total * 100) if total > 0 else np.zeros(F),
+    }).sort_values('part_%', ascending=False).reset_index(drop=True)

@@ -1,6 +1,8 @@
 name : pretrain
 
-dt_weight : 0.0
-M_weight : 0.0
-sma_level_weight : 0.0
-sma_diff_weight : 1.0
+channel_weights:
+  dt: 0.0
+  cosM: 0.0
+  sinM: 0.0
+  bstar: 0.2
+

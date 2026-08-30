@@ -379,17 +379,16 @@ def main(cfg : DictConfig):
             revin=cfg.data.revin_norm
             )
         ## le pretrain est une régression : mean-square-error loss
+        
         ### on ajuste les poids de chaque feature dans le calcul de la loss
         w = torch.ones(len(meta["feature_cols"]))
-        w[meta['feature_cols'].index("dt")] = cfg.task.dt_weight
-        w[meta['feature_cols'].index('cosM')] = cfg.task.M_weight
-        w[meta['feature_cols'].index('sinM')] = cfg.task.M_weight
-        w[meta['feature_cols'].index('sma_level')] = cfg.task.sma_level_weight
-        w[meta['feature_cols'].index('sma_diff')] = cfg.task.sma_diff_weight
-       
+        for canal, val in (cfg.task.get("channel_weights") or {}).items():
+            if canal not in meta["feature_cols"]:
+                raise ValueError(f"canal inconnu dans channel_weights : {canal!r}")
+            w[meta["feature_cols"].index(canal)] = float(val)
         print(meta['feature_cols'])
         loss_fn = MaskedChannelMSE(w).to(device)
-
+    
     elif is_finetuning :
         ## Le checkpoint est lu AVANT les loaders : son scaler doit servir à normaliser les
         ## données de finetuning (cf. fit_scaler_on_train), sinon l'encodeur gelé reçoit des
