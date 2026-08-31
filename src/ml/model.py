@@ -601,7 +601,55 @@ class small_vit(nn.Module):
         return z 
 
 
-class TimeSeriesMAE(nn.Module):
+class InstanceNormMixin:
+    """RevIN par fenetre : buffers, configuration et convention sur sigma.
+
+    Partage entre le pretrain (TimeSeriesMAE) et le finetuning (ManeuverFineTune) : l'encodeur
+    gele n'a vu que des fenetres centrees reduites par ces statistiques, lui en envoyer d'autres
+    revient a le faire travailler hors distribution. Une seule definition, donc, pour que les
+    deux ne puissent pas diverger.
+
+    Les buffers restent au premier niveau du state_dict (inorm_mask, sigma_floor) : c'est le nom
+    que filtrent deja inference.py et les checkpoints anterieurs a leur introduction.
+    """
+
+    def _register_instance_norm(self, n_features):
+        self.register_buffer('inorm_mask', torch.zeros(n_features)) ## 1.0 sur les features normalisées par fenetre
+        self.register_buffer('sigma_floor', torch.zeros(n_features))
+
+    def configure_instance_norm(self, feature_cols, cols=(), sigma_floor=0.0):
+        """Active le RevIN par fenetre sur les canaux `cols`.
+
+        sigma_floor est exprime dans les unites du scaler amont (celui du dataset, global
+        ou par objet) : c'est lui qui empeche de ramener a variance 1 une fenetre dont la
+        variation est au niveau du bruit. Scalaire, ou dict {canal: valeur}.
+        """
+        feature_cols = list(feature_cols)
+        mask = torch.zeros(len(feature_cols))
+        floor = torch.zeros(len(feature_cols))
+        for c in cols:
+            if c not in feature_cols:
+                raise ValueError(f"canal inconnu pour le RevIN par fenetre : {c!r} "
+                                 f"(disponibles : {list(feature_cols)})")
+            i = feature_cols.index(c)
+            mask[i] = 1.0
+            floor[i] = float(sigma_floor[c] if hasattr(sigma_floor, 'get') else sigma_floor)
+        self.inorm_mask.copy_(mask.to(self.inorm_mask.device))
+        self.sigma_floor.copy_(floor.to(self.sigma_floor.device))
+        return self
+
+    def _mask_stats(self, mu, sigma):
+        """Plancher sur sigma, puis neutralisation des canaux hors inorm_mask (mu=0, sigma=1).
+
+        Les canaux non selectionnes ressortent inchanges, et le chemin de code reste unique
+        que le RevIN par fenetre soit actif ou non.
+        """
+        sigma = torch.clamp(torch.maximum(sigma, self.sigma_floor[None, :]), min=1e-6)
+        m = self.inorm_mask[None, :]
+        return mu * m, sigma * m + (1.0 - m)
+
+
+class TimeSeriesMAE(InstanceNormMixin, nn.Module):
     """
     Architecture de masked-auto-encoder pour times series, inspiré de Guimaraes, adapté de VideoMAEv2
     """
@@ -649,28 +697,7 @@ class TimeSeriesMAE(nn.Module):
             self.decoder_norm = nn.LayerNorm(decoder_embed_dim)
             
             self.pred_space_proj = nn.Linear(decoder_embed_dim, n_features * patch_size)
-            self.register_buffer('inorm_mask', torch.zeros(n_features)) ## 1.0 sur les features normalisées par fenetre 
-            self.register_buffer('sigma_floor', torch.zeros(n_features))
-
-    def configure_instance_norm(self, feature_cols, cols=(), sigma_floor=0.0):
-        """Active le RevIN par fenetre sur les canaux `cols`.
-
-        sigma_floor est exprime dans les unites du scaler amont (celui du dataset, global
-        ou par objet) : c'est lui qui empeche de ramener a variance 1 une fenetre dont la
-        variation est au niveau du bruit. Scalaire, ou dict {canal: valeur}.
-        """
-        mask = torch.zeros(len(feature_cols))
-        floor = torch.zeros(len(feature_cols))
-        for c in cols:
-            if c not in feature_cols:
-                raise ValueError(f"canal inconnu pour le RevIN par fenetre : {c!r} "
-                                 f"(disponibles : {list(feature_cols)})")
-            i = feature_cols.index(c)
-            mask[i] = 1.0
-            floor[i] = float(sigma_floor[c] if hasattr(sigma_floor, 'get') else sigma_floor)
-        self.inorm_mask.copy_(mask.to(self.inorm_mask.device))
-        self.sigma_floor.copy_(floor.to(self.sigma_floor.device))
-        return self
+            self._register_instance_norm(n_features)
 
     def _instance_stats(self, x_id, ids_keep) :
         """ mean, std for each (window, feature) sur les patchs visibles seulement
@@ -691,10 +718,7 @@ class TimeSeriesMAE(nn.Module):
 
         mu = visible.mean(dim=(2, 3))                              # (B, F)
         sigma = x_id.std(dim=2, unbiased=False)
-        sigma = torch.clamp(torch.maximum(sigma, self.sigma_floor[None, :]), min=1e-6)
-
-        m = self.inorm_mask[None, :]
-        return mu * m, sigma * m + (1.0 - m)
+        return self._mask_stats(mu, sigma)
 
     def forward(self, x):
         # raw x: (B, n_features, window_size)
@@ -800,12 +824,13 @@ class TimeSeriesMAE(nn.Module):
         return out 
 
 
-class ManeuverFineTune(nn.Module):
+class ManeuverFineTune(InstanceNormMixin, nn.Module):
     """
-    On recopie l'architecture MAEv1 ou MAEv2 pour finetune sur des manoeuvres : 
+    On recopie l'architecture du MAE (v1 a v3) pour finetune sur des manoeuvres :
     """
     def __init__(self, n_features, window_size, patch_size, embed_dim, n_attn_heads, n_blocks, expansion_factor, dropout_rate, freeze_encoder, n_outputs=4):
         super().__init__()
+        self._register_instance_norm(n_features)
         self.encoder = VanillaViT(n_features, 
                                   window_size, 
                                   patch_size,
@@ -824,8 +849,27 @@ class ManeuverFineTune(nn.Module):
         self.dense2 = nn.Linear(32, n_outputs)
         self.activation = nn.GELU()
         self.freeze_encoder = freeze_encoder
+
+    def _window_stats(self, x):
+        """mu, sigma par (fenetre, canal), sur la fenetre entiere.
+
+        Difference assumee avec le pretrain : le MAE calcule mu sur les seuls patchs visibles
+        pour ne pas donner au decodeur le niveau des patchs masques. Il n'y a pas de masque ici,
+        donc mu porte sur toute la fenetre : c'est la meme quantite, estimee sur deux fois plus
+        de points. sigma, lui, etait deja calcule sur la fenetre entiere au pretrain, et le
+        plancher passe par _mask_stats : la convention est identique des deux cotes.
+        """
+        mu = x.mean(dim=2)                       # (B, F)
+        sigma = x.std(dim=2, unbiased=False)     # (B, F)
+        return self._mask_stats(mu, sigma)
+
     def forward(self, x):
         # x: (B, n_features, n_epochs) en entrée
+        ## RevIN par fenetre, identique au pretrain : sans lui l'encodeur gele recoit un canal
+        ## qui a garde l'offset et l'echelle de sa fenetre, alors qu'il n'a jamais vu que du
+        ## centre reduit. inorm_mask a zero (RevIN inactif) laisse x inchange.
+        mu, sigma = self._window_stats(x)
+        x = (x - mu[..., None]) / sigma[..., None]
         out = self.encoder.forward(x) # (B, N + 1, embed_dim)
         z = torch.cat([out[:, 0], out[:, self.center_patch]], dim=-1) # (B, 2*embed_dim)
         z = self.dense2(self.activation(self.dense1(z))) # (B, n_outputs)
@@ -893,7 +937,8 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size, n_outputs=4):
             expansion_factor=model_cfg.expansion_factor,
             dropout_rate=model_cfg.dropout_rate
             ) 
-    if model_cfg.name == "maneuver_finetune_MAEv2" :
+    ## l'ancien nom reste accepte : des runs et des checkpoints le portent encore
+    if model_cfg.name in ("maneuver_finetune", "maneuver_finetune_MAEv2") :
         return ManeuverFineTune(
             n_features=n_features,
             window_size=window_size,

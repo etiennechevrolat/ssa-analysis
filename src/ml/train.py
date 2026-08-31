@@ -21,7 +21,6 @@ from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
 
 from ml.logger import RunLogger
 
-from ml.inference import load_spacetrack_features
 
 def train_one_epoch(
         model : nn.Module,
@@ -215,12 +214,20 @@ def evaluate_epoch_finetuning(
     return running_loss / total, best
 
 
-def check_backbone_compatibility(ckpt, cfg, window_size):
+def check_backbone_compatibility(ckpt, cfg, window_size, n_features):
     """
     Vérifie que le backbone pré-entraîné a la même géométrie que le modèle de finetuning.
     Sans ça, load_state_dict échoue sur un mur de shape mismatch dont la cause réelle
     (taille de fenêtre, patch_size, embed_dim) n'apparaît nulle part.
     """
+    ## Le nombre de features se lit directement dans les poids, pas dans la config : c'est la
+    ## seule verification qui vaut aussi pour un checkpoint a scaler par objet, ou aucun
+    ## scaler_mean ne vient documenter la dimension d'entree.
+    proj = ckpt.get('encoder_state', {}).get('patch_embedding.proj.weight')
+    if proj is not None and proj.shape[1] != n_features:
+        raise ValueError(f"backbone pré-entraîné sur {proj.shape[1]} features, finetuning sur "
+                         f"{n_features} : les jeux de features diffèrent")
+
     pretrain_cfg = ckpt.get('config')
     if pretrain_cfg is None:
         print("[finetuning] checkpoint sans config : compatibilité du backbone non vérifiée")
@@ -232,6 +239,9 @@ def check_backbone_compatibility(ckpt, cfg, window_size):
             'embed_dim'    : (pretrain_cfg['model']['encoder_embed_dim'], cfg.model.embed_dim),
             'n_blocks'     : (pretrain_cfg['model']['encoder_n_blocks'], cfg.model.n_blocks),
             'n_attn_heads' : (pretrain_cfg['model']['encoder_n_attn_heads'], cfg.model.n_attn_heads),
+            ## expansion_factor fixe la dimension des MLP : une valeur differente casse les
+            ## shapes des blocs, autant le dire ici plutot que dans load_state_dict.
+            'expansion_factor' : (pretrain_cfg['model']['expansion_factor'], cfg.model.expansion_factor),
             }
     except KeyError as e:
         print(f"[finetuning] clé {e} absente de la config du checkpoint : vérification partielle impossible")
@@ -400,11 +410,13 @@ def main(cfg : DictConfig):
                 "Passe le chemin d'un checkpoint de pretrain (outputs/ml/pretrain/<date>/checkpoints/best.pt)"
                 )
         ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu', weights_only=False)
-        if ckpt['scaler_kind'] == 'per_obj' : 
-            per_obj, stats, feature_cols = load_spacetrack_features(cfg.data.data_dir, cfg.data.dataset, return_stats=True)
-            pretrain_scaler = stats 
-        else: 
-            pretrain_scaler = scaler_from_checkpoint(ckpt, n_features=len(ckpt['scaler_mean']))
+        ## .get : les checkpoints anterieurs a ce champ n'ont qu'une normalisation globale.
+        per_object_scaler = (ckpt.get('scaler_kind', 'global') == 'per_obj')
+        ## En normalisation par objet il n'y a rien a transferer : mu/sigma sont des statistiques
+        ## de la serie, pas des poids, et les objets DORIS n'etaient pas dans le pretrain. On les
+        ## recalcule sur chaque serie de finetuning (cf. fit_scaler_on_train, per_object=True).
+        pretrain_scaler = None if per_object_scaler else scaler_from_checkpoint(
+            ckpt, n_features=len(ckpt['scaler_mean']))
 
         train_loader, val_loader, meta = make_loaders_finetuning(
                     objects,
@@ -420,6 +432,7 @@ def main(cfg : DictConfig):
                     n_folds=cfg.data.n_folds,
                     detection_only=cfg.task.detection_only,
                     scaler=pretrain_scaler,
+                    per_object_scaler=per_object_scaler,
                     tolerance_hours=cfg.task.tolerance_hours,
         )
         window_size = cfg.data.history + cfg.data.future + 1
@@ -467,9 +480,30 @@ def main(cfg : DictConfig):
         print(f"[pretrain] RevIN par fenetre sur {cols} (plancher sigma {floor}) "
               f"| normalisation dataset : {'par objet' if cfg.data.get('revin_norm') else 'globale'}")
 
+    elif is_finetuning:
+        ## Le RevIN par fenetre n'est pas un reglage du finetuning : c'est une propriete de
+        ## l'encodeur charge. On le relit donc dans la config du checkpoint et non dans cfg.data,
+        ## sinon un encodeur gele pre-entraine sur des fenetres centrees reduites recevrait ici
+        ## des fenetres brutes. Le plancher sigma est dans les unites du scaler amont, qui doit
+        ## etre le meme des deux cotes (per_object_scaler ci-dessus).
+        pretrain_data_cfg = (ckpt.get('config') or {}).get('data', {})
+        if pretrain_data_cfg.get('revin_per_window_norm', False):
+            cols = list(pretrain_data_cfg.get('revin_window_cols') or [])
+            floor = pretrain_data_cfg.get('revin_sigma_floor', 0.0)
+            model.configure_instance_norm(meta['feature_cols'], cols, floor)
+            print(f"[finetuning] RevIN par fenetre repris du pretrain : {cols} "
+                  f"(plancher sigma {floor}) | normalisation dataset : "
+                  f"{'par objet' if per_object_scaler else 'globale'}")
+        elif ckpt.get('config') is None:
+            print("[finetuning] checkpoint sans config : RevIN par fenetre suppose inactif. "
+                  "Si le pretrain en utilisait un, l'encodeur travaillera hors distribution.")
+        else:
+            print(f"[finetuning] pas de RevIN par fenetre au pretrain | normalisation dataset : "
+                  f"{'par objet' if per_object_scaler else 'globale'}")
+
     model.to(device)
     if is_finetuning :
-        check_backbone_compatibility(ckpt, cfg, window_size)
+        check_backbone_compatibility(ckpt, cfg, window_size, n_features)
 
         ## strict=False laisse passer un encodeur resté aléatoire sans un mot : on vérifie
         ## explicitement qu'aucun paramètre de l'encodeur n'a été laissé à son initialisation.

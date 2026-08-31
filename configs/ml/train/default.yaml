@@ -3,3 +3,6 @@ lr : 3e-4
 weight_decay: 0.05
 warmup_epochs: 1 ## le scheduler convertit en ratio : warmup_epochs / epochs
 batch_size : 256
+
+## chemin ABSOLU d'un last.pt pour reprendre un run interrompu ; null = repart de zero
+resume_from: null

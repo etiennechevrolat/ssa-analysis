@@ -1,10 +1,12 @@
-name : maneuver_finetune_MAEv2
+name : maneuver_finetune
 
-# les params correspondent à MAEv2
-patch_size : 12 
-embed_dim : 128
-n_attn_heads : 4
-n_blocks : 12
-expansion_factor : 4
+## Les params reprennent l'ENCODEUR du MAEv3 (cf. model/MAEv3.yaml) : ils doivent correspondre
+## exactement, sinon load_state_dict echoue sur les shapes — ou pire, passe silencieusement.
+## C'est le cas de n_attn_heads : les projections Q/K/V sont (embed_dim, embed_dim) quel que
+## soit le nombre de tetes, donc un mauvais decoupage se charge sans erreur et calcule autre chose.
+patch_size : 16
+embed_dim : 128        ## = encoder_embed_dim du MAEv3
+n_attn_heads : 8       ## = encoder_n_attn_heads
+n_blocks : 12          ## = encoder_n_blocks
+expansion_factor : 8   ## dimension MLP 1024 : idem, une valeur differente casse les shapes
 dropout_rate : 0.0
-

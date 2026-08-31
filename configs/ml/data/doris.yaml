@@ -8,5 +8,8 @@ val_split: 0.2 ## utilisé seulement si fold est null
 fold : null
 n_folds : null
 
-history: 96
-future : 95
+## Fenetre de 512 TLE = la window_size du pretrain MAEv3 : la table d'embeddings positionnels
+## de l'encodeur fait 512/16 = 32 lignes et ne se charge que sur une fenetre de meme geometrie.
+## history + future + 1 = 512, la cible restant au centre.
+history: 256
+future : 255

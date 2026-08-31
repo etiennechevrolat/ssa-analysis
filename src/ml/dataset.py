@@ -92,14 +92,31 @@ def split_by_object_kfold(object_ids, fold, n_folds=None, seed=42):
     train_ids = np.setdiff1d(ids, val_ids)
     return train_ids.tolist(), val_ids.tolist()
 
-def fit_scaler_on_train(per_obj, train_ids, scaler=None):
+def fit_scaler_on_train(per_obj, train_ids, scaler=None, per_object=False):
     """Ajuste le scaler sur le train seulement, ou applique un scaler déjà ajusté.
 
     scaler non None : on ne refit PAS. Indispensable pour un finetuning à encodeur gelé —
     l'encodeur a appris sur des entrées normalisées par le scaler du pretrain, et gelé il ne
     peut pas se réadapter à une autre normalisation. Lui envoyer des entrées normalisées
     autrement, c'est le faire travailler hors distribution.
+
+    per_object=True : normalisation par objet (RevIN amont), scaler est un dict
+    {norad: StandardScaler}. Rien ne se transfère du pretrain dans ce mode — mu et sigma ne
+    sont pas des paramètres appris mais des statistiques de la série de l'objet, et un objet
+    de finetuning n'était pas dans le pretrain. On les recalcule donc sur sa propre série,
+    exactement comme le ferait l'inférence sur un objet nouveau. Aucun label n'intervient :
+    ce n'est pas une fuite, seulement une normalisation transductive sur les entrées.
     """
+    if per_object:
+        if scaler is not None:
+            raise ValueError("per_object=True et scaler fourni : en normalisation par objet il "
+                             "n'y a pas de scaler à réutiliser, mu/sigma se recalculent par objet")
+        scaler = {}
+        for oid in per_obj:
+            scaler[oid] = StandardScaler().fit(per_obj[oid][0])
+            per_obj[oid][0] = scaler[oid].transform(per_obj[oid][0]).astype(np.float32)
+        return scaler
+
     if scaler is None:
         ## fitter le scaler = trouver nu et sigma correspondant aux valeurs des features dans train_ids
         scaler=StandardScaler().fit(np.concatenate([per_obj[o][0] for o in train_ids]))
@@ -109,12 +126,8 @@ def fit_scaler_on_train(per_obj, train_ids, scaler=None):
     return scaler
 
 def fit_scaler_on_train_RevIn(per_obj, train_ids):
-    """Ajuste un scaler standard sur chaque objet : scaler est un dict {norads : mean, std}"""
-    scaler = {oid : None for oid in train_ids}
-    for oid in per_obj : 
-        scaler[oid] = StandardScaler().fit(per_obj[oid][0])
-        per_obj[oid][0] = scaler[oid].transform(per_obj[oid][0]).astype(np.float32)
-    return scaler
+    """Ajuste un scaler standard sur chaque objet : scaler est un dict {norads : StandardScaler}"""
+    return fit_scaler_on_train(per_obj, train_ids, per_object=True)
 
 def scaler_from_checkpoint(ckpt, n_features):
     """Reconstruit le StandardScaler du pretrain depuis les champs sauvés par save_checkpoint."""
@@ -136,15 +149,23 @@ def scaler_from_checkpoint(ckpt, n_features):
 # en les implémentant, l'objet windowdataset se comporte comme un objet indexable
 
 class WindowDataset(Dataset):
-    """Séries (X, Y) par objet -> échantillons (fenêtre (F,W), cible Y[t])"""
-    def __init__(self, per_obj, objects_ids, history=48, future=48, flatten_target=False):
+    """Séries (X, Y) par objet -> échantillons (fenêtre (F,W), cible Y[t])
+
+    pad_mode : padding des bords de série. 'constant' (zéros) place la valeur moyenne de
+    l'objet — après centrage-réduction — sur toute la partie manquante, ce qui crée un saut
+    artificiel. 'edge' prolonge la dernière valeur observée : indispensable dès que le modèle
+    normalise par fenêtre (mu et sigma sont alors calculés sur ce padding), car le pretrain,
+    lui, ne padde jamais (UnlabeledWindowDataset ne produit que des fenêtres pleines).
+    """
+    def __init__(self, per_obj, objects_ids, history=48, future=48, flatten_target=False,
+                 pad_mode='constant'):
         self.windowsize = history + future + 1
         self.flatten_target = flatten_target # cible DORIS (L,2,2) -> (4,) pour une tête linéaire
         self.padded = {} # oid -> (Xpad, Y) pour bien gérer la fenètre glissante aux bords. Xpad est la matrice paddée des features .
         self.index = [] # index plat
         for oid in objects_ids:
             X, Y = per_obj[oid]
-            Xpad = np.pad(X, ((history, future), (0,0)), mode='constant')
+            Xpad = np.pad(X, ((history, future), (0,0)), mode=pad_mode)
             self.padded[oid] = (Xpad, Y)
             self.index += [(oid, t) for t in range(len(X))] ### len(X) = nombre de pas de temps
     def __len__(self):
@@ -276,7 +297,8 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
 def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=47,
                             val_split=0.2, seed=42, half_width_hours=48.0, flatten_target=True,
                             thresholds=DELTA_V_THRESHOLD, fold=None, n_folds=None,
-                            detection_only=False, scaler=None, tolerance_hours=48.0):
+                            detection_only=False, scaler=None, per_object_scaler=False,
+                            tolerance_hours=48.0, pad_mode='edge'):
     """
     Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut, (1,) si
     detection_only.
@@ -284,6 +306,10 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     13 objets exploitables un split unique donne 2 objets en validation, non stratifiés par
     type de manoeuvre, donc un chiffre que le tirage suffit à faire bouger.
     scaler non None -> on réutilise celui du pretrain au lieu d'en ajuster un nouveau.
+    per_object_scaler=True -> normalisation par objet, recalculée sur chaque série DORIS
+    (cf. fit_scaler_on_train) ; c'est le mode des checkpoints scaler_kind='per_obj'.
+    pad_mode='edge' par défaut ici : cf. WindowDataset, un backbone qui normalise par fenêtre
+    calculerait sinon mu et sigma sur des zéros de padding.
     """
     per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width_hours=half_width_hours,
                                                     thresholds=thresholds, detection_only=detection_only)
@@ -293,10 +319,12 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     else:
         train_ids, val_ids = split_by_object_kfold(per_obj.keys(), fold, n_folds, seed)
 
-    scaler = fit_scaler_on_train(per_obj, train_ids, scaler=scaler)
+    scaler = fit_scaler_on_train(per_obj, train_ids, scaler=scaler, per_object=per_object_scaler)
 
-    train_dataset = WindowDataset(per_obj, train_ids, history, future, flatten_target=flatten_target)
-    val_dataset = WindowDataset(per_obj, val_ids, history, future, flatten_target=flatten_target)
+    train_dataset = WindowDataset(per_obj, train_ids, history, future,
+                                  flatten_target=flatten_target, pad_mode=pad_mode)
+    val_dataset = WindowDataset(per_obj, val_ids, history, future,
+                                flatten_target=flatten_target, pad_mode=pad_mode)
 
     train_dl = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                           num_workers=4, persistent_workers=True)
@@ -309,6 +337,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     tolerance = {oid : half_width_in_indices(objects[oid], tolerance_hours) for oid in per_obj}
 
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
+            "scaler_kind" : 'per_obj' if per_object_scaler else 'global',
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj,
             "delta_v_thresholds" : thresholds, "half_width_hours" : half_width_hours,
             "fold" : fold, "n_folds" : n_folds,
