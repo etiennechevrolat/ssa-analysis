@@ -337,7 +337,7 @@ def build_features(df, spacetrack=True, log_features=False):
     df = df.copy()
     df = add_continuous_angles(df, spacetrack=True)
     df = add_diff(df, diff_cols_spacetrack)
-    df = add_robust_asinh(df, heavy_tail_cols_spacetrack, k=5)
+    df = add_robust_asinh(df, heavy_tail_cols_spacetrack, k=5.0)
 
     feature_cols = (['dt', 'bstar', 'sma', 'k', 'h', 'p', 'q', 'cosM', 'sinM']
                     + [f"{c}_diff" for c in diff_cols_spacetrack])

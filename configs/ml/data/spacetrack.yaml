@@ -5,7 +5,7 @@ val_split: 0.2
 
 window_size : 512
 stride : 31 # intentionnellement premier avec window_size pour obtenir des vues décalées.
-w<revin_norm : True ## applique une normalisation par objet 
+revin_norm : True ## applique une normalisation par objet 
 
 ## RevIN par FENETRE, applique dans le modele. Cumulable avec revin_norm ci-dessus :
 ## revin_norm retire l'echelle propre a l'objet, celui-ci l'echelle de la fenetre courante.
