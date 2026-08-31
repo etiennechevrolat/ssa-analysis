@@ -303,8 +303,6 @@ def add_robust_asinh(df, cols, k=5.0):
             s = float(v.std())
             if not np.isfinite(s) or s <= 1e-12:
                 s = 1.0
-        ## v / (k*s) et NON v / k * s : Python evalue / puis * de gauche a droite,
-        ## la seconde forme MULTIPLIE par le MAD au lieu de diviser.
         ## k elargit la zone lineaire d'asinh : les pics jusqu'a ~k sigma gardent leur
         ## amplitude, seule la queue au-dela est comprimee. k=1 comprime tot, k grand
         ## tend vers le brut (et vers des gradients domines par quelques echantillons).
