@@ -149,11 +149,6 @@ def load_doris_objects(data_dir):
         if not mask.any() : 
             continue 
         labels_epochs = df_labels.loc[mask, 'epoch_sec'].to_numpy()
-
-        ## On prend le premier TLE POSTERIEUR à la manoeuvre, et non le plus proche :
-        ## la signature d'une manoeuvre est dans sma_diff[i] = sma[i] - sma[i-1], donc elle
-        ## n'apparaît qu'au premier TLE qui suit. Centrer la cible sur un TLE antérieur
-        ## la place sur un point où le saut n'a pas encore eu lieu.
         idx_tle = np.searchsorted(epochs_tle, labels_epochs, side='left')
         posterieur_existe = idx_tle < len(epochs_tle) ## sinon la manoeuvre est après le dernier TLE
         pick = np.clip(idx_tle, 0, len(epochs_tle) - 1)

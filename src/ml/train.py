@@ -21,6 +21,7 @@ from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
 
 from ml.logger import RunLogger
 
+from ml.inference import load_spacetrack_features
 
 def train_one_epoch(
         model : nn.Module,
@@ -399,7 +400,11 @@ def main(cfg : DictConfig):
                 "Passe le chemin d'un checkpoint de pretrain (outputs/ml/pretrain/<date>/checkpoints/best.pt)"
                 )
         ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu', weights_only=False)
-        pretrain_scaler = scaler_from_checkpoint(ckpt, n_features=len(ckpt['scaler_mean']))
+        if ckpt['scaler_kind'] == 'per_obj' : 
+            per_obj, stats, feature_cols = load_spacetrack_features(cfg.data.data_dir, cfg.data.dataset, return_stats=True)
+            pretrain_scaler = stats
+        else: 
+            pretrain_scaler = scaler_from_checkpoint(ckpt, n_features=len(ckpt['scaler_mean']))
 
         train_loader, val_loader, meta = make_loaders_finetuning(
                     objects,

@@ -287,7 +287,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     """
     per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width_hours=half_width_hours,
                                                     thresholds=thresholds, detection_only=detection_only)
-
+    
     if fold is None:
         train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
     else:

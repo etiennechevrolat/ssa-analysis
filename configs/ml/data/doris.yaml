@@ -1,5 +1,6 @@
-data_dir : ${hydra:runtime.cwd}/data/parsed/labelled_leo_DORIS
-
+data_dir: ${hydra:runtime.cwd}/data/raw/spacetrack/leo_doris
+data_dir_labels : ${hydra:runtime.cwd}/data/parsed/labelled_leo_DORIS
+dataset : 'leo_'
 val_split: 0.2 ## utilisé seulement si fold est null
 
 ## k-fold groupé par objet. fold null -> split simple par val_split.
