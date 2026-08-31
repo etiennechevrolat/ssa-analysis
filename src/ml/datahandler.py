@@ -175,6 +175,9 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         dataset_dir = Path(os.path.join(data_dir, "leo_payloads_and_debris" ))
     elif dataset== 'starlink' : 
         dataset_dir = Path(os.path.join(data_dir, "starlink" ))
+    elif dataset == 'leo_doris' : 
+        dataset_dir = Path(os.path.join(data_dir, "leo_doris" ))
+
     else : ## tous les objets
         dataset_dir = Path(os.path.join(data_dir, "max_objects_all_regimes" ))
 

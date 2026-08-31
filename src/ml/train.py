@@ -341,7 +341,7 @@ def main(cfg : DictConfig):
     if is_pretrain :
         objects = load_spacetrack_objects(cfg.data.data_dir, cfg.data.dataset)
     elif is_finetuning : 
-        objects, labels = load_doris_objects(cfg.data.data_dir)
+        objects, labels = load_doris_objects(cfg.data.data_dir_labels)
     else:
         objects, labels = load_splid_objects(
             cfg.data.data_dir, 
@@ -402,7 +402,7 @@ def main(cfg : DictConfig):
         ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu', weights_only=False)
         if ckpt['scaler_kind'] == 'per_obj' : 
             per_obj, stats, feature_cols = load_spacetrack_features(cfg.data.data_dir, cfg.data.dataset, return_stats=True)
-            pretrain_scaler = stats
+            pretrain_scaler = stats 
         else: 
             pretrain_scaler = scaler_from_checkpoint(ckpt, n_features=len(ckpt['scaler_mean']))
 
