@@ -469,6 +469,7 @@ def main(cfg : DictConfig):
                     tolerance_hours=cfg.task.tolerance_hours,
                     min_tle=cfg.task.min_tle,
                     min_maneuvers=cfg.task.min_maneuvers,
+                    legacy_angles=cfg.data.legacy_angles,
         )
         window_size = cfg.data.history + cfg.data.future + 1
 

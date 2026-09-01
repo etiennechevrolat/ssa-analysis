@@ -57,7 +57,7 @@ def build_classifier_arrays(objects,labels):
     return per_obj, feature_cols
 
 def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=DELTA_V_THRESHOLD,
-                            detection_only=False, min_tle=0, min_maneuvers=1):
+                            detection_only=False, min_tle=0, min_maneuvers=1, legacy_angles=False):
     """
     chaque objet -> (X: (L,F), Y: (L,2,2)) pour le finetuning sur les manoeuvres DORIS.
     features spacetrack (cadence irrégulière -> dt, sma en km) pour rester aligné sur le pretrain MAE.
@@ -76,7 +76,7 @@ def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=D
     per_obj, feature_cols = {}, None
     retenus, ecartes = {}, {}
     for oid, df in objects.items():
-        df_feat, cols = build_features(df, spacetrack=True)
+        df_feat, cols = build_features(df, spacetrack=True, legacy_angles=legacy_angles)
         feature_cols = _same_feature_cols(cols, feature_cols, oid)
         X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_doris_targets(df, oid, labels, half_width_hours=half_width_hours, thresholds=thresholds)
@@ -347,7 +347,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
                             thresholds=DELTA_V_THRESHOLD, fold=None, n_folds=None,
                             detection_only=False, scaler=None, per_object_scaler=False,
                             tolerance_hours=48.0, pad_mode='edge',
-                            min_tle=None, min_maneuvers=1):
+                            min_tle=None, min_maneuvers=1, legacy_angles=False):
     """
     Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut, (1,) si
     detection_only.
@@ -366,7 +366,8 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
         min_tle = history + future + 1
     per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width_hours=half_width_hours,
                                                     thresholds=thresholds, detection_only=detection_only,
-                                                    min_tle=min_tle, min_maneuvers=min_maneuvers)
+                                                    min_tle=min_tle, min_maneuvers=min_maneuvers,
+                                                    legacy_angles=legacy_angles)
     
     if fold is None:
         train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)

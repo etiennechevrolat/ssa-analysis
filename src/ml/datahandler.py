@@ -374,7 +374,18 @@ def add_level_and_local_variations(df, level_cols):
         df[f"{col}_local"] = v - v.mean()
     return df 
 
-def build_features(df, spacetrack=True, log_features=False):
+## Ancien jeu de features, celui des checkpoints de pretrain <= 2026-08-31. Conserve pour
+## pouvoir finetuner dessus tant qu'aucun pretrain n'a tourne avec les nouvelles features.
+LEGACY_FEATURE_COLS = ['dt', 'bstar', 'sma', 'k', 'h', 'p', 'q', 'cosM', 'sinM', 'sma_diff']
+
+
+def build_features(df, spacetrack=True, log_features=False, legacy_angles=False):
+    """legacy_angles=True : restitue p et q a la place de (i_continue, cosRAAN, sinRAAN).
+
+    p et q sont exactement les nouvelles colonnes recombinees -- q = tan(i/2)cos(RAAN),
+    p = tan(i/2)sin(RAAN) -- donc ce mode reproduit au bit pres les features des anciens
+    checkpoints, sans dupliquer la conversion angulaire.
+    """
     if not spacetrack:
         return _build_features_splid(df)
     if log_features:
@@ -385,8 +396,13 @@ def build_features(df, spacetrack=True, log_features=False):
     df = add_diff(df, diff_cols_spacetrack)
     df = add_robust_asinh(df, heavy_tail_cols_spacetrack, k=5.0)
 
-    feature_cols = (['dt', 'bstar', 'sma', 'i_continue', 'k', 'h', 'cosRAAN', 'sinRAAN', 'cosM', 'sinM']
-                    + [f"{c}_diff" for c in diff_cols_spacetrack])
+    if legacy_angles:
+        df['q'] = df['i_continue'] * df['cosRAAN']
+        df['p'] = df['i_continue'] * df['sinRAAN']
+        feature_cols = list(LEGACY_FEATURE_COLS)
+    else:
+        feature_cols = (['dt', 'bstar', 'sma', 'i_continue', 'k', 'h', 'cosRAAN', 'sinRAAN', 'cosM', 'sinM']
+                        + [f"{c}_diff" for c in diff_cols_spacetrack])
     df[feature_cols] = df[feature_cols].astype(np.float32)
     return df, feature_cols
 

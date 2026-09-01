@@ -13,3 +13,8 @@ n_folds : null
 ## history + future + 1 = 512, la cible restant au centre.
 history: 256
 future : 255
+
+## true -> ANCIEN jeu de features (p, q au lieu de i_continue/cosRAAN/sinRAAN), pour finetuner
+## sur les checkpoints de pretrain existants, qui ont ete entraines dessus. A repasser a false
+## une fois qu'un pretrain aura tourne sur les nouvelles features.
+legacy_angles : true

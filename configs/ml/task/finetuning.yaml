@@ -8,8 +8,6 @@ half_width_hours : 48.0
 tolerance_hours : 48.0
 
 ## true -> cible unique 'manoeuvre' (les 4 canaux type/intensité fusionnés).
-## Concentre les ~1300 manoeuvres sur la détection au lieu de les éclater sur 4 canaux
-## dont le plus rare n'a que 44 exemples.
 detection_only : False
 
 ckpt_path : null
