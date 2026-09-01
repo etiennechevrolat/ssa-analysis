@@ -845,15 +845,15 @@ class ManeuverFineTune(InstanceNormMixin, nn.Module):
         ## positionnelle. On lui concatène le token du patch central, qui contient le centre
         ## de la fenêtre, d'où l'entrée de dense1 en 2*embed_dim.
         self.center_patch = 1 + self.encoder.num_patches // 2 ## +1 : le CLS occupe l'indice 0
-        self.dense1 = nn.Linear(2 * embed_dim, 32)
-        self.dense2 = nn.Linear(32, n_outputs)
+        self.patchs = [0, self.center_patch, self.center_patch -1, self.center_patch +1 ] ## les patchs qui seront considérés par la tête
+        self.dense = nn.Linear(2 * embed_dim, n_outputs)
         self.activation = nn.GELU()
         self.freeze_encoder = freeze_encoder
 
     def _window_stats(self, x):
         """mu, sigma par (fenetre, canal), sur la fenetre entiere.
 
-        Difference assumee avec le pretrain : le MAE calcule mu sur les seuls patchs visibles
+        Difference avec le pretrain : le MAE calcule mu sur les seuls patchs visibles
         pour ne pas donner au decodeur le niveau des patchs masques. Il n'y a pas de masque ici,
         donc mu porte sur toute la fenetre : c'est la meme quantite, estimee sur deux fois plus
         de points. sigma, lui, etait deja calcule sur la fenetre entiere au pretrain, et le
@@ -871,9 +871,10 @@ class ManeuverFineTune(InstanceNormMixin, nn.Module):
         mu, sigma = self._window_stats(x)
         x = (x - mu[..., None]) / sigma[..., None]
         out = self.encoder.forward(x) # (B, N + 1, embed_dim)
-        z = torch.cat([out[:, 0], out[:, self.center_patch]], dim=-1) # (B, 2*embed_dim)
-        z = self.dense2(self.activation(self.dense1(z))) # (B, n_outputs)
+        z = torch.cat([out[:, patch] for patch in self.patchs], dim=-1) # (B, 4*embed_dim) : on concatène le CLS token (résumé fenètre) et les patch centraux (éventuels instants de manoeuvre)out[:, 0], out[:, self.center_patch]
+        z = self.activation(self.dense(z)) # (B, n_outputs)
         return z
+    
     def train(self, mode=True):
         super().train(mode)
         if self.freeze_encoder:
@@ -938,7 +939,7 @@ def build_model(model_cfg, task_cfg, *, n_features, window_size, n_outputs=4):
             dropout_rate=model_cfg.dropout_rate
             ) 
     ## l'ancien nom reste accepte : des runs et des checkpoints le portent encore
-    if model_cfg.name in ("maneuver_finetune", "maneuver_finetune_MAEv2") :
+    if model_cfg.name in ("maneuver_finetune") :
         return ManeuverFineTune(
             n_features=n_features,
             window_size=window_size,
