@@ -15,3 +15,9 @@ detection_only : False
 ckpt_path : null
 freeze_encoder : True
 bstar_factor_k : 1.0
+
+## Planchers d'exclusion d'un objet, appliques AVANT le decoupage en folds : en leave-one-out
+## chaque objet retenu devient un fold, donc un objet insignifiant ne degrade pas seulement
+## l'entrainement, il ajoute a la moyenne un F2 qui ne mesure rien.
+min_tle : null        ## null -> une fenetre complete (history + future + 1)
+min_maneuvers : 1     ## nombre de manoeuvres exploitables, au sens de gt_events_doris

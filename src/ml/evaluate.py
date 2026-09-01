@@ -74,6 +74,10 @@ def match_events(gt_idx : list[int],  # liste d'instants de vraies manoeuvres
     matched = set() # indices de pred_idx déjà appariés
     tp, fn = 0,0
     distances= []
+    ## Les INSTANTS, en plus des comptes : c'est ce qui permet de tracer la figure de détection
+    ## sans réimplémenter l'appariement ailleurs — deux logiques divergeraient tôt ou tard, et
+    ## la figure montrerait alors autre chose que ce que le F2 mesure.
+    tp_pairs, fn_idx = [], []
     for g in gt_idx: 
         best = None ## on retient une prédiction pour chaque vraie manoeuvre de gt_idx
         for j,p in enumerate(pred_idx):
@@ -84,12 +88,16 @@ def match_events(gt_idx : list[int],  # liste d'instants de vraies manoeuvres
                     best = j
         if best is None : 
             fn +=1
+            fn_idx.append(g)
         else : 
             tp += 1
             matched.add(best)
             distances.append(pred_idx[best] - g)
+            tp_pairs.append((g, pred_idx[best]))
+    fp_idx = [p for j, p in enumerate(pred_idx) if j not in matched]
     fp = len(pred_idx) - len(matched)
-    return {'tp' : tp, 'fp' : fp, 'fn' : fn, 'distances' :distances}
+    return {'tp' : tp, 'fp' : fp, 'fn' : fn, 'distances' :distances,
+            'tp_pairs' : tp_pairs, 'fn_idx' : fn_idx, 'fp_idx' : fp_idx}
 
 ## Calcul des métriques de performance du modèle 
 def metrics(tp, fp, fn, distances):
@@ -174,3 +182,85 @@ def gt_events_doris(labels,        # DataFrame rendu par load_doris_objects : no
                         
 
 
+
+
+### FIGURE DE DETECTION
+## Une image par objet de validation, pour lire ce que le F2 resume en un chiffre : ou le
+## modele tombe juste, ou il invente, ou il rate.
+
+def plot_fold_detection(objects, val_ids, probs_per_obj, gt_events, out_dir,
+                        threshold=detection_treshold, channels=('EW', 'NS'),
+                        tolerance=matching_tolerance, sma_col='sma', prefix='detection'):
+    """Trace le demi-grand-axe de chaque objet de validation, annote des TP / FP / FN.
+
+    Le sma est pris BRUT dans le dataframe de l'objet (en km), pas dans les features
+    normalisees : une figure de diagnostic doit se lire en unites physiques.
+
+    L'appariement n'est pas refait ici, il vient de match_events -- le meme appel que
+    evaluate_predictions -- donc ce que montre la figure est exactement ce que compte le F2,
+    au seuil retenu pour le checkpoint trace.
+
+    Une ligne par canal : c'est la granularite a laquelle l'appariement a lieu, et une
+    manoeuvre detectee au bon instant mais sur le mauvais canal doit se voir comme un FP
+    et un FN, pas comme un succes.
+
+    Renvoie la liste des fichiers ecrits.
+    """
+    import matplotlib
+    matplotlib.use('Agg') ## backend sans affichage : on ecrit des fichiers, pas de fenetre
+    import matplotlib.pyplot as plt
+
+    from pathlib import Path
+    out_dir = Path(out_dir)
+    ecrits = []
+
+    for oid in val_ids:
+        seq = probs_per_obj[oid]                      # (L, n_canaux)
+        sma = objects[oid][sma_col].to_numpy(float)   # (L,) en km
+        if len(sma) != len(seq):
+            raise ValueError(f"norad {oid} : {len(sma)} points de sma pour {len(seq)} "
+                             f"predictions -- series desalignees")
+        t = np.arange(len(sma))
+        tol = tolerance[oid] if isinstance(tolerance, dict) else tolerance
+        pred = extract_events(seq, treshold=threshold, channels=channels)
+
+        fig, axes = plt.subplots(len(channels), 1, figsize=(14, 2.6 * len(channels) + 1.2),
+                                 sharex=True, squeeze=False)
+        totaux = {'tp': 0, 'fp': 0, 'fn': 0}
+
+        for ax, canal in zip(axes[:, 0], channels):
+            r = match_events(gt_events[oid][canal], pred[canal], tol)
+            for cle in totaux:
+                totaux[cle] += r[cle]
+
+            ax.plot(t, sma, lw=0.7, color='0.35', zorder=1)
+            ## TP au niveau de la VERITE terrain, pas de la prediction : la barre marque
+            ## l'evenement reel, et le trait horizontal donne l'erreur de datation.
+            for g, p in r['tp_pairs']:
+                ax.axvline(g, color='tab:green', lw=1.1, alpha=.85, zorder=2)
+                ax.plot([g, p], [sma.max(), sma.max()], color='tab:green', lw=1.6, zorder=3)
+            for g in r['fn_idx']:
+                ax.axvline(g, color='tab:orange', lw=1.1, ls='--', alpha=.9, zorder=2)
+            for p in r['fp_idx']:
+                ax.axvline(p, color='tab:red', lw=0.9, ls=':', alpha=.75, zorder=2)
+
+            ax.set_ylabel('sma (km)', fontsize=9)
+            ax.set_title(f"{canal} — tp {r['tp']} | fp {r['fp']} | fn {r['fn']}",
+                         fontsize=9, loc='left')
+            ax.tick_params(labelsize=8)
+
+        axes[-1, 0].set_xlabel('TimeIndex (indice TLE)', fontsize=9)
+        poignees = [plt.Line2D([], [], color='tab:green', lw=1.4, label='TP (vraie manoeuvre retrouvee)'),
+                    plt.Line2D([], [], color='tab:orange', lw=1.4, ls='--', label='FN (manquee)'),
+                    plt.Line2D([], [], color='tab:red', lw=1.2, ls=':', label='FP (inventee)')]
+        fig.legend(handles=poignees, loc='lower center', ncol=3, fontsize=8, frameon=False)
+        fig.suptitle(f"norad {oid} — seuil {threshold} | tolerance {tol} indices | "
+                     f"tp {totaux['tp']} fp {totaux['fp']} fn {totaux['fn']}", fontsize=10)
+        fig.tight_layout(rect=(0, 0.05, 1, 0.97))
+
+        chemin = out_dir / f"{prefix}_{oid}.png"
+        fig.savefig(chemin, dpi=130, bbox_inches='tight')
+        plt.close(fig) ## sinon matplotlib garde toutes les figures ouvertes en memoire
+        ecrits.append(chemin)
+
+    return ecrits

@@ -138,6 +138,7 @@ def load_doris_objects(data_dir, bstar_factor_k):
     df_labels['TimeIndex'] = np.nan
     outliers_total = 0
     total_tles = 0
+    ecartes = {}
 
     ## Meme formule qu'au pretrain (cf. load_spacetrack_objects) : mediane en valeur ABSOLUE sur
     ## tout le jeu, pas objet par objet. La population, elle, n'est pas la meme (13 objets DORIS
@@ -160,6 +161,14 @@ def load_doris_objects(data_dir, bstar_factor_k):
         outliers_total += int(is_outlier.sum())
         total_tles += len(is_outlier)
         df_object = df_object[~is_outlier]
+
+        ## Serie vide ou trop courte pour porter une difference : la stocker quand meme la
+        ## ferait compter comme un objet retenu, et np.diff plus bas leverait sur un tableau
+        ## vide. On l'ecarte ici, avant TimeIndex, pour que le compte final soit le vrai.
+        if len(df_object) < 2:
+            ecartes[int(norad)] = f"{len(df_object)} TLE apres nettoyage"
+            print(f"[load_doris_objects] norad {norad} ecarte : {ecartes[int(norad)]}")
+            continue
 
         df_object["TimeIndex"]=range(len(df_object))
 
@@ -192,8 +201,11 @@ def load_doris_objects(data_dir, bstar_factor_k):
             print(f"[load_doris_objects] norad {norad}: {n_dropped}/{len(ok)} labels écartés "
                   f"(aucun TLE dans les {max_dt_hours}h suivant la manoeuvre), "
                   f"{n_collisions} collisions de TimeIndex")
-    print(f"Fin du traitement des données, {len(objects)} objets, "
-          f"{outliers_total}/{total_tles} TLE retirés ({100 * outliers_total / max(total_tles, 1):.3f}% outliers)")
+    print(f"Fin du traitement des données, {len(objects)} objets retenus sur "
+          f"{len(objects) + len(ecartes)}, {outliers_total}/{total_tles} TLE retirés "
+          f"({100 * outliers_total / max(total_tles, 1):.3f}% outliers)")
+    if ecartes:
+        print(f"[load_doris_objects] {len(ecartes)} objet(s) écarté(s) : {ecartes}")
     return objects, df_labels
 
 
@@ -220,6 +232,7 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     print("Début du traitement des données...")
     outliers_total = 0
     total_tles = 0
+    ecartes = {}
 
     ## Choix de l'ordre de grandeur du régime linéaire de bstar
     k = 1.0

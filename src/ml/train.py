@@ -105,7 +105,8 @@ def pretrain_one_epoch(
     return avg_loss 
 
 from ml.evaluate import (matching_tolerance, extract_events, gt_events_from_labels,
-                         evaluate_predictions, gt_events_doris, doris_channels)
+                         evaluate_predictions, gt_events_doris, doris_channels,
+                         plot_fold_detection)
 
 @torch.no_grad() ## décorateur, applique torch.no_grad(evaluate_epoch(...)) et coupe le suivi des gradients.
 def evaluate_epoch(
@@ -152,6 +153,23 @@ def evaluate_epoch(
     avg_loss = running_loss / total
     return avg_loss, metrics
 
+
+
+@torch.no_grad()
+def predict_probs(model, data_loader, device):
+    """Probabilites (N, n_canaux) dans l'ordre du loader -- qui ne melange pas en validation,
+    donc la concatenation se redecoupe objet par objet."""
+    model.eval()
+    return np.concatenate([torch.sigmoid(model(x.to(device))).cpu().numpy()
+                           for x, _ in tqdm(data_loader, desc="predict", leave=False)], axis=0)
+
+
+def split_probs_by_object(probs, meta):
+    """(N, C) -> {norad : (L_norad, C)}, dans l'ordre de meta['val_ids']."""
+    val_ids = meta['val_ids']
+    longueurs = [len(meta['per_obj'][oid][0]) for oid in val_ids]
+    assert np.sum(longueurs) == len(probs)
+    return dict(zip(val_ids, np.split(probs, np.cumsum(longueurs)[:-1], axis=0)))
 
 
 @torch.no_grad()
@@ -449,6 +467,8 @@ def main(cfg : DictConfig):
                     scaler=pretrain_scaler,
                     per_object_scaler=per_object_scaler,
                     tolerance_hours=cfg.task.tolerance_hours,
+                    min_tle=cfg.task.min_tle,
+                    min_maneuvers=cfg.task.min_maneuvers,
         )
         window_size = cfg.data.history + cfg.data.future + 1
 
@@ -622,6 +642,21 @@ def main(cfg : DictConfig):
             scaler_scale = None if per_obj else meta['scaler'].scale_,
             scaler_kind = 'per_obj' if per_obj else 'global'
             )
+
+    if is_finetuning:
+        ## On recharge le checkpoint RETENU : la figure doit montrer le modele qu'on garde,
+        ## pas celui de la derniere epoch, que _criterion a pu ecarter.
+        best_pt = logger.chekpoint_dir / "best.pt"
+        seuil = logger.best_metrics.get('treshold', 0.5)
+        model.load_state_dict(torch.load(best_pt, map_location=device, weights_only=False)['model_state'])
+        probs = split_probs_by_object(predict_probs(model, val_loader, device), meta)
+        figures = plot_fold_detection(
+            objects, meta['val_ids'], probs,
+            gt_events_doris(labels, meta['val_ids'], detection_only=meta['detection_only']),
+            out_dir=logger.run_dir, threshold=seuil, channels=meta['channels'],
+            tolerance=meta['tolerance'])
+        print(f"[finetuning] figure(s) de detection (epoch {logger.best_epoch}, seuil {seuil}) : "
+              + ", ".join(f.name for f in figures))
 
     logger.finish()
 

@@ -1,11 +1,28 @@
 from ml.targets import (build_target, build_classifier_samples, build_doris_targets,
                         DELTA_V_THRESHOLD, half_width_in_indices)
-from ml.evaluate import doris_channels
+from ml.evaluate import doris_channels, gt_events_doris
 from ml.datahandler import build_features
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 import torch
 import numpy as np
+
+
+def _same_feature_cols(cols, feature_cols, oid):
+    """Fige la liste de features au premier objet, puis vérifie que les suivants ont la MÊME.
+
+    Les builders réassignaient `feature_cols` à chaque tour de boucle : la valeur qui finissait
+    dans `meta` était celle du DERNIER objet traité — y compris un objet écarté juste après.
+    Or cette liste va dans le checkpoint, sert d'indice au RevIN par fenêtre et de référence à
+    check_backbone_compatibility : elle ne doit pas dépendre de l'ordre d'itération du dict.
+    """
+    cols = list(cols)
+    if feature_cols is None:
+        return cols
+    if cols != feature_cols:
+        raise ValueError(f"norad {oid} : features {cols}\n"
+                         f"differentes des objets precedents : {feature_cols}")
+    return feature_cols
 
 
 def build_arrays(objects, labels=None, half_width=6):
@@ -15,7 +32,8 @@ def build_arrays(objects, labels=None, half_width=6):
     """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items():
-        df_feat, feature_cols = build_features(df, spacetrack=False)
+        df_feat, cols = build_features(df, spacetrack=False)
+        feature_cols = _same_feature_cols(cols, feature_cols, oid)
         X = df_feat[feature_cols].to_numpy(np.float32)
         if labels is not None :
             Y = build_target(df, oid, labels, half_width=half_width)
@@ -31,14 +49,15 @@ def build_classifier_arrays(objects,labels):
     """
     per_obj, feature_cols = {}, None
     for oid, df in objects.items(): ## df est le dataframe brut de donnée
-        df_feat, feature_cols = build_features(df, spacetrack=False)
+        df_feat, cols = build_features(df, spacetrack=False)
+        feature_cols = _same_feature_cols(cols, feature_cols, oid)
         X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_classifier_samples(oid, labels)
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
 def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=DELTA_V_THRESHOLD,
-                            detection_only=False):
+                            detection_only=False, min_tle=0, min_maneuvers=1):
     """
     chaque objet -> (X: (L,F), Y: (L,2,2)) pour le finetuning sur les manoeuvres DORIS.
     features spacetrack (cadence irrégulière -> dt, sma en km) pour rester aligné sur le pretrain MAE.
@@ -46,18 +65,54 @@ def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=D
     detection_only=True fusionne les 4 canaux type/intensité en un seul (L,1,1) : toute la
     supervision (~1300 manoeuvres) se concentre sur la tâche difficile, détecter un évènement,
     au lieu d'être éclatée sur 4 canaux dont le plus rare n'a que 44 exemples.
+
+    min_tle / min_maneuvers : planchers sous lesquels un objet est écarté. C'est ICI que ça se
+    joue et nulle part ailleurs : split_by_object et split_by_object_kfold partent de
+    per_obj.keys(), donc tout objet retenu ici devient un fold en leave-one-out. Un objet plus
+    court qu'une fenêtre ne produit que des fenêtres remplies de padding, et un objet à une ou
+    deux manoeuvres donne un F2 qui ne prend que quelques valeurs possibles — dans les deux cas
+    un fold dont le chiffre ne mesure rien, mais qui entre quand même dans la moyenne.
     """
     per_obj, feature_cols = {}, None
+    retenus, ecartes = {}, {}
     for oid, df in objects.items():
-        df_feat, feature_cols = build_features(df, spacetrack=True)
+        df_feat, cols = build_features(df, spacetrack=True)
+        feature_cols = _same_feature_cols(cols, feature_cols, oid)
         X = df_feat[feature_cols].to_numpy(np.float32)
         Y = build_doris_targets(df, oid, labels, half_width_hours=half_width_hours, thresholds=thresholds)
         if detection_only:
             Y = Y.max(axis=(1, 2), keepdims=True) ## (L,1,1) : manoeuvre, tout type et toute intensité
-        if not Y.any(): ## série sans aucune manoeuvre utilisable :
-            print(f"[build_finetuning_arrays] norad {oid}: cible entièrement nulle, objet écarté")
+
+        ## Nombre de manoeuvres exploitables : on reprend gt_events_doris, donc EXACTEMENT le
+        ## filtre de l'évaluation. Compter autrement ici reviendrait à écarter des objets sur
+        ## un critère que la métrique ne partage pas.
+        events = gt_events_doris(labels, [oid], detection_only=detection_only)[oid]
+        n_maneuvers = sum(len(v) for v in events.values())
+
+        if not Y.any(): ## série sans aucune manoeuvre utilisable
+            ecartes[oid] = "cible entièrement nulle"
+        elif n_maneuvers < min_maneuvers:
+            ecartes[oid] = f"{n_maneuvers} manoeuvre(s) exploitable(s) < {min_maneuvers}"
+        elif len(X) < min_tle:
+            ecartes[oid] = f"série de {len(X)} TLE < {min_tle} (fenêtre entièrement paddée)"
+        else:
+            per_obj[oid] = [X, Y]
+            retenus[oid] = (len(X), n_maneuvers)
             continue
-        per_obj[oid] = [X,Y]
+        print(f"[build_finetuning_arrays] norad {oid} écarté : {ecartes[oid]}")
+
+    ## < 2 objets : le k-fold groupé n'a plus de sens, le seul fold possible a un train vide
+    ## et la boucle d'entraînement diviserait par zéro sans dire pourquoi.
+    if len(per_obj) < 2:
+        raise ValueError(f"{len(per_obj)} objet(s) passent les planchers min_tle={min_tle}, "
+                         f"min_maneuvers={min_maneuvers} : il en faut au moins 2 pour un split "
+                         f"par objet (un en validation, un en entraînement)")
+
+    print(f"[build_finetuning_arrays] {len(per_obj)} objets retenus sur {len(objects)} "
+          f"-> {len(per_obj)} folds en leave-one-out (planchers : {min_tle} TLE, "
+          f"{min_maneuvers} manoeuvre(s))")
+    for oid, (n_tle, n_man) in sorted(retenus.items(), key=lambda kv: kv[1][1]):
+        print(f"    norad {oid} : {n_tle} TLE, {n_man} manoeuvres")
     return per_obj, feature_cols
 
 
@@ -291,7 +346,8 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
                             val_split=0.2, seed=42, half_width_hours=48.0, flatten_target=True,
                             thresholds=DELTA_V_THRESHOLD, fold=None, n_folds=None,
                             detection_only=False, scaler=None, per_object_scaler=False,
-                            tolerance_hours=48.0, pad_mode='edge'):
+                            tolerance_hours=48.0, pad_mode='edge',
+                            min_tle=None, min_maneuvers=1):
     """
     Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut, (1,) si
     detection_only.
@@ -304,8 +360,13 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     pad_mode='edge' par défaut ici : cf. WindowDataset, un backbone qui normalise par fenêtre
     calculerait sinon mu et sigma sur des zéros de padding.
     """
+    ## min_tle=None -> une fenêtre complète : en dessous, l'objet n'a pas une seule fenêtre
+    ## sans padding, et le pretrain n'en a jamais vu de telles.
+    if min_tle is None:
+        min_tle = history + future + 1
     per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width_hours=half_width_hours,
-                                                    thresholds=thresholds, detection_only=detection_only)
+                                                    thresholds=thresholds, detection_only=detection_only,
+                                                    min_tle=min_tle, min_maneuvers=min_maneuvers)
     
     if fold is None:
         train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
@@ -335,6 +396,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
             "delta_v_thresholds" : thresholds, "half_width_hours" : half_width_hours,
             "fold" : fold, "n_folds" : n_folds,
             "detection_only" : detection_only,
+            "min_tle" : min_tle, "min_maneuvers" : min_maneuvers,
             "channels" : ('maneuver',) if detection_only else doris_channels,
             "tolerance" : tolerance, "tolerance_hours" : tolerance_hours,
             "target_shape" : target_shape,
@@ -342,10 +404,13 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     return train_dl, val_dl, meta
 
 def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split=0.2, seed=42, revin= False):
-    per_obj =  {}
+    per_obj, feature_cols =  {}, None
     for oid, df in objects.items() :
-        df_feat, feature_cols = build_features(df, spacetrack=True)
+        df_feat, cols = build_features(df, spacetrack=True)
+        feature_cols = _same_feature_cols(cols, feature_cols, oid)
         per_obj[oid] = [df_feat[feature_cols].to_numpy(np.float32), None]
+    if feature_cols is None:
+        raise ValueError("aucun objet chargé : feature_cols indéterminé")
 
     train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
 
