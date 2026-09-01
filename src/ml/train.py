@@ -214,12 +214,15 @@ def evaluate_epoch_finetuning(
     return running_loss / total, best
 
 
-def check_backbone_compatibility(ckpt, cfg, window_size, n_features):
+def check_backbone_compatibility(ckpt, cfg, window_size, feature_cols):
     """
     Vérifie que le backbone pré-entraîné a la même géométrie que le modèle de finetuning.
     Sans ça, load_state_dict échoue sur un mur de shape mismatch dont la cause réelle
     (taille de fenêtre, patch_size, embed_dim) n'apparaît nulle part.
     """
+    feature_cols = list(feature_cols)
+    n_features = len(feature_cols)
+
     ## Le nombre de features se lit directement dans les poids, pas dans la config : c'est la
     ## seule verification qui vaut aussi pour un checkpoint a scaler par objet, ou aucun
     ## scaler_mean ne vient documenter la dimension d'entree.
@@ -227,6 +230,20 @@ def check_backbone_compatibility(ckpt, cfg, window_size, n_features):
     if proj is not None and proj.shape[1] != n_features:
         raise ValueError(f"backbone pré-entraîné sur {proj.shape[1]} features, finetuning sur "
                          f"{n_features} : les jeux de features diffèrent")
+
+    ## Les NOMS et leur ORDRE ne sont ni dans les poids ni deductibles de n_features. Deux jeux
+    ## de meme taille mais d'ordre different se chargeraient sans un mot, et chaque canal
+    ## arriverait sur le mauvais filtre du patch embedding. Le RevIN par fenetre y est encore
+    ## plus sensible : son indice vient de la liste du finetuning, donc un decalage lui ferait
+    ## normaliser un autre canal que celui du pretrain, sans rien lever.
+    pretrain_cols = ckpt.get('feature_cols')
+    if pretrain_cols is None:
+        print("[finetuning] checkpoint sans feature_cols (anterieur a leur sauvegarde) : "
+              "ordre des canaux NON verifie. Seul le nombre l'est.")
+    elif list(pretrain_cols) != feature_cols:
+        raise ValueError(f"jeux de features differents entre pretrain et finetuning :\n"
+                         f"  pretrain   : {list(pretrain_cols)}\n"
+                         f"  finetuning : {feature_cols}")
 
     pretrain_cfg = ckpt.get('config')
     if pretrain_cfg is None:
@@ -501,7 +518,7 @@ def main(cfg : DictConfig):
 
     model.to(device)
     if is_finetuning :
-        check_backbone_compatibility(ckpt, cfg, window_size, n_features)
+        check_backbone_compatibility(ckpt, cfg, window_size, meta['feature_cols'])
 
         ## strict=False laisse passer un encodeur resté aléatoire sans un mot : on vérifie
         ## explicitement qu'aucun paramètre de l'encodeur n'a été laissé à son initialisation.
@@ -598,6 +615,9 @@ def main(cfg : DictConfig):
         per_obj = isinstance(scaler, dict)
 
         logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size,
+            ## les noms ET leur ordre : n_features seul ne permet pas de verifier qu'un
+            ## finetuning ulterieur presente les canaux dans le meme ordre a l'encodeur.
+            feature_cols = list(meta['feature_cols']),
             scaler_mean = None if per_obj else meta['scaler'].mean_,
             scaler_scale = None if per_obj else meta['scaler'].scale_,
             scaler_kind = 'per_obj' if per_obj else 'global'
