@@ -840,13 +840,11 @@ class ManeuverFineTune(InstanceNormMixin, nn.Module):
                                   expansion_factor, 
                                   dropout_rate)
         
-        ## Le CLS résume TOUTE la fenêtre (192 TLE, soit 50 à 190 jours selon la cadence de
-        ## l'objet) alors que la cible porte sur son point central : il n'a aucune spécificité
-        ## positionnelle. On lui concatène le token du patch central, qui contient le centre
-        ## de la fenêtre, d'où l'entrée de dense1 en 2*embed_dim.
+
         self.center_patch = 1 + self.encoder.num_patches // 2 ## +1 : le CLS occupe l'indice 0
-        self.patchs = [0, self.center_patch, self.center_patch -1, self.center_patch +1 ] ## les patchs qui seront considérés par la tête
-        self.dense = nn.Linear(2 * embed_dim, n_outputs)
+        self.patchs = [0, self.center_patch, self.center_patch -1, self.center_patch -2 ] ## les patchs qui seront considérés par la tête : ici asymétrie -32/+16 TLE autour de la cible
+        self.dense1 = nn.Linear(len(self.patchs) * embed_dim, 64)
+        self.dense2 = nn.Linear(64, n_outputs)
         self.activation = nn.GELU()
         self.freeze_encoder = freeze_encoder
 
@@ -872,7 +870,7 @@ class ManeuverFineTune(InstanceNormMixin, nn.Module):
         x = (x - mu[..., None]) / sigma[..., None]
         out = self.encoder.forward(x) # (B, N + 1, embed_dim)
         z = torch.cat([out[:, patch] for patch in self.patchs], dim=-1) # (B, 4*embed_dim) : on concatène le CLS token (résumé fenètre) et les patch centraux (éventuels instants de manoeuvre)out[:, 0], out[:, self.center_patch]
-        z = self.activation(self.dense(z)) # (B, n_outputs)
+        z = self.dense2(self.activation(self.dense(z))) # (B, n_outputs)
         return z
     
     def train(self, mode=True):
