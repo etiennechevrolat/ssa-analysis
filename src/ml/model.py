@@ -870,7 +870,7 @@ class ManeuverFineTune(InstanceNormMixin, nn.Module):
         x = (x - mu[..., None]) / sigma[..., None]
         out = self.encoder.forward(x) # (B, N + 1, embed_dim)
         z = torch.cat([out[:, patch] for patch in self.patchs], dim=-1) # (B, 4*embed_dim) : on concatène le CLS token (résumé fenètre) et les patch centraux (éventuels instants de manoeuvre)out[:, 0], out[:, self.center_patch]
-        z = self.dense2(self.activation(self.dense(z))) # (B, n_outputs)
+        z = self.dense2(self.activation(self.dense1(z))) # (B, n_outputs)
         return z
     
     def train(self, mode=True):
