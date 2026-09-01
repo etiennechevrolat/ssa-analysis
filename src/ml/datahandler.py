@@ -3,7 +3,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import os
-from ssa.orbital import to_equinoxal, to_keplerian, mean_to_true_anomaly
+from ssa.orbital import (to_equinoxal, to_separated_angles, to_keplerian,
+                         mean_to_true_anomaly)
 from statsmodels.robust import scale
 
 ## Récupération des données sous la forme du dataset SPLID : 2000 .csv par satellite, avec pleins de params orbitaux.
@@ -126,7 +127,7 @@ def load_doris_objects(data_dir, bstar_factor_k):
     On fait attention à réappliquer les mêmes transformations que lors du pretrain : sur dt, bstar pour l'instant
     """
 
-    labels_dir = Path(os.path.join(data_dir,'leo_maneuvers_label.csv'))
+    labels_dir = Path(os.path.join(data_dir,'leo_maneuvers_label_augmented.csv'))
     train_dir = Path(os.path.join(data_dir, 'train', 'leo_doris_orbital_params.csv'))
 
     labels = pd.read_csv(labels_dir)
@@ -294,11 +295,52 @@ diff_cols_splid  =['Semimajor Axis (m)', 'q', 'p']
 diff_cols_spacetrack = ['sma', 'i_continue'] ## attention : le sma spacetrack est en km
 heavy_tail_cols_spacetrack = ['sma_diff', 'i_continue_diff'] ## residus a queue lourde : cf add_robust_asinh
 
+def _elements_bruts(df, spacetrack=True):
+    """Les cinq elements angulaires, sous la nomenclature du jeu de donnees."""
+    if spacetrack:
+        return (df['eccentricity'], df['inclination'], df['raan'],
+                df['arg_perigee'], df['mean_anomaly'], 'mean')
+    ## SPLID data nomenclature
+    if 'True Anomaly (deg)' in df.columns:
+        anomaly, anomaly_type = df['True Anomaly (deg)'], 'true'
+    else:
+        anomaly, anomaly_type = df['Mean Anomaly (deg)'], 'mean'
+    return (df['Eccentricity'], df['Inclination (deg)'], df['RAAN (deg)'],
+            df['Argument of Periapsis (deg)'], anomaly, anomaly_type)
+
+
+def add_separated_angles(df : pd.DataFrame, spacetrack=True):
+    """Ajoute la representation continue et SEPAREE : un canal par grandeur physique.
+
+        ecc                        excentricite
+        i_continue = tan(i/2)      inclinaison
+        cosRAAN, sinRAAN           noeud ascendant
+        cosARGP, sinARGP           argument du perigee
+        cosM, sinM                 anomalie moyenne
+
+    C'est le chemin PRINCIPAL. add_continuous_angles (equinoxial) ne sert plus qu'au repli
+    sur les anciens checkpoints et au jeu SPLID : ses coordonnees k, h, q, p melangent
+    plusieurs elements dans un meme nombre, si bien qu'une variation ne s'attribue pas.
+    Ici rien n'est perdu -- k, h, q, p restent reconstructibles (cf. to_separated_angles).
+    """
+    e, i, RAAN, argp, anomaly, anomaly_type = _elements_bruts(df, spacetrack)
+    ecc, i_c, cO, sO, cw, sw, cM, sM = to_separated_angles(e, i, RAAN, argp, anomaly, anomaly_type)
+    df['ecc'] = ecc
+    df['i_continue'] = i_c
+    df['cosRAAN'], df['sinRAAN'] = cO, sO
+    df['cosARGP'], df['sinARGP'] = cw, sw
+    df['cosM'], df['sinM'] = cM, sM
+    return df
+
+
 def add_continuous_angles(df : pd.DataFrame, spacetrack=True):
     """transforme les paramètres angulaires discontinus : 
-    (e, i, RAAN, arg_perigee, M) en paramètres continus :
-    (k, h , tan(i/2), cosRAAN, sinRAAN, cos(M), sin(M))
+    (e, i, RAAN, arg_perigee, M) en paramètres equinoxaux continus :
+    (k, h , q , p, cos(lamda), sin(lamda))
     et les ajoutent au dataframe
+
+    Conservee pour le repli legacy_angles et pour le chemin SPLID ; le chemin spacetrack
+    principal passe par add_separated_angles.
     """
     if spacetrack : 
         e = df['eccentricity']
@@ -318,12 +360,11 @@ def add_continuous_angles(df : pd.DataFrame, spacetrack=True):
         RAAN = df['RAAN (deg)']
         arg_perigee = df['Argument of Periapsis (deg)']
     
-    k,h,i_continue, cosRAAN, sinRAAN, cosM, sinM = to_equinoxal(e,i,RAAN, arg_perigee, anomaly, anomaly_type)
+    k,h,q,p, cosM, sinM = to_equinoxal(e,i,RAAN, arg_perigee, anomaly, anomaly_type)
     df['k'] = k
     df['h'] = h
-    df['i_continue'] = i_continue
-    df['cosRAAN'] = cosRAAN
-    df['sinRAAN'] = sinRAAN
+    df['q'] = q
+    df['p'] = p
     df['cosM'] = cosM
     df['sinM'] = sinM
     return df
@@ -376,15 +417,26 @@ def add_level_and_local_variations(df, level_cols):
 
 ## Ancien jeu de features, celui des checkpoints de pretrain <= 2026-08-31. Conserve pour
 ## pouvoir finetuner dessus tant qu'aucun pretrain n'a tourne avec les nouvelles features.
-LEGACY_FEATURE_COLS = ['dt', 'bstar', 'sma', 'k', 'h', 'p', 'q', 'cosM', 'sinM', 'sma_diff']
+
+
+
+## Chemin PRINCIPAL : un canal par grandeur physique, aucun melange (cf. add_separated_angles).
+ANGLES_SEPARES = ['ecc', 'i_continue', 'cosRAAN', 'sinRAAN', 'cosARGP', 'sinARGP', 'cosM', 'sinM']
+
+## Repli : les equinoxiaux des checkpoints <= 2026-08-31, avec leurs propres colonnes de diff.
+LEGACY_ANGLES = ['k', 'h', 'p', 'q', 'cosM', 'sinM']
+LEGACY_DIFF_COLS = ['sma']
 
 
 def build_features(df, spacetrack=True, log_features=False, legacy_angles=False):
-    """legacy_angles=True : restitue p et q a la place de (i_continue, cosRAAN, sinRAAN).
+    """Features spacetrack. Deux representations angulaires, exclusives l'une de l'autre.
 
-    p et q sont exactement les nouvelles colonnes recombinees -- q = tan(i/2)cos(RAAN),
-    p = tan(i/2)sin(RAAN) -- donc ce mode reproduit au bit pres les features des anciens
-    checkpoints, sans dupliquer la conversion angulaire.
+    Par defaut : angles SEPARES (add_separated_angles) -- excentricite, tan(i/2), et un
+    couple (cos, sin) par angle. Un element physique par canal, donc une variation
+    s'attribue sans ambiguite. 13 features.
+
+    legacy_angles=True : equinoxiaux k, h, p, q (add_continuous_angles), qui melangent les
+    elements mais reproduisent a l'identique les 10 features des checkpoints anterieurs.
     """
     if not spacetrack:
         return _build_features_splid(df)
@@ -392,17 +444,18 @@ def build_features(df, spacetrack=True, log_features=False, legacy_angles=False)
         return _build_features_spacetrack_log(df)
 
     df = df.copy()
-    df = add_continuous_angles(df, spacetrack=True)
-    df = add_diff(df, diff_cols_spacetrack)
-    df = add_robust_asinh(df, heavy_tail_cols_spacetrack, k=5.0)
-
     if legacy_angles:
-        df['q'] = df['i_continue'] * df['cosRAAN']
-        df['p'] = df['i_continue'] * df['sinRAAN']
-        feature_cols = list(LEGACY_FEATURE_COLS)
+        df = add_continuous_angles(df, spacetrack=True)
+        angles, diff_cols = LEGACY_ANGLES, LEGACY_DIFF_COLS
     else:
-        feature_cols = (['dt', 'bstar', 'sma', 'i_continue', 'k', 'h', 'cosRAAN', 'sinRAAN', 'cosM', 'sinM']
-                        + [f"{c}_diff" for c in diff_cols_spacetrack])
+        df = add_separated_angles(df, spacetrack=True)
+        angles, diff_cols = ANGLES_SEPARES, diff_cols_spacetrack
+
+    df = add_diff(df, diff_cols)
+    ## l'asinh robuste ne porte que sur les residus effectivement calcules
+    df = add_robust_asinh(df, [f"{c}_diff" for c in diff_cols], k=5.0)
+
+    feature_cols = ['dt', 'bstar', 'sma'] + angles + [f"{c}_diff" for c in diff_cols]
     df[feature_cols] = df[feature_cols].astype(np.float32)
     return df, feature_cols
 
