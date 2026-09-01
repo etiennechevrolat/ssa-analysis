@@ -158,7 +158,7 @@ def load_doris_objects(data_dir, bstar_factor_k):
         df_object = df_object[~is_outlier]
 
         ## transformation de bstar ATTENTION AU PARAM K DOIT CORRESPONDRE AU PRETRAIN
-        df['bstar'] = np.asinh(df['bstar'] / bstar_factor)
+        df_object['bstar'] = np.asinh(df_object['bstar'] / bstar_factor)
         
 
         objects[int(norad)] = df_object
@@ -180,7 +180,8 @@ def load_doris_objects(data_dir, bstar_factor_k):
             print(f"[load_doris_objects] norad {norad}: {n_dropped}/{len(ok)} labels écartés "
                   f"(aucun TLE dans les {max_dt_hours}h suivant la manoeuvre), "
                   f"{n_collisions} collisions de TimeIndex")
-
+    print(f"Fin du traitement des données, {len(objects)} objets, "
+          f"{outliers_total}/{total_tles} TLE retirés ({100 * outliers_total / max(total_tles, 1):.3f}% outliers)")
     return objects, df_labels
 
 
