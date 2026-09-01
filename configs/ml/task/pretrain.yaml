@@ -1,7 +1,6 @@
 name : pretrain
 
-## Un poids par canal du chemin principal (13 features, angles separes). train.py leve sur
-## un nom absent des features, donc cette liste et build_features restent solidaires.
+
 channel_weights:
   ## angles de phase : quasi imprevisibles et sans rapport avec la detection de manoeuvre
   dt: 0.0
@@ -10,13 +9,13 @@ channel_weights:
   cosRAAN: 0.0
   sinRAAN: 0.0
   ## argument du perigee : meme raisonnement que RAAN, et pour e ~ 1e-3 la direction du
-  ## perigee est mal definie, donc dominee par le bruit. A CONFIRMER si tu veux l'apprendre.
+  ## perigee est mal definie, donc dominee par le bruit.
   cosARGP: 0.0
   sinARGP: 0.0
   ## elements portant la manoeuvre
-  bstar: 0.1
+  bstar: 0.2
   sma: 1.0
   i_continue: 1.0
-  ecc: 1.0            ## remplace k et h, qui melangeaient e et la longitude du pericentre
-  sma_diff: 0.3
-  i_continue_diff: 0.3
+  ecc: 1.0            
+  sma_diff: 2.0
+  i_continue_diff: 1.5
