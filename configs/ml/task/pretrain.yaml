@@ -4,6 +4,13 @@ channel_weights:
   dt: 0.0
   cosM: 0.0
   sinM: 0.0
-  bstar: 0.2
-  sma_diff: 1.0
+  cosRAAN: 0.0
+  sinRAAN: 0.0
+  bstar: 0.1
+  sma_diff: 0.3
+  i_continue_diff: 0.3
+  sma: 1.0
+  i_continue: 1.0
+  k: 1.0
+  h: 1.0
   

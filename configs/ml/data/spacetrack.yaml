@@ -11,7 +11,14 @@ revin_norm : True ## applique une normalisation par objet
 ## revin_norm retire l'echelle propre a l'objet, celui-ci l'echelle de la fenetre courante.
 revin_per_window_norm : True
 
-revin_window_cols : ['sma']  ## canaux concernes ; les autres passent inchanges
+revin_window_cols : ['sma', 'i_continue']  ## canaux concernes ; les autres passent inchanges
 
-revin_sigma_floor : 0.002
+## Plancher par canal, dans les unites du scaler amont (z-score par objet). Mesure sur
+## 6000 fenetres de 400 objets : l'ecart-type par fenetre a pour p5 0.0011 sur sma et
+## 0.0874 sur i_continue -- deux ordres de grandeur d'ecart. Un plancher commun a 0.002
+## ne mordrait JAMAIS sur i_continue (30x sous son p1) : autant ne pas en mettre.
+## 0.15 place i_continue au meme rang que 0.002 pour sma, soit un peu au-dessus de son p5.
+revin_sigma_floor :
+  sma : 0.002
+  i_continue : 0.15
 

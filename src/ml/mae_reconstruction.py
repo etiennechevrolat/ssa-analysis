@@ -103,11 +103,6 @@ def plot_object_windows(mae, cfg, stats, per_obj, feature_cols, norad, n_windows
     return fig
 
 
-if __name__ == "__main__":
-    mae, cfg, stats, per_obj, feature_cols = load_mae_and_data(ckpt_id="2026-08-29_14-10-01")
-    plot_object_windows(mae, cfg, stats, per_obj, feature_cols, norad=64685, n_windows=1)
-
-
 ## Repartition de la loss par canal
 
 ## Doit rester le miroir exact de la construction de w dans train.py (bloc is_pretrain) :
@@ -590,3 +585,131 @@ def export_clusters(mae, cfg, stats, per_obj, feature_cols, out_dir,
     print(f"\n-> {out_dir} : {len(valides)} sous-dossiers")
     return rec, pd.DataFrame({"norad": norad_ids, "cluster": labels,
                               "nom": [noms.get(int(n), "") for n in norad_ids]})
+
+
+## ---------------------------------------------------------------------------------------
+## SCRIPT : repartition de la loss par canal, avec la config qui l'a produite
+##
+##     python src/ml/mae_reconstruction.py --ckpt 2026-08-31_12-05-38
+##
+## La table seule est ininterpretable : un canal a 0 % peut l'etre parce qu'il est bien
+## reconstruit, ou parce que son poids est nul et qu'on ne le regarde tout simplement pas.
+## D'ou l'impression systematique de la config a cote des chiffres.
+
+def print_run_config(ckpt_path, mae, cfg, feature_cols):
+    """Imprime la config du checkpoint, puis ce qu'elle implique et qui ne s'y lit pas."""
+    from omegaconf import OmegaConf
+
+    meta = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    cols_ckpt = meta.get('feature_cols')
+
+    print("=" * 88)
+    print(f"CHECKPOINT  {ckpt_path}")
+    print("=" * 88)
+    print(f"  epoch {meta.get('epoch')} | n_features {meta.get('n_features')} | "
+          f"window_size {meta.get('window_size')} | scaler_kind {meta.get('scaler_kind', 'global')}")
+    print(f"  feature_cols du checkpoint : "
+          f"{list(cols_ckpt) if cols_ckpt is not None else 'ABSENT (checkpoint anterieur a leur sauvegarde)'}")
+    print(f"  feature_cols recalculees   : {list(feature_cols)}")
+    if cols_ckpt is not None and list(cols_ckpt) != list(feature_cols):
+        print("  /!\\ ELLES DIFFERENT : les chiffres ci-dessous portent sur d'autres canaux "
+              "que ceux du pretrain")
+
+    print("\n" + "-" * 88)
+    print("CONFIG COMPLETE DU RUN")
+    print("-" * 88)
+    print(OmegaConf.to_yaml(cfg).rstrip())
+
+    print("\n" + "-" * 88)
+    print("CE QUE LA CONFIG IMPLIQUE (et qui ne se lit pas directement)")
+    print("-" * 88)
+    W, P = cfg.data.window_size, cfg.model.patch_size
+    N = W // P
+    n_masques = round(N * cfg.model.masking_ratio)
+    print(f"  patchs           : {W} / {P} = {N} patchs, masking {cfg.model.masking_ratio} "
+          f"-> {n_masques} masques et {N - n_masques} visibles par fenetre")
+    print(f"  la loss ne porte QUE sur les {n_masques} patchs masques")
+    print(f"  normalisation dataset : {'par objet' if cfg.data.get('revin_norm') else 'globale'}")
+
+    ## lu dans le MODELE et non dans la config : c'est le buffer qui agit reellement
+    actifs = [c for c, m in zip(feature_cols, mae.inorm_mask.tolist()) if m]
+    planchers = {c: round(f, 6) for c, f in zip(feature_cols, mae.sigma_floor.tolist()) if f}
+    print(f"  RevIN par fenetre (buffers du modele) : {actifs or 'aucun canal'} "
+          f"| planchers sigma {planchers or '-'}")
+
+    print("\n  poids de loss effectifs (un canal absent de task.channel_weights garde 1.0) :")
+    w = loss_weights(cfg, feature_cols)
+    declares = set((cfg.task.get("channel_weights") or {}).items())
+    declares_noms = {c for c, _ in declares}
+    for canal, poids in zip(feature_cols, w):
+        origine = "config" if canal in declares_noms else "defaut"
+        print(f"      {canal:<12} {poids:>5.2f}   ({origine})")
+    implicites = [c for c in feature_cols if c not in declares_noms]
+    if implicites:
+        print(f"  /!\\ {len(implicites)} canaux ne sont pas listes dans task.channel_weights "
+              f"et pesent donc 1.0 sans qu'on l'ait choisi : {implicites}")
+    inconnus = [c for c in declares_noms if c not in feature_cols]
+    if inconnus:
+        print(f"  /!\\ {inconnus} figurent dans channel_weights mais pas dans les features : ignores ici")
+
+
+def main():
+    import argparse
+    from omegaconf import OmegaConf
+
+    parseur = argparse.ArgumentParser(
+        description="Repartition de la loss du MAE par canal, avec la config du run.")
+    parseur.add_argument("--ckpt", default="2026-08-31_12-05-38",
+                         help="identifiant du run sous outputs/ml/pretrain/")
+    parseur.add_argument("--n-windows", type=int, default=2048,
+                         help="fenetres tirees au hasard pour estimer les MSE par canal")
+    parseur.add_argument("--batch-size", type=int, default=256)
+    parseur.add_argument("--seed", type=int, default=0)
+    parseur.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parseur.add_argument("--csv", action="store_true",
+                         help="ecrit aussi channel_loss.csv dans le dossier du run")
+    args = parseur.parse_args()
+
+    base = Path(__file__).resolve().parents[2]
+    run_dir = base / "outputs" / "ml" / "pretrain" / args.ckpt
+    ckpt_path = run_dir / "checkpoints" / "best.pt"
+    if not ckpt_path.exists():
+        raise SystemExit(f"introuvable : {ckpt_path}\n"
+                         f"runs disponibles : {sorted(p.name for p in (base / 'outputs/ml/pretrain').iterdir())}")
+
+    mae, cfg, stats, per_obj, feature_cols = load_mae_and_data(args.ckpt, base_path=base)
+    print_run_config(ckpt_path, mae, cfg, feature_cols)
+
+    print("\n" + "-" * 88)
+    print(f"REPARTITION DE LA LOSS  ({args.n_windows} fenetres tirees dans {len(per_obj)} objets, "
+          f"seed {args.seed}, device {args.device})")
+    print("-" * 88)
+    table = channel_loss_breakdown(mae, cfg, per_obj, feature_cols, n_windows=args.n_windows,
+                                   batch_size=args.batch_size, seed=args.seed, device=args.device)
+    with pd.option_context('display.float_format', lambda v: f"{v:10.6f}"):
+        print(table.to_string(index=False))
+
+    ## Lecture : ce que la table dit et qu'on lirait de travers sans le rappeler.
+    print()
+    cumul = table['part_%'].cumsum()
+    k = int((cumul < 90).sum()) + 1
+    tetes = ", ".join(table['canal'].head(k))
+    print(f"  {k} canal(aux) font {cumul.iloc[k - 1]:.1f} % de la loss : {tetes}")
+
+    nuls = table[table['poids'] == 0]
+    if not nuls.empty:
+        part_brute = nuls['mse'].sum() / table['mse'].sum() * 100
+        print(f"  canaux a poids nul ({', '.join(nuls['canal'])}) : {part_brute:.1f} % de la MSE "
+              f"BRUTE, 0 % de ce qui est optimise -- le modele ne les apprend pas, "
+              f"la loss ne le dira jamais")
+    print(f"  loss reconstituee : {table['contribution'].sum():.6f}  "
+          f"(a comparer a la val loss du run dans metrics.jsonl)")
+
+    if args.csv:
+        sortie = run_dir / "channel_loss.csv"
+        table.to_csv(sortie, index=False)
+        print(f"\n  ecrit : {sortie}")
+
+
+if __name__ == "__main__":
+    main()

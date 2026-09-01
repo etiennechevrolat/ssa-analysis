@@ -40,7 +40,7 @@ def mean_to_true_anomaly(mean_anomaly, e, n_iter=8) :
     return np.degrees(nu) % 360.0
 
 def to_equinoxal(e, i, raan, arg_perigee, anomaly, anomaly_type = 'true'):
-    # Keplerian angles (e, i, RAAN, arg_perigee, M) from splid dataset -> Equinoxal (k, h , q , p, cos(lamda), sin(lamda)) continuous 
+    # Keplerian angles (e, i, RAAN, arg_perigee, M) from TLEs -> "Equinoxal" (k, h , tan(i/2) ,cos(RAAN), sin(RAAN), cos(lamda), sin(lamda)) continuous 
 
     e = np.asarray(e, dtype=float)
     i = np.radians(np.asarray(i, dtype=float))
@@ -57,9 +57,12 @@ def to_equinoxal(e, i, raan, arg_perigee, anomaly, anomaly_type = 'true'):
     longitude_pericentre = raan + arg_perigee
     k = e*np.cos(longitude_pericentre)
     h = e*np.sin(longitude_pericentre)
-    q = np.tan(i/2)*np.cos(raan)
-    p = np.tan(i/2)*np.sin(raan)
-    return k,h,q,p, np.cos(M), np.sin(M)
+    i_continue = np.tan(i/2)
+    cosRAAN = np.cos(raan)
+    sinRAAN = np.sin(raan)
+    cosM = np.cos(M)
+    sinM = np.sin(M)
+    return k,h, i_continue, cosRAAN, sinRAAN, cosM, sinM
 
 def to_keplerian(k,h,q,p, cos_M, sin_M): 
     #Equinoxal (k, h , q , p, cos(M), sin(M)) continuous ->  Keplerian angles (e, i, RAAN, arg_perigee, M) 

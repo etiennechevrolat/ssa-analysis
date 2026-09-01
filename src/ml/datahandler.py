@@ -289,13 +289,15 @@ def sma_outliers_detection(norad, df, start, end, n_from_mad = 3):
 
 log_cols = ['sma']
 diff_cols_splid  =['Semimajor Axis (m)', 'q', 'p']
-diff_cols_spacetrack = ['sma'] ## attention : le sma spacetrack est en km
-heavy_tail_cols_spacetrack = ['sma_diff'] ## residus a queue lourde : cf add_robust_asinh
+
+## Pretraining added features
+diff_cols_spacetrack = ['sma', 'i_continue'] ## attention : le sma spacetrack est en km
+heavy_tail_cols_spacetrack = ['sma_diff', 'i_continue_diff'] ## residus a queue lourde : cf add_robust_asinh
 
 def add_continuous_angles(df : pd.DataFrame, spacetrack=True):
     """transforme les paramètres angulaires discontinus : 
-    (e, i, RAAN, arg_perigee, M) en paramètres equinoxaux continus :
-    (k, h , q , p, cos(lamda), sin(lamda))
+    (e, i, RAAN, arg_perigee, M) en paramètres continus :
+    (k, h , tan(i/2), cosRAAN, sinRAAN, cos(M), sin(M))
     et les ajoutent au dataframe
     """
     if spacetrack : 
@@ -316,11 +318,12 @@ def add_continuous_angles(df : pd.DataFrame, spacetrack=True):
         RAAN = df['RAAN (deg)']
         arg_perigee = df['Argument of Periapsis (deg)']
     
-    k,h,q,p, cosM, sinM = to_equinoxal(e,i,RAAN, arg_perigee, anomaly, anomaly_type)
+    k,h,i_continue, cosRAAN, sinRAAN, cosM, sinM = to_equinoxal(e,i,RAAN, arg_perigee, anomaly, anomaly_type)
     df['k'] = k
     df['h'] = h
-    df['q'] = q
-    df['p'] = p
+    df['i_continue'] = i_continue
+    df['cosRAAN'] = cosRAAN
+    df['sinRAAN'] = sinRAAN
     df['cosM'] = cosM
     df['sinM'] = sinM
     return df
@@ -382,7 +385,7 @@ def build_features(df, spacetrack=True, log_features=False):
     df = add_diff(df, diff_cols_spacetrack)
     df = add_robust_asinh(df, heavy_tail_cols_spacetrack, k=5.0)
 
-    feature_cols = (['dt', 'bstar', 'sma', 'k', 'h', 'p', 'q', 'cosM', 'sinM']
+    feature_cols = (['dt', 'bstar', 'sma', 'i_continue', 'k', 'h', 'cosRAAN', 'sinRAAN', 'cosM', 'sinM']
                     + [f"{c}_diff" for c in diff_cols_spacetrack])
     df[feature_cols] = df[feature_cols].astype(np.float32)
     return df, feature_cols
