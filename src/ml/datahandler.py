@@ -118,11 +118,12 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
     return objects
 
 
-max_dt_hours = 12.0 
+max_dt_hours = 24.0 
 
-def load_doris_objects(data_dir):
+def load_doris_objects(data_dir, bstar_factor_k):
     """
     Charge les csv du dataset doris en {object_id, df}
+    On fait attention à réappliquer les mêmes transformations que lors du pretrain : sur dt, bstar pour l'instant
     """
 
     labels_dir = Path(os.path.join(data_dir,'leo_maneuvers_label.csv'))
@@ -135,14 +136,31 @@ def load_doris_objects(data_dir):
     df = pd.read_csv(train_dir)
     objects= {}
     df_labels['TimeIndex'] = np.nan
+    outliers_total = 0.0
+    total_tles = 0.0
 
+    bstar_factor = bstar_factor_k * np.median(df_object['bstar'])
     for norad, sub in df.groupby('norad'):
         df_object = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last').copy() ## on retire les doublons.
         df_object["TimeIndex"]=range(len(df_object))
 
+        ## transformations des features de norad (doit correspondre à celles du pretrain)
         epochs_tle = pd.to_datetime(df_object['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
         df_object['epoch_sec'] = epochs_tle
+
+        ## ajout de dt et passage en log 
         df_object["dt"] = np.log1p(np.diff(epochs_tle, prepend=epochs_tle[0])).astype(np.float32) 
+
+        ## on retire les outliers 
+        is_outlier = np.array(sma_outliers_detection(norad, df_object, 0, len(epochs_tle), n_from_mad=4)) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
+        outliers_total += int(is_outlier.sum())
+        total_tles += len(is_outlier)
+        df_object = df_object[~is_outlier]
+
+        ## transformation de bstar ATTENTION AU PARAM K DOIT CORRESPONDRE AU PRETRAIN
+        df['bstar'] = np.asinh(df['bstar'] / bstar_factor)
+        
+
         objects[int(norad)] = df_object
 
         mask = df_labels['norad_id'] == norad
@@ -189,7 +207,10 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     print("Début du traitement des données...")
     outliers_total = 0
     total_tles = 0
-    bstar_factor = np.abs(np.median(raw['bstar']))
+
+    ## Choix de l'ordre de grandeur du régime linéaire de bstar
+    k = 1.0
+    bstar_factor = k * np.abs(np.median(raw['bstar']))
 
     for norad,sub in raw.groupby('norad'):
         ## traitement du dataframe spécifique aux données spacetrack : epochs non régulières

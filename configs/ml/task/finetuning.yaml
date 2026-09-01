@@ -14,3 +14,4 @@ detection_only : False
 
 ckpt_path : null
 freeze_encoder : True
+bstar_factor_k : 1.0

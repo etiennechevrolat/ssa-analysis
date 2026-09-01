@@ -351,7 +351,7 @@ def main(cfg : DictConfig):
     if is_pretrain :
         objects = load_spacetrack_objects(cfg.data.data_dir, cfg.data.dataset)
     elif is_finetuning : 
-        objects, labels = load_doris_objects(cfg.data.data_dir_labels)
+        objects, labels = load_doris_objects(cfg.data.data_dir_labels, cfg.task.bstar_factor_k)
     else:
         objects, labels = load_splid_objects(
             cfg.data.data_dir, 
@@ -410,13 +410,11 @@ def main(cfg : DictConfig):
                 "Passe le chemin d'un checkpoint de pretrain (outputs/ml/pretrain/<date>/checkpoints/best.pt)"
                 )
         ckpt = torch.load(cfg.task.ckpt_path, map_location='cpu', weights_only=False)
-        ## .get : les checkpoints anterieurs a ce champ n'ont qu'une normalisation globale.
+
         per_object_scaler = (ckpt.get('scaler_kind', 'global') == 'per_obj')
-        ## En normalisation par objet il n'y a rien a transferer : mu/sigma sont des statistiques
-        ## de la serie, pas des poids, et les objets DORIS n'etaient pas dans le pretrain. On les
-        ## recalcule sur chaque serie de finetuning (cf. fit_scaler_on_train, per_object=True).
-        pretrain_scaler = None if per_object_scaler else scaler_from_checkpoint(
-            ckpt, n_features=len(ckpt['scaler_mean']))
+
+        ## On recalcule sur chaque serie de finetuning (cf. fit_scaler_on_train, per_object=True).
+        pretrain_scaler = None if per_object_scaler else scaler_from_checkpoint(ckpt, n_features=len(ckpt['scaler_mean']))
 
         train_loader, val_loader, meta = make_loaders_finetuning(
                     objects,

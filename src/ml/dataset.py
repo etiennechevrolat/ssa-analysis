@@ -95,17 +95,10 @@ def split_by_object_kfold(object_ids, fold, n_folds=None, seed=42):
 def fit_scaler_on_train(per_obj, train_ids, scaler=None, per_object=False):
     """Ajuste le scaler sur le train seulement, ou applique un scaler déjà ajusté.
 
-    scaler non None : on ne refit PAS. Indispensable pour un finetuning à encodeur gelé —
-    l'encodeur a appris sur des entrées normalisées par le scaler du pretrain, et gelé il ne
-    peut pas se réadapter à une autre normalisation. Lui envoyer des entrées normalisées
-    autrement, c'est le faire travailler hors distribution.
-
     per_object=True : normalisation par objet (RevIN amont), scaler est un dict
     {norad: StandardScaler}. Rien ne se transfère du pretrain dans ce mode — mu et sigma ne
-    sont pas des paramètres appris mais des statistiques de la série de l'objet, et un objet
-    de finetuning n'était pas dans le pretrain. On les recalcule donc sur sa propre série,
-    exactement comme le ferait l'inférence sur un objet nouveau. Aucun label n'intervient :
-    ce n'est pas une fuite, seulement une normalisation transductive sur les entrées.
+    sont pas des paramètres appris mais des statistiques de la série de l'objet
+    On les recalcule donc sur sa propre série
     """
     if per_object:
         if scaler is not None:
@@ -320,7 +313,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
         train_ids, val_ids = split_by_object_kfold(per_obj.keys(), fold, n_folds, seed)
 
     scaler = fit_scaler_on_train(per_obj, train_ids, scaler=scaler, per_object=per_object_scaler)
-
+    
     train_dataset = WindowDataset(per_obj, train_ids, history, future,
                                   flatten_target=flatten_target, pad_mode=pad_mode)
     val_dataset = WindowDataset(per_obj, val_ids, history, future,
