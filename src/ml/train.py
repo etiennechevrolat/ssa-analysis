@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 from sklearn.metrics import accuracy_score, f1_score
 from tqdm import tqdm
 from hydra.core.hydra_config import HydraConfig
+from contextlib import nullcontext
 
 
 from ml.datahandler import load_splid_objects, load_spacetrack_objects, load_doris_objects
@@ -22,6 +23,20 @@ from ml.utils import to_device, compute_class_weights, MaskedChannelMSE
 from ml.logger import RunLogger
 
 
+def contexte_amp(cfg, device):
+    """Contexte d'autocast, ou un no-op si l'AMP est desactive ou si on n'est pas sur GPU.
+
+    bf16 plutot que fp16 : meme exposant que fp32, donc pas de depassement et pas besoin
+    d'un GradScaler. Le pas de pretrain passe de 130 a 55 ms sur RTX 3090 (mesure).
+    """
+    from contextlib import nullcontext
+    mode = cfg.train.get('amp', None)
+    if not mode or device.type != 'cuda':
+        return nullcontext()
+    dtype = {'bf16': torch.bfloat16, 'fp16': torch.float16}[mode]
+    return torch.autocast('cuda', dtype=dtype)
+
+
 def train_one_epoch(
         model : nn.Module,
         data_loader : DataLoader,
@@ -29,7 +44,8 @@ def train_one_epoch(
         optimizer : torch.optim.Optimizer,
         device : torch.device,
         epoch=0,
-        scheduler=None
+        scheduler=None,
+        amp=None,
     ):
     model.train()
     running_loss = 0.0
@@ -48,10 +64,10 @@ def train_one_epoch(
 
         optimizer.zero_grad()
 
-        pred = model(x)
-
-
-        loss = loss_fn(pred, y)
+        with amp if amp is not None else nullcontext():
+            pred = model(x)
+        ## la loss reste en fp32 : les reductions y sont plus stables qu'en bf16
+        loss = loss_fn(pred.float(), y)
         running_loss+= float(loss.item()) * x.size(0)
         loss.backward()
         optimizer.step()
@@ -73,6 +89,7 @@ def pretrain_one_epoch(
         device : torch.device,
         epoch=0,
         scheduler=None,
+        amp=None,
     ):
     ## dataloader renvoie des batchs de times series sans label de type UnlabelledWindowDataset() cf dataset.py
     model.train()
@@ -87,10 +104,11 @@ def pretrain_one_epoch(
 
         optimizer.zero_grad()
     
-        pred, target = model(x) 
+        with amp if amp is not None else nullcontext():
+            pred, target = model(x)
 
-        ## on évalue donc l'image initiale vs la reconstruction 
-        loss = loss_fn(pred, target)
+        ## on évalue donc l'image initiale vs la reconstruction, en fp32
+        loss = loss_fn(pred.float(), target.float())
         running_loss+= float(loss.item()) * x.size(0) 
         loss.backward()
         optimizer.step()
@@ -340,7 +358,8 @@ def evaluate_pretraining_epoch(
     data_loader,
     loss_fn, 
     device,
-    seed = 0
+    seed = 0,
+    amp = None,
     ):
     model.eval() ## différents de torch.no_grad, change le comportement de certaines couches : Dropout, BatchNorm.
     running_loss = 0.0
@@ -353,8 +372,9 @@ def evaluate_pretraining_epoch(
     try : 
         for time_series_batch in tqdm(data_loader, desc="val", leave=False):
             x = time_series_batch.to(device, non_blocking=True)
-            pred, target = model(x)
-            loss = loss_fn(pred, target)
+            with amp if amp is not None else nullcontext():
+                pred, target = model(x)
+            loss = loss_fn(pred.float(), target.float())
             running_loss+= float(loss.item()) * x.size(0)
             total += x.size(0)
     finally :
@@ -369,6 +389,12 @@ def evaluate_pretraining_epoch(
 @hydra.main(version_base=None, config_path="../../configs/ml", config_name="config") 
 ## hydra prend main en point d'entrée, et main() est transformé en wrapper qui récupère et construit l'objet cfg, et enfin applique main(cfg).
 def main(cfg : DictConfig):
+
+    ## TF32 : format tensor-core d'Ampere pour les matmuls fp32. Desactive par defaut dans
+    ## torch, il vaut x1.5 sur ce modele sans changement visible sur l'entrainement.
+    if cfg.train.get('tf32', True):
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -427,10 +453,23 @@ def main(cfg : DictConfig):
         ## le pretrain est une régression : mean-square-error loss
         
         ### on ajuste les poids de chaque feature dans le calcul de la loss
+        ## Tout canal doit etre liste EXPLICITEMENT, poids nul compris : un canal oublie
+        ## prenait 1.0 en silence, ce qui a deja fait tourner un run entier avec un poids
+        ## que personne n'avait choisi. Une part de loss ne se lit dans aucune valeur de
+        ## loss, donc rien ne l'aurait signale.
+        poids = dict(cfg.task.get("channel_weights") or {})
+        inconnus = [c for c in poids if c not in meta["feature_cols"]]
+        if inconnus:
+            raise ValueError(f"canal inconnu dans channel_weights : {inconnus}")
+        manquants = [c for c in meta["feature_cols"] if c not in poids]
+        if manquants:
+            raise ValueError(
+                f"canaux absents de task.channel_weights : {manquants}. Chaque feature doit "
+                "recevoir un poids explicite (0.0 pour un canal garde en entree mais hors "
+                "reconstruction) -- sans quoi il vaudrait 1.0 par defaut, sans que ce soit un choix."
+                )
         w = torch.ones(len(meta["feature_cols"]))
-        for canal, val in (cfg.task.get("channel_weights") or {}).items():
-            if canal not in meta["feature_cols"]:
-                raise ValueError(f"canal inconnu dans channel_weights : {canal!r}")
+        for canal, val in poids.items():
             w[meta["feature_cols"].index(canal)] = float(val)
         print(meta['feature_cols'])
         loss_fn = MaskedChannelMSE(w).to(device)
@@ -502,7 +541,6 @@ def main(cfg : DictConfig):
     ## On calcule le nombre de features considérées
     n_features = len(meta["feature_cols"])
 
-
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size,
                         n_outputs=meta['n_outputs'] if is_finetuning else 4)
 
@@ -560,6 +598,19 @@ def main(cfg : DictConfig):
               f"paramètres entraînables : {n_trainable} / {n_total}")
 
 
+    ## Le module NON compile reste la reference pour les checkpoints : torch.compile enveloppe
+    ## le modele et prefixerait toutes les cles du state_dict par '_orig_mod.', ce qui rendrait
+    ## les checkpoints illisibles par load_checkpoint et check_backbone_compatibility.
+    modele_nu = model
+    if cfg.train.get('compile', False):
+        if device.type != 'cuda':
+            print("[compile] ignore : pas de GPU")
+        else:
+            print("[compile] compilation du modele (quelques minutes, une seule fois)...")
+            model = torch.compile(model)
+
+    amp = contexte_amp(cfg, device)
+
     def build_param_groups(model, weight_decay):
         no_decay_exact={"cls_token", "mask_token"}
         decay, no_decay = [], []
@@ -599,17 +650,17 @@ def main(cfg : DictConfig):
     scheduler = build_lr_scheduler(optimizer, total_steps, warmup_ratio=cfg.train.warmup_epochs / cfg.train.epochs)
 
     logger = RunLogger(cfg, HydraConfig.get().runtime.output_dir, )
-    logger.watch(model)
+    logger.watch(modele_nu)
 
     for epoch in tqdm(range(cfg.train.epochs), desc="epochs"):
 
         if is_pretrain : 
-            train_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch=epoch, scheduler=scheduler)
-            val_loss = evaluate_pretraining_epoch(model=model, data_loader=val_loader, loss_fn=loss_fn, device=device, seed=cfg.seed ) 
+            train_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch=epoch, scheduler=scheduler, amp=amp)
+            val_loss = evaluate_pretraining_epoch(model=model, data_loader=val_loader, loss_fn=loss_fn, device=device, seed=cfg.seed, amp=amp) 
             metrics = {"lr": scheduler.get_last_lr()[0]}
             line = (f"epoch {epoch} : train loss: {train_loss:.4f} | val loss : {val_loss:.4f} | ")
         else : 
-            train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch=epoch, scheduler=scheduler)
+            train_loss= train_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch=epoch, scheduler=scheduler, amp=amp)
 
             if is_classifier :
                 val_loss, metrics = evaluate_epoch_classifier(model, val_loader, cfg.task.node_types, cfg.task.node_classes, loss_fn, device)
@@ -635,7 +686,7 @@ def main(cfg : DictConfig):
         scaler = meta['scaler']
         per_obj = isinstance(scaler, dict)
 
-        logger.save_checkpoint(model, epoch, is_best, n_features=n_features, window_size=window_size,
+        logger.save_checkpoint(modele_nu, epoch, is_best, n_features=n_features, window_size=window_size,
             ## les noms ET leur ordre : n_features seul ne permet pas de verifier qu'un
             ## finetuning ulterieur presente les canaux dans le meme ordre a l'encodeur.
             feature_cols = list(meta['feature_cols']),
@@ -649,7 +700,7 @@ def main(cfg : DictConfig):
         ## pas celui de la derniere epoch, que _criterion a pu ecarter.
         best_pt = logger.chekpoint_dir / "best.pt"
         seuil = logger.best_metrics.get('treshold', 0.5)
-        model.load_state_dict(torch.load(best_pt, map_location=device, weights_only=False)['model_state'])
+        modele_nu.load_state_dict(torch.load(best_pt, map_location=device, weights_only=False)['model_state'])
         probs = split_probs_by_object(predict_probs(model, val_loader, device), meta)
         figures = plot_fold_detection(
             objects, meta['val_ids'], probs,

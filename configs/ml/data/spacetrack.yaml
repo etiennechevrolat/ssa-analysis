@@ -21,4 +21,3 @@ revin_window_cols : ['sma', 'i_continue']  ## canaux concernes ; les autres pass
 revin_sigma_floor :
   sma : 0.002
   i_continue : 0.15
-

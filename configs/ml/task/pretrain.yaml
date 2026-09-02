@@ -1,21 +1,17 @@
 name : pretrain
 
-
 channel_weights:
-  ## angles de phase : quasi imprevisibles et sans rapport avec la detection de manoeuvre
   dt: 0.0
   cosM: 0.0
   sinM: 0.0
   cosRAAN: 0.0
   sinRAAN: 0.0
-  ## argument du perigee : meme raisonnement que RAAN, et pour e ~ 1e-3 la direction du
-  ## perigee est mal definie, donc dominee par le bruit.
   cosARGP: 0.0
   sinARGP: 0.0
-  ## elements portant la manoeuvre
-  bstar: 0.2
-  sma: 1.0
-  i_continue: 1.0
-  ecc: 1.0            
-  sma_diff: 2.0
-  i_continue_diff: 1.5
+
+  ## Focalisation. sma et sma_diff a parite
+  sma: 1.5
+  sma_diff: 0.55
+  i_continue: 0.56
+  ecc: 0.22
+  bstar: 0.19

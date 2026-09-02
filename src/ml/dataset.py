@@ -425,8 +425,14 @@ def make_pretrain_loader(objects, window_size, stride, batch_size=256, val_split
     train_dataset = UnlabeledWindowDataset(per_obj, train_ids, window_size, stride)
     val_dataset = UnlabeledWindowDataset(per_obj, val_ids, window_size, stride)
 
-    train_dl = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
-    val_dl = DataLoader(val_dataset, batch_size, shuffle=False, num_workers=4, pin_memory=True, persistent_workers=True)
+    ## drop_last : sans lui le dernier batch de chaque epoch est partiel, donc d'une forme
+    ## inedite, et torch.compile recompile le graphe entier (~7 min) a chaque fois. On perd
+    ## au plus 255 fenetres sur ~770 000, et la val loss reste comparable d'une epoch a l'autre
+    ## puisqu'on ecarte toujours le meme reliquat.
+    train_dl = DataLoader(train_dataset, batch_size, shuffle=True, num_workers=4, pin_memory=True,
+                          persistent_workers=True, drop_last=True)
+    val_dl = DataLoader(val_dataset, batch_size, shuffle=False, num_workers=4, pin_memory=True,
+                        persistent_workers=True, drop_last=True)
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
                 "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj}
     return train_dl, val_dl, meta

@@ -151,12 +151,6 @@ def load_doris_objects(data_dir, bstar_factor_k):
     for norad, sub in df.groupby('norad'):
         df_object = sub.sort_values(['epoch', 'creation_date']).drop_duplicates('epoch', keep='last').copy() ## on retire les doublons.
 
-        ## transformations des features de norad (doit correspondre à celles du pretrain)
-        ## L'ORDRE aussi doit y correspondre : outliers d'abord, puis temps, dt et bstar. TimeIndex
-        ## et epochs_tle doivent etre poses APRES la suppression, car ils servent d'indice de ligne
-        ## dans build_doris_targets sur une serie deja raccourcie : les poser avant decale chaque
-        ## manoeuvre du nombre d'outliers qui la precedent, silencieusement.
-
         ## on retire les outliers
         is_outlier = np.array(sma_outliers_detection(norad, df_object, 0, len(df_object), n_from_mad=4)) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
         outliers_total += int(is_outlier.sum())
@@ -233,7 +227,6 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
     print("Début du traitement des données...")
     outliers_total = 0
     total_tles = 0
-    ecartes = {}
 
     ## Choix de l'ordre de grandeur du régime linéaire de bstar
     k = 1.0
@@ -246,9 +239,6 @@ def load_spacetrack_objects(data_dir : Path, dataset = 'leo'):
         ## retire les TLEs spacetrack outliers détectés sur le sma 
         times= pd.to_datetime(df['epoch']).to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs en secondes
         is_outlier = np.array(sma_outliers_detection(norad, df, 0, len(times), n_from_mad=4)) ## nettoie une partie des outliers aberrants sur le demi-grand-axe
-        ## is_outlier est un MASQUE booleen de la longueur de la serie : c'est sa somme qui
-        ## compte les outliers, pas sa longueur. Et le denominateur doit etre le nombre de
-        ## TLE AVANT suppression, sinon le taux est calcule sur une base amputee.
         outliers_total += int(is_outlier.sum())
         total_tles += len(is_outlier)
         df = df[~is_outlier]
@@ -292,8 +282,8 @@ log_cols = ['sma']
 diff_cols_splid  =['Semimajor Axis (m)', 'q', 'p']
 
 ## Pretraining added features
-diff_cols_spacetrack = ['sma', 'i_continue'] ## attention : le sma spacetrack est en km
-heavy_tail_cols_spacetrack = ['sma_diff', 'i_continue_diff'] ## residus a queue lourde : cf add_robust_asinh
+diff_cols_spacetrack = ['sma'] ## attention : le sma spacetrack est en km
+heavy_tail_cols_spacetrack = ['sma_diff'] ## residus a queue lourde : cf add_robust_asinh
 
 def _elements_bruts(df, spacetrack=True):
     """Les cinq elements angulaires, sous la nomenclature du jeu de donnees."""
@@ -310,18 +300,7 @@ def _elements_bruts(df, spacetrack=True):
 
 
 def add_separated_angles(df : pd.DataFrame, spacetrack=True):
-    """Ajoute la representation continue et SEPAREE : un canal par grandeur physique.
-
-        ecc                        excentricite
-        i_continue = tan(i/2)      inclinaison
-        cosRAAN, sinRAAN           noeud ascendant
-        cosARGP, sinARGP           argument du perigee
-        cosM, sinM                 anomalie moyenne
-
-    C'est le chemin PRINCIPAL. add_continuous_angles (equinoxial) ne sert plus qu'au repli
-    sur les anciens checkpoints et au jeu SPLID : ses coordonnees k, h, q, p melangent
-    plusieurs elements dans un meme nombre, si bien qu'une variation ne s'attribue pas.
-    Ici rien n'est perdu -- k, h, q, p restent reconstructibles (cf. to_separated_angles).
+    """Ajoute la representation continue
     """
     e, i, RAAN, argp, anomaly, anomaly_type = _elements_bruts(df, spacetrack)
     ecc, i_c, cO, sO, cw, sw, cM, sM = to_separated_angles(e, i, RAAN, argp, anomaly, anomaly_type)
@@ -338,9 +317,6 @@ def add_continuous_angles(df : pd.DataFrame, spacetrack=True):
     (e, i, RAAN, arg_perigee, M) en paramètres equinoxaux continus :
     (k, h , q , p, cos(lamda), sin(lamda))
     et les ajoutent au dataframe
-
-    Conservee pour le repli legacy_angles et pour le chemin SPLID ; le chemin spacetrack
-    principal passe par add_separated_angles.
     """
     if spacetrack : 
         e = df['eccentricity']
@@ -417,7 +393,6 @@ def add_level_and_local_variations(df, level_cols):
 
 ## Ancien jeu de features, celui des checkpoints de pretrain <= 2026-08-31. Conserve pour
 ## pouvoir finetuner dessus tant qu'aucun pretrain n'a tourne avec les nouvelles features.
-
 
 
 ## Chemin PRINCIPAL : un canal par grandeur physique, aucun melange (cf. add_separated_angles).

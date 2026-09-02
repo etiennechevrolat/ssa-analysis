@@ -6,3 +6,9 @@ batch_size : 256
 
 ## chemin ABSOLU d'un last.pt pour reprendre un run interrompu ; null = repart de zero
 resume_from: null
+
+## Optimisations du pas, mesurees sur RTX 3090 (batch 256, MAEv3, window 512, 13 features) :
+##   fp32 seul 130 ms | +tf32 86 ms (x1.5) | +bf16 55 ms (x2.4) | +compile 32 ms (x4.1)
+tf32 : true       ## matmuls fp32 sur tensor cores ; aucun effet visible sur la convergence
+amp : bf16        ## null pour desactiver. bf16 plutot que fp16 : pas besoin de GradScaler
+compile : true    ## ~7 min de compilation au demarrage, amorti sur un run long
