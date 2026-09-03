@@ -8,5 +8,5 @@ patch_size : 16
 embed_dim : 128        ## = encoder_embed_dim du MAEv3
 n_attn_heads : 8       ## = encoder_n_attn_heads
 n_blocks : 12          ## = encoder_n_blocks
-expansion_factor : 8   ## dimension MLP 1024 : idem, une valeur differente casse les shapes
+expansion_factor : 4   ## dimension MLP 1024 : idem, une valeur differente casse les shapes
 dropout_rate : 0.0

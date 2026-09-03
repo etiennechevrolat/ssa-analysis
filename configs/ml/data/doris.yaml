@@ -14,7 +14,10 @@ n_folds : null
 history: 256
 future : 255
 
-## true -> ANCIEN jeu de features (p, q au lieu de i_continue/cosRAAN/sinRAAN), pour finetuner
-## sur les checkpoints de pretrain existants, qui ont ete entraines dessus. A repasser a false
-## une fois qu'un pretrain aura tourne sur les nouvelles features.
-legacy_angles : true
+## Couple (labels, parametres orbitaux) a charger. Les deux vont ENSEMBLE : un label dont
+## le norad n'est pas dans les parametres n'a pas de serie ou se placer et disparait sans
+## bruit. Couple etendu par l'annotation SSO (15 objets -> 57, 1653 -> 2232 labels) :
+##   labels_file : leo_maneuvers_label_augmented_sso.csv
+##   params_file : leo_doris_orbital_params_sso.parquet
+labels_file : leo_maneuvers_label_augmented_sso_200.csv
+params_file : leo_doris_orbital_params_sso.parquet   ## .parquet accepte aussi

@@ -57,8 +57,7 @@ def _angles_radians(e, i, raan, arg_perigee, anomaly, anomaly_type):
 
 def to_equinoxal(e, i, raan, arg_perigee, anomaly, anomaly_type = 'true'):
     # Keplerian angles (e, i, RAAN, arg_perigee, M) -> Equinoxal (k, h , q , p, cos(M), sin(M)) continuous
-    ## Conservee pour le repli sur les anciens checkpoints (legacy_angles) et pour le chemin
-    ## SPLID. Le chemin principal passe desormais par to_separated_angles : ces coordonnees
+    ## Conservee pour le chemin SPLID uniquement. Le chemin principal passe desormais par to_separated_angles : ces coordonnees
     ## MELANGENT les elements (k et h portent e ET la longitude du pericentre, q et p portent
     ## l'inclinaison ET le RAAN), ce qui empeche d'attribuer une variation a un element.
     e, i, raan, arg_perigee, M = _angles_radians(e, i, raan, arg_perigee, anomaly, anomaly_type)

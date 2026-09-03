@@ -412,7 +412,10 @@ def main(cfg : DictConfig):
     if is_pretrain :
         objects = load_spacetrack_objects(cfg.data.data_dir, cfg.data.dataset)
     elif is_finetuning : 
-        objects, labels = load_doris_objects(cfg.data.data_dir_labels, cfg.task.bstar_factor_k)
+        objects, labels = load_doris_objects(
+            cfg.data.data_dir_labels, cfg.task.bstar_factor_k,
+            labels_file=cfg.data.get('labels_file', 'leo_maneuvers_label_augmented.csv'),
+            params_file=cfg.data.get('params_file', 'leo_doris_orbital_params.csv'))
     else:
         objects, labels = load_splid_objects(
             cfg.data.data_dir, 
@@ -508,7 +511,6 @@ def main(cfg : DictConfig):
                     tolerance_hours=cfg.task.tolerance_hours,
                     min_tle=cfg.task.min_tle,
                     min_maneuvers=cfg.task.min_maneuvers,
-                    legacy_angles=cfg.data.legacy_angles,
         )
         window_size = cfg.data.history + cfg.data.future + 1
 
@@ -564,6 +566,7 @@ def main(cfg : DictConfig):
         if pretrain_data_cfg.get('revin_per_window_norm', False):
             cols = list(pretrain_data_cfg.get('revin_window_cols') or [])
             floor = pretrain_data_cfg.get('revin_sigma_floor', 0.0)
+            print(meta['feature_cols'])
             model.configure_instance_norm(meta['feature_cols'], cols, floor)
             print(f"[finetuning] RevIN par fenetre repris du pretrain : {cols} "
                   f"(plancher sigma {floor}) | normalisation dataset : "
@@ -649,10 +652,40 @@ def main(cfg : DictConfig):
     total_steps = cfg.train.epochs * len(train_loader)
     scheduler = build_lr_scheduler(optimizer, total_steps, warmup_ratio=cfg.train.warmup_epochs / cfg.train.epochs)
 
+    ## REPRISE d'un run interrompu. cfg.train.resume_from = chemin ABSOLU d'un last.pt.
+    epoch_depart = 0
+    reprise = cfg.train.get('resume_from', None)
+    if reprise:
+        etat = torch.load(reprise, map_location=device, weights_only=False)
+        cols_ckpt = etat.get('feature_cols')
+        if cols_ckpt is not None and list(cols_ckpt) != list(meta['feature_cols']):
+            raise ValueError(f"features du checkpoint {list(cols_ckpt)} != {list(meta['feature_cols'])} "
+                             f": reprendre dessus melangerait deux jeux de canaux")
+        modele_nu.load_state_dict(etat['model_state'])
+        epoch_depart = etat['epoch'] + 1
+
+        if 'optimizer_state' in etat:
+            optimizer.load_state_dict(etat['optimizer_state'])
+        else:
+            print("[reprise] pas d'etat d'optimiseur dans le checkpoint -> moments AdamW remis a "
+                  "zero. Attends-toi a un transitoire sur la loss pendant quelques centaines de pas.")
+        if 'scheduler_state' in etat:
+            scheduler.load_state_dict(etat['scheduler_state'])
+        else:
+            ## sans etat sauve, on rejoue les pas : sinon le LR repartirait au warmup, ce qui
+            ## reinjecterait un grand pas d'apprentissage sur un modele deja converge.
+            for _ in range(epoch_depart * len(train_loader)):
+                scheduler.step()
+            print(f"[reprise] scheduler avance a {epoch_depart * len(train_loader)} pas, "
+                  f"lr = {scheduler.get_last_lr()[0]:.3e}")
+        print(f"[reprise] {reprise}\n[reprise] epoch {etat['epoch']} -> demarrage a "
+              f"{epoch_depart}/{cfg.train.epochs}")
+
     logger = RunLogger(cfg, HydraConfig.get().runtime.output_dir, )
     logger.watch(modele_nu)
 
-    for epoch in tqdm(range(cfg.train.epochs), desc="epochs"):
+    for epoch in tqdm(range(epoch_depart, cfg.train.epochs), initial=epoch_depart,
+                      total=cfg.train.epochs, desc="epochs"):
 
         if is_pretrain : 
             train_loss = pretrain_one_epoch(model, train_loader, loss_fn, optimizer, device, epoch=epoch, scheduler=scheduler, amp=amp)
@@ -690,6 +723,9 @@ def main(cfg : DictConfig):
             ## les noms ET leur ordre : n_features seul ne permet pas de verifier qu'un
             ## finetuning ulterieur presente les canaux dans le meme ordre a l'encodeur.
             feature_cols = list(meta['feature_cols']),
+            ## sans eux, une reprise repart avec des moments AdamW nuls (cf. bloc [reprise])
+            optimizer_state = optimizer.state_dict(),
+            scheduler_state = scheduler.state_dict(),
             scaler_mean = None if per_obj else meta['scaler'].mean_,
             scaler_scale = None if per_obj else meta['scaler'].scale_,
             scaler_kind = 'per_obj' if per_obj else 'global'

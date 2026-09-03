@@ -121,20 +121,35 @@ def load_spacetrack_objects_to_splid(data_dir : Path, out_dir = None, cadence_ho
 
 max_dt_hours = 24.0 
 
-def load_doris_objects(data_dir, bstar_factor_k):
+def load_doris_objects(data_dir, bstar_factor_k,
+                       labels_file='leo_maneuvers_label_augmented_sso_200.csv',
+                       params_file='leo_doris_orbital_params.csv'):
     """
     Charge les csv du dataset doris en {object_id, df}
     On fait attention à réappliquer les mêmes transformations que lors du pretrain : sur dt, bstar pour l'instant
+
+    labels_file / params_file : les deux fichiers vont PAR PAIRE. Un label dont le norad
+    n'apparaît pas dans les paramètres orbitaux n'a aucune série où se placer et disparaît
+    sans bruit — d'où les deux paramètres plutôt qu'un seul.
+    Couple étendu disponible : 'leo_maneuvers_label_augmented_sso.csv' et
+    'leo_doris_orbital_params_sso.csv' (15 objets -> 57, cf. sso_annotation/).
     """
 
-    labels_dir = Path(os.path.join(data_dir,'leo_maneuvers_label_augmented.csv'))
-    train_dir = Path(os.path.join(data_dir, 'train', 'leo_doris_orbital_params.csv'))
+    labels_dir = Path(os.path.join(data_dir, labels_file))
+    train_dir = Path(os.path.join(data_dir, 'train', params_file))
+    for f in (labels_dir, train_dir):
+        if not f.exists():
+            raise FileNotFoundError(f"fichier de labels/paramètres introuvable : {f}")
 
     labels = pd.read_csv(labels_dir)
     df_labels = labels.copy()
     df_labels['epoch_sec'] = pd.to_datetime(df_labels['epoch'], format = 'ISO8601').to_numpy('datetime64[ns]').astype('int64') / 1e9 ## epochs maneuvres en secondes
 
-    df = pd.read_csv(train_dir)
+    ## .parquet accepté pour les paramètres orbitaux : le jeu étendu par l'annotation SSO
+    ## pèse ~200 Mo en CSV contre ~40 Mo en parquet, et se relit une dizaine de fois plus
+    ## vite. Le CSV reste le défaut, rien ne change pour le jeu DORIS d'origine.
+    df = (pd.read_parquet(train_dir) if train_dir.suffix == '.parquet'
+          else pd.read_csv(train_dir))
     objects= {}
     df_labels['TimeIndex'] = np.nan
     outliers_total = 0
@@ -398,33 +413,22 @@ def add_level_and_local_variations(df, level_cols):
 ## Chemin PRINCIPAL : un canal par grandeur physique, aucun melange (cf. add_separated_angles).
 ANGLES_SEPARES = ['ecc', 'i_continue', 'cosRAAN', 'sinRAAN', 'cosARGP', 'sinARGP', 'cosM', 'sinM']
 
-## Repli : les equinoxiaux des checkpoints <= 2026-08-31, avec leurs propres colonnes de diff.
-LEGACY_ANGLES = ['k', 'h', 'p', 'q', 'cosM', 'sinM']
-LEGACY_DIFF_COLS = ['sma']
+def build_features(df, spacetrack=True, log_features=False):
+    """Features spacetrack : angles SEPARES (add_separated_angles).
 
+    Excentricite, tan(i/2), et un couple (cos, sin) par angle : un element physique par
+    canal, donc une variation s'attribue sans ambiguite.
 
-def build_features(df, spacetrack=True, log_features=False, legacy_angles=False):
-    """Features spacetrack. Deux representations angulaires, exclusives l'une de l'autre.
-
-    Par defaut : angles SEPARES (add_separated_angles) -- excentricite, tan(i/2), et un
-    couple (cos, sin) par angle. Un element physique par canal, donc une variation
-    s'attribue sans ambiguite. 13 features.
-
-    legacy_angles=True : equinoxiaux k, h, p, q (add_continuous_angles), qui melangent les
-    elements mais reproduisent a l'identique les 10 features des checkpoints anterieurs.
+    Les equinoxiaux (k, h, p, q) des checkpoints <= 2026-08-31 ne sont plus proposes ici :
+    tout checkpoint anterieur au pretrain du 2026-09-02 est incompatible avec ce chemin.
     """
     if not spacetrack:
         return _build_features_splid(df)
     if log_features:
         return _build_features_spacetrack_log(df)
 
-    df = df.copy()
-    if legacy_angles:
-        df = add_continuous_angles(df, spacetrack=True)
-        angles, diff_cols = LEGACY_ANGLES, LEGACY_DIFF_COLS
-    else:
-        df = add_separated_angles(df, spacetrack=True)
-        angles, diff_cols = ANGLES_SEPARES, diff_cols_spacetrack
+    df = add_separated_angles(df.copy(), spacetrack=True)
+    angles, diff_cols = ANGLES_SEPARES, diff_cols_spacetrack
 
     df = add_diff(df, diff_cols)
     ## l'asinh robuste ne porte que sur les residus effectivement calcules
