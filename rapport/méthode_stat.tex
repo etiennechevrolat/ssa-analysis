@@ -1,0 +1,112 @@
+
+
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+% Better font encoding for French and scalable fonts
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb, amsfonts, amsthm, stmaryrd}
+\usepackage{tikz}
+\usetikzlibrary{matrix,arrows}
+\usepackage{tikz-cd}
+\usepackage{geometry}
+\usepackage[french]{babel}
+\usepackage{amsopn}
+
+\title{Une méthode solide de test statistique pour détecter les manoeuvres}
+\author{Etienne Chevrolat}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+    On cherche ici à expliquer une méthode statistique avancée pour tester la présence de ruptures au sein des séries de paramètres orbitaux.
+    On teste à la fois des ruptures de niveau (manoeuvres impulsionnelles), et des ruptures de pentes (manoeuvres type propulsion électrique).
+\end{abstract}
+
+\section{Le modèle statistique}
+
+\subsection{Le cadre}
+
+On va considérer $y_{sat}$ un paramètre orbital issu d'un TLE (demi-grand axe ou inclinaison par exemple) sur un historique long (2000 TLEs par exemple).
+
+On découpe cet historique long en fenêtres courtes de $N = 20$ TLEs typiquement. 
+
+Considéront donc une de ces fenêtres. On réindexe le temps sur le milieu de la fenêtre : 
+$ 
+\forall k \in [1, \dots, N] : \tau_k = t_k - t_{centre}
+$
+L'instant central $t_{centre}$ est l'instant où a lieu la manoeuvre s'il y en a une dans cette fentêtre temporelle.
+
+Sur cette fenêtre temporelle courte, on va approximer $y_{sat}$ par son polynôme de Taylor à l'ordre $p$ ainsi que par des termes de ruptures: 
+
+$$
+y_{sat}(\tau) = c_0 + c_1 \tau ^1 + \dots + c_p \tau ^ p + A_{niveau} \mathbb{1}_{\tau > 0} + B_{pente} max(0, \tau) + \epsilon 
+$$
+
+\vspace{0.3cm}
+\noindent\fbox{
+\begin{minipage}{0.98\textwidth}
+\textbf{Modèle linéaire gaussien}
+On considère un bruit gaussien : $\epsilon \sim \mathcal{N}(0,I)$
+On peut réécrire l'approximation précédente sous la forme :
+$
+y_sat = X \beta + \epsilon
+$
+\begin{itemize}
+    \item 
+    X = \begin{pmatrix}
+        a & b \\ c & d 
+        \end{pmatrix}
+\end{itemize}
+\end{minipage}
+}
+
+
+
+
+On peut ensuite lier des variations de vitesse dans le référentiel inertiel terrestre aux variations des paramètres orbitaux de l'ellipse, et vice-versa. 
+
+\vspace{0.3cm}
+
+\noindent\fbox{
+\begin{minipage}{0.98\textwidth}
+\textbf{Variations de vitesse et variations de paramètres orbitaux}\newline
+On considère une variation $\Delta v = (\Delta v _r , \Delta v _u ,\Delta v _h )$ de la vitesse décomposée dans le référentiel terrestre en vitesses radiale, tangentielle et normale.
+Les équations de Gauss nous donnent dans la limite quasi-circulaire:  
+\begin{itemize}
+    \item $\Delta a = \dfrac{2}{n} \Delta v _u$
+
+\end{itemize}
+\end{minipage}
+
+}
+\vspace{0.3cm}
+
+On en déduit les interprétations suivantes : 
+Des variations de a et e traduisent des manoeuvres \textit{in plane}  (variation de vitesse radiale)
+Des variations de i et $\Omega$ traduisent des  manoeuvres \textit{out plane} (variation de vitesse normale)
+
+\subsection{Two Line Elements}
+
+Les paramètres orbitaux décrits ci-dessus ne sont pas mesurés directement : ils sont diffusés par les organismes de surveillance de l'espace sous la forme de \textit{Two Line Elements} (TLE).
+Un TLE est un format standardisé qui encode, sur deux lignes de 69 caractères, l'ensemble des éléments nécessaires pour reconstituer l'orbite d'un objet à un instant de référence appelé \textit{epoch}.
+
+\vspace{0.3cm}
+\noindent\fbox{%
+\begin{minipage}{0.98\textwidth}
+
+\textbf{Contenu d'un TLE}
+\begin{itemize}
+    \item \textbf{Identification} : numéro de catalogue NORAD, classification, désignateur international (année de lancement, numéro de lancement) et numéro du jeu d'éléments.
+\end{itemize}
+\end{minipage}
+
+}
+\vspace{0.5cm}
+
+
+\end{document}
+ 
