@@ -17,6 +17,11 @@ wandb :
 
 hydra : 
   run :
-   dir : ${hydra:runtime.cwd}/outputs/ml/${task.name}/${now:%Y-%m-%d_%H-%M-%S}
+   ## outputs/ml/<tache>/<groupe de donnees>/<date du run>. Le groupe vient du fichier
+   ## configs/ml/data/*.yaml (cle run_group) : il separe les campagnes qui n'ont pas tourne
+   ## sur le meme jeu d'objets, sans quoi elles se melangent sous la meme tache.
+   ## Un groupe data sans run_group retombe sur '.', que pathlib efface : le chemin reste
+   ## alors outputs/ml/<tache>/<date>, comme avant.
+   dir : ${hydra:runtime.cwd}/outputs/ml/${task.name}/${oc.select:data.run_group,'.'}/${now:%Y-%m-%d_%H-%M-%S}
 
   

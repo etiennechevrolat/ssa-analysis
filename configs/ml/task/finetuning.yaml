@@ -4,18 +4,18 @@ name : finetuning
 ## Converties en indices TLE objet par objet : la cadence varie d'un facteur ~4 entre
 ## satellites (dt médian 6,8h pour 25260, 24,4h pour 22076), donc une valeur en indices
 ## ne représente pas la même durée d'un objet à l'autre.
-half_width_hours : 48.0
-tolerance_hours : 48.0
+half_width_hours : 24.0
+tolerance_hours : 24.0
 
-## true -> cible unique 'manoeuvre' (les 4 canaux type/intensité fusionnés).
+## true -> cible unique 'manoeuvre' (in-track et cross-track fusionnes).
 detection_only : False
 
 ckpt_path : null
 freeze_encoder : True
 bstar_factor_k : 1.0
 
-## Planchers d'exclusion d'un objet, appliques AVANT le decoupage en folds : en leave-one-out
-## chaque objet retenu devient un fold, donc un objet insignifiant ne degrade pas seulement
-## l'entrainement, il ajoute a la moyenne un F2 qui ne mesure rien  .
+## Planchers d'exclusion d'un objet, appliques AVANT le split train/val : un objet trop court
+## ne produit que des fenetres paddees, et un objet a une ou deux manoeuvres n'apporte que du
+## bruit -- au F2 s'il tombe en validation, a la loss s'il tombe en entrainement.
 min_tle : null        ## null -> une fenetre complete (history + future + 1)
 min_maneuvers : 1     ## nombre de manoeuvres exploitables, au sens de gt_events_doris

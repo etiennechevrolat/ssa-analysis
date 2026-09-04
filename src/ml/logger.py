@@ -9,7 +9,6 @@ import numpy as np
 import shutil 
 
 from pathlib import Path
-from datetime import datetime
 
 from omegaconf import OmegaConf
 import json 
@@ -21,12 +20,11 @@ class RunLogger:
         self.run_dir = Path(run_dir)
         self.chekpoint_dir = self.run_dir / 'checkpoints'
         self.chekpoint_dir.mkdir(parents=True, exist_ok=True)
+        ## Les figures ont leur propre dossier : un fold de validation en produit une par objet,
+        ## et a 200 objets elles noieraient metrics.jsonl et train.log a la racine du run.
+        self.figures_dir = self.run_dir / 'figures'
+        self.figures_dir.mkdir(parents=True, exist_ok=True)
         self.metrics_path = self.run_dir / "metrics.jsonl"
-
-        ## Le dossier par defaut est horodate a la seconde, donc unique. Mais des qu'on force
-        ## hydra.run.dir sur un chemin fixe -- un balayage de folds, typiquement -- relancer
-        ## reecrit dans le meme dossier : on archive l'ancien run au lieu de le melanger.
-        self._archive_previous_run()
 
         self.best_loss = float("inf")
         self.best_epoch = None
@@ -40,35 +38,6 @@ class RunLogger:
                 dir=str(self.run_dir),
                 config=OmegaConf.to_container(cfg, resolve=True)
             )
-
-    def _archive_previous_run(self):
-        """Deplace les artefacts d'un run precedent au lieu de les melanger aux nouveaux.
-
-        Sans ca, metrics.jsonl -- ouvert en append -- contenait les epochs des deux runs a la
-        suite (0..N puis 0..M), ce qui rend les courbes illisibles et l'agregation fausse ;
-        best.pt et last.pt, eux, etaient ecrases sans un mot. On archive plutot que d'effacer :
-        le run precedent est peut-etre celui qu'on voulait garder.
-        """
-        anciens = [p for p in (self.metrics_path,
-                               self.chekpoint_dir / "last.pt",
-                               self.chekpoint_dir / "best.pt") if p.exists()]
-        if not anciens:
-            return
-
-        date = datetime.fromtimestamp(max(p.stat().st_mtime for p in anciens))
-        archive = self.run_dir / f"run_precedent_{date:%Y-%m-%d_%H-%M-%S}"
-        ## l'horodatage est celui des fichiers archives, a la seconde : deux archivages
-        ## rapproches viseraient le meme dossier et shutil.move ecraserait la premiere archive.
-        suffixe = 2
-        while archive.exists():
-            archive = self.run_dir / f"run_precedent_{date:%Y-%m-%d_%H-%M-%S}_{suffixe}"
-            suffixe += 1
-        (archive / "checkpoints").mkdir(parents=True)
-        for p in anciens:
-            shutil.move(str(p), str(archive / p.relative_to(self.run_dir)))
-
-        print(f"[logger] {self.run_dir} contenait deja un run : {len(anciens)} fichier(s) "
-              f"deplace(s) dans {archive.name}/. Le nouveau run repart a vide.")
 
     def watch(self, model):
         if self.use_wandb and self.cfg.wandb.watch:
@@ -132,6 +101,8 @@ class RunLogger:
     def finish(self):
         print(f"[logger] meilleure val loss =  {self.best_loss:.4f} pour l'epoch {self.best_epoch}")
         print(f"[logger] artefacts : {self.run_dir}")
+        print(f"[logger]   checkpoints/ (best.pt, last.pt) | metrics.jsonl | figures/ "
+              f"({len(list(self.figures_dir.glob('*.png')))} png) | .hydra/ | train.log")
         if self.use_wandb : 
             wandb.finish()
 

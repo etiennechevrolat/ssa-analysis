@@ -1,5 +1,5 @@
 from ml.targets import (build_target, build_classifier_samples, build_doris_targets,
-                        DELTA_V_THRESHOLD, half_width_in_indices)
+                        half_width_in_indices)
 from ml.evaluate import doris_channels, gt_events_doris
 from ml.datahandler import build_features
 from torch.utils.data import Dataset, DataLoader
@@ -56,22 +56,19 @@ def build_classifier_arrays(objects,labels):
         per_obj[oid] = [X,Y]
     return per_obj, feature_cols
 
-def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=DELTA_V_THRESHOLD,
+def build_finetuning_arrays(objects, labels, half_width_hours=48.0,
                             detection_only=False, min_tle=0, min_maneuvers=1):
     """
-    chaque objet -> (X: (L,F), Y: (L,2,2)) pour le finetuning sur les manoeuvres DORIS.
+    chaque objet -> (X: (L,F), Y: (L,2)) pour le finetuning sur les manoeuvres DORIS.
     features spacetrack (cadence irrégulière -> dt, sma en km) pour rester aligné sur le pretrain MAE.
 
-    detection_only=True fusionne les 4 canaux type/intensité en un seul (L,1,1) : toute la
-    supervision (~1300 manoeuvres) se concentre sur la tâche difficile, détecter un évènement,
-    au lieu d'être éclatée sur 4 canaux dont le plus rare n'a que 44 exemples.
+    detection_only=True fusionne les deux types en un seul canal (L,1) : toute la supervision
+    se concentre sur la tâche difficile, détecter un évènement, au lieu d'être partagée entre
+    l'in-track et le cross-track, bien plus rare.
 
-    min_tle / min_maneuvers : planchers sous lesquels un objet est écarté. C'est ICI que ça se
-    joue et nulle part ailleurs : split_by_object et split_by_object_kfold partent de
-    per_obj.keys(), donc tout objet retenu ici devient un fold en leave-one-out. Un objet plus
-    court qu'une fenêtre ne produit que des fenêtres remplies de padding, et un objet à une ou
-    deux manoeuvres donne un F2 qui ne prend que quelques valeurs possibles — dans les deux cas
-    un fold dont le chiffre ne mesure rien, mais qui entre quand même dans la moyenne.
+    min_tle / min_maneuvers : planchers sous lesquels un objet est écarté. Un objet plus court
+    qu'une fenêtre ne produit que des fenêtres remplies de padding, et un objet à une ou deux
+    manoeuvres pèse surtout par le bruit qu'il ajoute à la validation.
     """
     per_obj, feature_cols = {}, None
     retenus, ecartes = {}, {}
@@ -79,9 +76,9 @@ def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=D
         df_feat, cols = build_features(df, spacetrack=True)
         feature_cols = _same_feature_cols(cols, feature_cols, oid)
         X = df_feat[feature_cols].to_numpy(np.float32)
-        Y = build_doris_targets(df, oid, labels, half_width_hours=half_width_hours, thresholds=thresholds)
+        Y = build_doris_targets(df, oid, labels, half_width_hours=half_width_hours)
         if detection_only:
-            Y = Y.max(axis=(1, 2), keepdims=True) ## (L,1,1) : manoeuvre, tout type et toute intensité
+            Y = Y.max(axis=1, keepdims=True) ## (L,1) : manoeuvre, tout type confondu
 
         ## Nombre de manoeuvres exploitables : on reprend gt_events_doris, donc EXACTEMENT le
         ## filtre de l'évaluation. Compter autrement ici reviendrait à écarter des objets sur
@@ -101,16 +98,15 @@ def build_finetuning_arrays(objects, labels, half_width_hours=48.0, thresholds=D
             continue
         print(f"[build_finetuning_arrays] norad {oid} écarté : {ecartes[oid]}")
 
-    ## < 2 objets : le k-fold groupé n'a plus de sens, le seul fold possible a un train vide
-    ## et la boucle d'entraînement diviserait par zéro sans dire pourquoi.
+    ## < 2 objets : le split par objet n'a plus de sens, le seul partage possible laisse un
+    ## train vide et la boucle d'entraînement diviserait par zéro sans dire pourquoi.
     if len(per_obj) < 2:
         raise ValueError(f"{len(per_obj)} objet(s) passent les planchers min_tle={min_tle}, "
                          f"min_maneuvers={min_maneuvers} : il en faut au moins 2 pour un split "
                          f"par objet (un en validation, un en entraînement)")
 
     print(f"[build_finetuning_arrays] {len(per_obj)} objets retenus sur {len(objects)} "
-          f"-> {len(per_obj)} folds en leave-one-out (planchers : {min_tle} TLE, "
-          f"{min_maneuvers} manoeuvre(s))")
+          f"(planchers : {min_tle} TLE, {min_maneuvers} manoeuvre(s))")
     for oid, (n_tle, n_man) in sorted(retenus.items(), key=lambda kv: kv[1][1]):
         print(f"    norad {oid} : {n_tle} TLE, {n_man} manoeuvres")
     return per_obj, feature_cols
@@ -127,25 +123,6 @@ def split_by_object(object_ids, val_split=0.2, seed=42):
 
     ## .tolist() sur un tableau d'entiers restitue des int python (les clés des dicts d'objets)
     return(ids[n_val:].tolist(), ids[:n_val].tolist())
-
-def split_by_object_kfold(object_ids, fold, n_folds=None, seed=42):
-    """
-    Split groupé par objet : renvoie (train_ids, val_ids) du fold demandé.
-    n_folds=None -> leave-one-object-out (autant de folds que d'objets).
-    Chaque objet est en validation dans exactement un fold, donc lancer tous les folds
-    évalue le modèle sur l'ensemble du dataset sans jamais entraîner sur son val.
-    """
-    rng = np.random.default_rng(seed)
-    ids = np.array(sorted(object_ids))
-    rng.shuffle(ids)
-    if n_folds is None:
-        n_folds = len(ids)
-    if not 0 <= fold < n_folds:
-        raise ValueError(f"fold {fold} hors de [0, {n_folds})")
-
-    val_ids = np.array_split(ids, n_folds)[fold]
-    train_ids = np.setdiff1d(ids, val_ids)
-    return train_ids.tolist(), val_ids.tolist()
 
 def fit_scaler_on_train(per_obj, train_ids, scaler=None, per_object=False):
     """Ajuste le scaler sur le train seulement, ou applique un scaler déjà ajusté.
@@ -208,7 +185,7 @@ class WindowDataset(Dataset):
     def __init__(self, per_obj, objects_ids, history=48, future=48, flatten_target=False,
                  pad_mode='constant'):
         self.windowsize = history + future + 1
-        self.flatten_target = flatten_target # cible DORIS (L,2,2) -> (4,) pour une tête linéaire
+        self.flatten_target = flatten_target # cible DORIS (L,2) -> (2,) pour une tête linéaire
         self.padded = {} # oid -> (Xpad, Y) pour bien gérer la fenètre glissante aux bords. Xpad est la matrice paddée des features .
         self.index = [] # index plat
         for oid in objects_ids:
@@ -225,7 +202,7 @@ class WindowDataset(Dataset):
         window = Xpad[t:t+ self.windowsize] # (W, Features)
         x = torch.from_numpy(window.T).float() # (Features, Window)  + transformation en tenseurs pytorch
         target = Y[t].reshape(-1) if self.flatten_target else Y[t]
-        y = torch.from_numpy(np.ascontiguousarray(target)).float() # (2, ) ou (4, ) pour DORIS (qui prend en compte l'intensité de la manoeuvre)
+        y = torch.from_numpy(np.ascontiguousarray(target)).float() # (2, ) : EW/NS pour SPLID, in-track/cross-track pour DORIS
         return x,y
 
 
@@ -344,16 +321,15 @@ def make_loaders_classifiers(objects, labels, batch_size=256, history=48, future
 
 def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=47,
                             val_split=0.2, seed=42, half_width_hours=48.0, flatten_target=True,
-                            thresholds=DELTA_V_THRESHOLD, fold=None, n_folds=None,
                             detection_only=False, scaler=None, per_object_scaler=False,
                             tolerance_hours=48.0, pad_mode='edge',
                             min_tle=None, min_maneuvers=1):
     """
-    Loaders pour le finetuning DORIS. Cible (L,2,2) aplatie en (4,) par défaut, (1,) si
+    Loaders pour le finetuning DORIS. Cible (L,2) aplatie en (2,) par défaut, (1,) si
     detection_only.
-    fold=None -> split simple par val_split. Sinon k-fold groupé par objet : avec seulement
-    13 objets exploitables un split unique donne 2 objets en validation, non stratifiés par
-    type de manoeuvre, donc un chiffre que le tirage suffit à faire bouger.
+    Split simple groupé par objet (val_split) : avec les ~200 objets de l'annotation SSO, la
+    validation en compte assez pour que le chiffre ne dépende plus du tirage — ce que le
+    leave-one-out compensait quand le jeu DORIS n'avait que 13 objets exploitables.
     scaler non None -> on réutilise celui du pretrain au lieu d'en ajuster un nouveau.
     per_object_scaler=True -> normalisation par objet, recalculée sur chaque série DORIS
     (cf. fit_scaler_on_train) ; c'est le mode des checkpoints scaler_kind='per_obj'.
@@ -365,13 +341,10 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     if min_tle is None:
         min_tle = history + future + 1
     per_obj, feature_cols = build_finetuning_arrays(objects, labels, half_width_hours=half_width_hours,
-                                                    thresholds=thresholds, detection_only=detection_only,
+                                                    detection_only=detection_only,
                                                     min_tle=min_tle, min_maneuvers=min_maneuvers)
-    
-    if fold is None:
-        train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
-    else:
-        train_ids, val_ids = split_by_object_kfold(per_obj.keys(), fold, n_folds, seed)
+
+    train_ids, val_ids = split_by_object(per_obj.keys(), val_split, seed)
 
     scaler = fit_scaler_on_train(per_obj, train_ids, scaler=scaler, per_object=per_object_scaler)
     
@@ -385,7 +358,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     val_dl = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
                         num_workers=4, persistent_workers=True)
 
-    target_shape = next(iter(per_obj.values()))[1].shape[1:] ## (2, C) ou (1, 1)
+    target_shape = next(iter(per_obj.values()))[1].shape[1:] ## (2,) ou (1,) si detection_only
 
     ## tolérance d'appariement en HEURES -> indices, par objet (cf. half_width_hours)
     tolerance = {oid : half_width_in_indices(objects[oid], tolerance_hours) for oid in per_obj}
@@ -393,8 +366,7 @@ def make_loaders_finetuning(objects, labels, batch_size=256, history=48, future=
     meta = {"feature_cols" : feature_cols, "scaler" : scaler,
             "scaler_kind" : 'per_obj' if per_object_scaler else 'global',
             "train_ids" : train_ids, "val_ids" : val_ids, "per_obj" : per_obj,
-            "delta_v_thresholds" : thresholds, "half_width_hours" : half_width_hours,
-            "fold" : fold, "n_folds" : n_folds,
+            "half_width_hours" : half_width_hours,
             "detection_only" : detection_only,
             "min_tle" : min_tle, "min_maneuvers" : min_maneuvers,
             "channels" : ('maneuver',) if detection_only else doris_channels,

@@ -61,10 +61,10 @@ def build_classifier_samples(object_id, labels, nodes=pol_nodes):
 doris_types = ('in-track', 'cross-track') ## 'radial' (2 occurrences) et les types manquants sont ignorés
 doris_type_to_index = {maneuver_type : i for i, maneuver_type in enumerate(doris_types)}
 
-## Seuils absolus en m/s sur le delta_v, partagés par les deux types de manoeuvre.
-
-DELTA_V_THRESHOLD = 0.1 ## pour un satellite GEO, cela correspond à une manoeuvre de ~2km sur le demi grand axe
-intensity_labels = ('faible', 'forte')
+## Le delta_v reste dans les CSV de labels, mais ne découpe plus de canaux : la frontière
+## faible/forte était un seuil absolu sur une grandeur elle-même estimée depuis les TLE, donc
+## deux manoeuvres d'effet comparable tombaient de part et d'autre. Une détection correcte au
+## bon instant mais du mauvais côté du seuil comptait alors comme un FP ET un FN.
 
 
 def half_width_in_indices(df, half_width_hours):
@@ -79,24 +79,22 @@ def half_width_in_indices(df, half_width_hours):
     return max(1, int(round(half_width_hours / median_dt_hours)))
 
 
-def build_doris_targets(df, norad_id, labels, half_width_hours=48.0, thresholds=DELTA_V_THRESHOLD):
+def build_doris_targets(df, norad_id, labels, half_width_hours=48.0):
     """
-    Cible (L, 2, 2) : bosses triangulaires autour des manoeuvres, avec
-    axe 1 = type de manoeuvre    (0 = in-track, 1 = cross-track)
-    axe 2 = intensité du delta_v (0 = faible, 1 = forte)
+    Cible (L, 2) : bosses triangulaires autour des manoeuvres, une colonne par type
+    (0 = in-track, 1 = cross-track).
 
     L = longueur de la série de TLE de l'objet (df) 
     Le time_index d'une manoeuvre est celui du TLE spacetrack le plus proche de son epoch,
     dans l'index créé par load_doris_objects (les labels hors fenêtre TLE y ont TimeIndex = NaN).
 
-    Les classes d'intensité sont découpées sur des seuils absolus en delta_v (DELTA_V_THRESHOLD),
-    identiques pour les deux types de manoeuvre : 'forte' désigne donc le même effet physique
-    en in-track et en cross-track, et les seuils ne dépendent pas du split train/val.
+    Un delta_v manquant n'écarte plus la manoeuvre : il ne sert plus à rien ici, et l'exiger
+    revenait à retirer de la cible des évènements bien datés.
 
     half_width_hours est en HEURES, converti en indices selon la cadence propre à l'objet.
     """
     L = len(df)
-    Y = np.zeros((L, 2, 2), dtype=np.float32)
+    Y = np.zeros((L, 2), dtype=np.float32)
     w = half_width_in_indices(df, half_width_hours)
 
 
@@ -107,11 +105,9 @@ def build_doris_targets(df, norad_id, labels, half_width_hours=48.0, thresholds=
     object_labels['TimeIndex'] = object_labels['TimeIndex'].astype(int)
 
     for row in object_labels.itertuples(index=False):
-        type_idx = doris_type_to_index.get(row.maneuver_type)
-        if type_idx is None or np.isnan(row.delta_v): ## maneuver_type absent/radial, ou delta_v manquant
+        type_idx = doris_type_to_index.get(row.maneuver_type) ## None : maneuver_type absent ou radial
+        if type_idx is None:
             continue
-        
-        intensity_idx = 0 if row.delta_v < DELTA_V_THRESHOLD else 1
 
         c = row.TimeIndex
         lo = max(0, c - w)
@@ -119,7 +115,7 @@ def build_doris_targets(df, norad_id, labels, half_width_hours=48.0, thresholds=
         idx = np.arange(lo, hi)
         bump = 1. - np.abs(idx - c) / w
 
-        Y[idx, type_idx, intensity_idx] = np.maximum(Y[idx, type_idx, intensity_idx], bump)
+        Y[idx, type_idx] = np.maximum(Y[idx, type_idx], bump)
 
     return Y
 

@@ -1,23 +1,19 @@
 data_dir: ${hydra:runtime.cwd}/data/raw/spacetrack
 data_dir_labels : ${hydra:runtime.cwd}/data/parsed/labelled_leo_DORIS
 dataset : 'leo_doris'
-val_split: 0.2 ## utilisé seulement si fold est null
 
-## k-fold groupé par objet. fold null -> split simple par val_split.
-## n_folds null -> leave-one-object-out (13 folds sur les objets exploitables).
-fold : null
-n_folds : null
+run_group : 200_SSO_objects
+
+## Part des objets mis en validation. Le split est groupe PAR OBJET : aucune fenetre d'un
+## objet de validation n'est vue a l'entrainement.
+val_split: 0.2
 
 ## Fenetre de 512 TLE = la window_size du pretrain MAEv3 : la table d'embeddings positionnels
 ## de l'encodeur fait 512/16 = 32 lignes et ne se charge que sur une fenetre de meme geometrie.
-## history + future + 1 = 512, la cible restant au centre.
+## history + future + 1 = 512
 history: 256
 future : 255
 
-## Couple (labels, parametres orbitaux) a charger. Les deux vont ENSEMBLE : un label dont
-## le norad n'est pas dans les parametres n'a pas de serie ou se placer et disparait sans
-## bruit. Couple etendu par l'annotation SSO (15 objets -> 57, 1653 -> 2232 labels) :
-##   labels_file : leo_maneuvers_label_augmented_sso.csv
-##   params_file : leo_doris_orbital_params_sso.parquet
+
 labels_file : leo_maneuvers_label_augmented_sso_200.csv
 params_file : leo_doris_orbital_params_sso.parquet   ## .parquet accepte aussi

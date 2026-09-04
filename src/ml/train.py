@@ -203,7 +203,7 @@ def evaluate_epoch_finetuning(
     """
     Validation du finetuning DORIS : même protocole d'appariement d'évènements que le
     localizer SPLID (seuillage -> centre des runs -> matching à +-tolerance), mais sur les
-    canaux type/intensité (ou le canal unique 'maneuver') au lieu des directions EW/NS.
+    canaux in-track / cross-track (ou le canal unique 'maneuver') au lieu des directions EW/NS.
 
     Le seuil de détection est balayé et on renvoie le meilleur F2, avec le seuil retenu dans
     les métriques : 0.1 était réglé pour le localizer SPLID et une tête sous-confiante peut
@@ -221,7 +221,7 @@ def evaluate_epoch_finetuning(
         x = time_series_batch.to(device)
         y = labels_batch.to(device)
 
-        pred = model(x) ## (B, 4) logits
+        pred = model(x) ## (B, n_canaux) logits
         loss = loss_fn(pred, y)
         running_loss += float(loss.item()) * labels_batch.size(0)
         total += labels_batch.size(0)
@@ -229,7 +229,7 @@ def evaluate_epoch_finetuning(
         all_probs.append(torch.sigmoid(pred).cpu().numpy())
 
     ## le val loader ne mélange pas : on peut redécouper la concaténation objet par objet
-    all_probs = np.concatenate(all_probs, axis=0) ## (N, 4)
+    all_probs = np.concatenate(all_probs, axis=0) ## (N, n_canaux)
     val_ids = meta['val_ids']
     objects_lengths = [len(meta['per_obj'][oid][0]) for oid in val_ids]
     assert np.sum(objects_lengths) == len(all_probs)
@@ -455,11 +455,6 @@ def main(cfg : DictConfig):
             )
         ## le pretrain est une régression : mean-square-error loss
         
-        ### on ajuste les poids de chaque feature dans le calcul de la loss
-        ## Tout canal doit etre liste EXPLICITEMENT, poids nul compris : un canal oublie
-        ## prenait 1.0 en silence, ce qui a deja fait tourner un run entier avec un poids
-        ## que personne n'avait choisi. Une part de loss ne se lit dans aucune valeur de
-        ## loss, donc rien ne l'aurait signale.
         poids = dict(cfg.task.get("channel_weights") or {})
         inconnus = [c for c in poids if c not in meta["feature_cols"]]
         if inconnus:
@@ -503,8 +498,6 @@ def main(cfg : DictConfig):
                     seed=cfg.seed,
                     half_width_hours=cfg.task.half_width_hours,
                     flatten_target=True,
-                    fold=cfg.data.fold,
-                    n_folds=cfg.data.n_folds,
                     detection_only=cfg.task.detection_only,
                     scaler=pretrain_scaler,
                     per_object_scaler=per_object_scaler,
@@ -514,14 +507,9 @@ def main(cfg : DictConfig):
         )
         window_size = cfg.data.history + cfg.data.future + 1
 
-        ## ~1% de positifs par canal : sans pondération, prédire 0 partout est la stratégie
-        ## optimale au démarrage et le modèle n'a aucune raison d'en sortir.
         train_Y = np.concatenate([meta['per_obj'][oid][1].reshape(-1, meta['n_outputs'])
                                   for oid in meta['train_ids']])
         positive_rate = (train_Y > 0).mean(axis=0)
-        ## un canal sans aucun positif dans ce fold (possible en LOO, ex. cross-track/faible
-        ## n'a que 44 exemples) donnerait un poids infini : on le laisse à 1, il n'y a rien
-        ## à y apprendre et l'amplifier ne ferait que déstabiliser la loss des autres canaux.
         pos_weight = np.where(positive_rate > 0, (1.0 - positive_rate) / np.maximum(positive_rate, 1e-12), 1.0)
         pos_weight = torch.tensor(pos_weight, dtype=torch.float32)
         print(f"[finetuning] canaux {meta['channels']} | taux de positifs {np.round(positive_rate, 4).tolist()} "
@@ -542,7 +530,7 @@ def main(cfg : DictConfig):
 
     ## On calcule le nombre de features considérées
     n_features = len(meta["feature_cols"])
-
+    print(meta['n_outputs'])
     model = build_model(cfg.model, cfg.task, n_features=n_features, window_size=window_size,
                         n_outputs=meta['n_outputs'] if is_finetuning else 4)
 
@@ -557,16 +545,10 @@ def main(cfg : DictConfig):
               f"| normalisation dataset : {'par objet' if cfg.data.get('revin_norm') else 'globale'}")
 
     elif is_finetuning:
-        ## Le RevIN par fenetre n'est pas un reglage du finetuning : c'est une propriete de
-        ## l'encodeur charge. On le relit donc dans la config du checkpoint et non dans cfg.data,
-        ## sinon un encodeur gele pre-entraine sur des fenetres centrees reduites recevrait ici
-        ## des fenetres brutes. Le plancher sigma est dans les unites du scaler amont, qui doit
-        ## etre le meme des deux cotes (per_object_scaler ci-dessus).
         pretrain_data_cfg = (ckpt.get('config') or {}).get('data', {})
         if pretrain_data_cfg.get('revin_per_window_norm', False):
             cols = list(pretrain_data_cfg.get('revin_window_cols') or [])
             floor = pretrain_data_cfg.get('revin_sigma_floor', 0.0)
-            print(meta['feature_cols'])
             model.configure_instance_norm(meta['feature_cols'], cols, floor)
             print(f"[finetuning] RevIN par fenetre repris du pretrain : {cols} "
                   f"(plancher sigma {floor}) | normalisation dataset : "
@@ -594,6 +576,7 @@ def main(cfg : DictConfig):
         if cfg.task.freeze_encoder:
             for p in model.encoder.parameters():
                 p.requires_grad = False
+            print([p.numel() for p in model.parameters() if p.requires_grad])
         n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         n_total = sum(p.numel() for p in model.parameters())
         print(f"[finetuning] backbone {cfg.task.ckpt_path} chargé | "
@@ -741,7 +724,7 @@ def main(cfg : DictConfig):
         figures = plot_fold_detection(
             objects, meta['val_ids'], probs,
             gt_events_doris(labels, meta['val_ids'], detection_only=meta['detection_only']),
-            out_dir=logger.run_dir, threshold=seuil, channels=meta['channels'],
+            out_dir=logger.figures_dir, threshold=seuil, channels=meta['channels'],
             tolerance=meta['tolerance'])
         print(f"[finetuning] figure(s) de detection (epoch {logger.best_epoch}, seuil {seuil}) : "
               + ", ".join(f.name for f in figures))
