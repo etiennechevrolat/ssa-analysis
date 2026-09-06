@@ -1,0 +1,174 @@
+
+
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+% Better font encoding for French and scalable fonts
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb, amsfonts, amsthm, stmaryrd}
+\usepackage{tikz}
+\usetikzlibrary{matrix,arrows}
+\usepackage{tikz-cd}
+\usepackage{geometry}
+\usepackage[french]{babel}
+\usepackage{amsopn}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+\title{Méthode de détection de manoeuvre par filtrage Kalman}
+\author{Etienne Chevrolat}
+\date{}
+
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+    On présente la méthode de détection de manoeuvre d'un satellite par filtrage de ses paramètres orbitaux issus de TLE. 
+\end{abstract}
+
+\section{Le filtrage linéaire Kalman}
+
+\subsection{Le principe}
+On a $a \in \mathbb{R} ^n $ une série temporelle donnée d'un paramètre, par exemple le demi grand axe. 
+
+
+On propage d'un instant $t$ à un instant $t+1$ comme suit : 
+
+\begin{itemize}
+    \item $a_{t+1} = a_t  + \Delta t \dot{a_t}  $ filtre d'ordre 1
+    \item $a_{t+1} = a_t  + \Delta t \dot{a_t}  +   \frac{1}{2} \Delta t^2  \ddot{a_t} $ filtre d'ordre 2
+\end{itemize}
+
+Par la suite on ne détaille que le filtre d'ordre 1, pour l'ordre 2 il faut juste changer la matrice de transition.
+
+Le vecteur d'état est donc 
+$
+X = \begin{pmatrix}
+a_t \\ 
+\dot{a_t}
+\end{pmatrix}
+$
+et la matrice de transition du filtre à l'instant $t$: 
+
+\[
+F= \begin{pmatrix}
+1 & \Delta t \\ 
+0 & 1 
+\end{pmatrix} \in \mathcal{M}_2(\mathbb{R}) 
+\] 
+
+On définit aussi la matrice de covariance $P$, le controle $u$ et la matrice de controle $B$, la matrice de bruit $Q$, la mesure $z$, le bruit de mesure $R$ et la fonction de mesure $H$. 
+
+
+\[
+P = \begin{pmatrix}
+\sigma _a ^2 & \sigma _{a \dot{a}}\\ 
+\sigma _{a \dot{a}} &  \sigma _a ^2 
+\end{pmatrix},
+\quad 
+u = 0,
+\quad 
+B = 0,
+\quad 
+Q = f( \Delta t , \text{var}_Q),
+\quad 
+z \in \mathbb{R} ^d, 
+\quad 
+R  \in \mathcal{M}_d(\mathbb{R}),
+\quad 
+H = \begin{pmatrix}
+1 \\ 
+0
+\end{pmatrix}
+\] 
+
+Les variables sont alors mises à jour n fois.
+D'abord une propagation : 
+\[
+\overline{x} = Fx + Bu = Fx, \quad
+\overline{P} = F P F^T + Q
+\] 
+
+Puis on calcule des résidus entre la propagation et la mesure et on met à jour les variables :
+\[
+y = z - H \overline{x}, \quad 
+K =  \overline{P} H ^ T (H \overline{P} H ^T + R)^ {-1} \quad
+x = \overline{x} + K y \quad
+P = (I - K H) \overline{P}
+\]
+
+L'indicateur de manoeuvre est donc le résidu $y$ entre la mesure et la propagation linéaire de l'instant précédent.
+Pour obtenir un indicateur normalisé, on calcule l'incertitude du système : 
+\[
+S = H P ^ {-1} H ^ T + R \in \mathbb{R}
+\]
+et on normalise les résidus : 
+\[
+\varepsilon = y ^2 / S. 
+\]
+
+\subsection{Seuillage de la métrique des résidus normalisés :}
+
+$\varepsilon$ suit une loi du $\chi ^ 2 $ à 1 degré de liberté. Pour détecter des anomalies dans la série, il suffit donc (une fois que les paramètres du filtre sont convenablement choisis), de tagger comme manoeuvre tous les points pour lequels $\varepsilon_t > q $, où q est le quantile d'ordre $0.997$ de la distribution par exemple. 
+
+\vspace{0.3cm}
+\noindent\fbox{
+\begin{minipage}{0.98\textwidth}
+
+\textbf{Les paramètres du filtre}
+Dans un second temps notre objectif sera d'optimiser en fonction de la precision, recall, f1 les paramètres a priori arbitraires du filtre. 
+
+\begin{itemize}
+    \item $\text{var}_Q $ : la variance du bruit lié processus de propagations
+    \item $R = r \in \mathbb{R}$ la variance sur la mesure $z$. 
+    \item $P = 
+    \begin{pmatrix} p_0 & 0\\  0 &  p_0 \end{pmatrix}$ la matrice initiale de covariance des données.
+\end{itemize}
+
+On aura donc à optimiser la métrique F1 sur un espace $(r, \text{var}_Q, p_0) $ à 3 dimensions
+\end{minipage}
+}
+
+
+\section{Résultats sur le jeu DORIS augmenté}
+
+201 objets SSO, 825\,247 TLE, 698 objet-an. Canal du demi-grand axe contre les manoeuvres
+in-track, seuil $\chi^2_1$ à 0,997, appariement au plus proche à 1,5 jour. Les paramètres
+$(\mathrm{var}_Q, r, p_0)$ sont optimisés par évolution différentielle sur une F1 lissée.
+
+Quatre réglages sont comparés : un jeu de paramètres par objet, un jeu par cluster
+d'objets, et un jeu unique pour tous. Les clusters sont obtenus par HDBSCAN, soit sur des
+grandeurs observables directement (demi-grand axe, inclinaison, excentricité, $B^*$,
+cadence du catalogue, bruit haute fréquence), soit sur les représentations à 128 dimensions
+de l'encodeur préentraîné. Le nombre entre parenthèses est le nombre d'optimisations
+nécessaires.
+
+\begin{center}
+\small
+\input{figures/kalman_tab_resultats}
+\end{center}
+
+\section{Détections}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/kalman_detections.png}
+\end{figure}
+
+\clearpage
+\section{Figures}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/kalman_nis_exemple.png}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/kalman_configs.png}
+\end{figure}
+
+\end{document}
+ 

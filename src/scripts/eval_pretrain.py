@@ -22,7 +22,7 @@ Modules (option --only) :
   embed     clustering HDBSCAN et sonde linéaire sur les embeddings CLS
   examples  reconstructions qualitatives
 
-Figures dans rapport/figures/ (préfixe pretrain_), métriques dans pretrain_metrics.json.
+Figures dans rapport/pretrain/figures/ (préfixe pretrain_), métriques dans pretrain_metrics.json.
 """
 
 import argparse
@@ -47,7 +47,7 @@ from ml.inference import (load_checkpoint, load_pretrained_backbone, embed_objec
                           cluster_embeddings, reconstruct_window)
 
 ROOT = Path(__file__).resolve().parents[2]
-FIG_DIR = ROOT / "rapport" / "figures"
+FIG_DIR = ROOT / "rapport" / "pretrain" / "figures"
 RUN_DIR = ROOT / "outputs" / "ml" / "pretrain"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

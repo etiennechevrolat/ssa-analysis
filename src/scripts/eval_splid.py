@@ -12,8 +12,8 @@ Le script :
   4. matrices de confusion du classifier (node et type de propulsion) ;
   5. figure du fossé de domaine SPLID vs TLE SpaceTrack (cadence d'échantillonnage).
 
-Toutes les figures sont écrites dans rapport/figures/ (préfixe splid_) et les
-métriques dans rapport/figures/splid_metrics.json.
+Toutes les figures sont écrites dans rapport/splid/figures/ (préfixe splid_) et les
+métriques dans rapport/splid/figures/splid_metrics.json.
 """
 
 import json
@@ -34,7 +34,7 @@ from ml.inference import load_checkpoint
 from ml.splid_eval import score, build_submission, ground_truth_for, predict_scores
 
 ROOT = Path(__file__).resolve().parents[2]
-FIG_DIR = ROOT / "rapport" / "figures"
+FIG_DIR = ROOT / "rapport" / "splid" / "figures"
 DATA_DIR = ROOT / "data" / "raw" / "splid_dataset" / "training"
 LABELS = ROOT / "data" / "raw" / "splid_dataset" / "train_label.csv"
 TEST_DIR = ROOT / "data" / "raw" / "splid_dataset" / "test"

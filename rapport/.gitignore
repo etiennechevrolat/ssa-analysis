@@ -1,0 +1,13 @@
+# Artefacts de compilation LaTeX : regeneres par latexmk, inutiles dans git.
+# Les .pdf restent suivis pour pouvoir lire un rapport sans le recompiler.
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.out
+*.toc
+*.bbl
+*.blg
+*.nav
+*.snm
